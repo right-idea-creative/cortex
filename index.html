@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ODC Call Analytics</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: #f0f2f5;
+  color: #1a1a2e;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* ── Header ── */
+header {
+  background: #0d1b2a;
+  color: #fff;
+  padding: 0 32px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 2px 8px rgba(0,0,0,.35);
+}
+header svg { flex-shrink: 0; opacity: .85; }
+header h1 { font-size: 17px; font-weight: 600; letter-spacing: -.2px; }
+.header-tag {
+  margin-left: auto;
+  font-size: 11px;
+  color: rgba(255,255,255,.45);
+  font-weight: 500;
+}
+
+/* ── UTC banner ── */
+.utc-banner {
+  background: #fff8e1;
+  border-bottom: 1px solid #ffe082;
+  padding: 7px 32px;
+  font-size: 12px;
+  color: #6d4c00;
+}
+
+/* ── Error state ── */
+#error-state {
+  display: none;
+  margin: 40px auto;
+  max-width: 520px;
+  background: #fff;
+  border: 1px solid #ffcdd2;
+  border-radius: 10px;
+  padding: 28px 32px;
+  text-align: center;
+}
+#error-state h2 { color: #c62828; margin-bottom: 10px; font-size: 16px; }
+#error-state code { display: block; background: #f5f5f5; border-radius: 6px; padding: 10px 14px; font-size: 13px; margin: 14px 0; text-align: left; color: #333; }
+#error-state p { color: #616161; font-size: 13px; }
+
+/* ── Loading ── */
+#loading-state {
+  text-align: center;
+  padding: 80px 32px;
+  color: #757575;
+  font-size: 15px;
+}
+.spinner {
+  width: 36px; height: 36px;
+  border: 3px solid #e0e0e0;
+  border-top-color: #1565c0;
+  border-radius: 50%;
+  animation: spin .8s linear infinite;
+  margin: 0 auto 16px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Filters bar ── */
+#filter-bar {
+  display: none;
+  background: #fff;
+  border-bottom: 1px solid #e4e6ea;
+  padding: 12px 32px;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+#filter-bar label { font-size: 12px; font-weight: 600; color: #616161; text-transform: uppercase; letter-spacing: .4px; }
+select#client-filter {
+  border: 1px solid #d0d3d8;
+  border-radius: 6px;
+  padding: 6px 28px 6px 10px;
+  font-size: 13px;
+  color: #1a1a2e;
+  background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%23666' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E") no-repeat right 10px center;
+  appearance: none;
+  cursor: pointer;
+  min-width: 220px;
+}
+.day-btns { display: flex; gap: 4px; }
+.day-btns button {
+  border: 1px solid #d0d3d8;
+  border-radius: 6px;
+  background: #fff;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #424242;
+  cursor: pointer;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.day-btns button.active {
+  background: #1565c0;
+  border-color: #1565c0;
+  color: #fff;
+}
+.day-btns button:hover:not(.active) { background: #f5f7fa; }
+.data-as-of { margin-left: auto; font-size: 12px; color: #9e9e9e; }
+
+/* ── Main content ── */
+#dashboard { display: none; padding: 24px 32px; }
+
+/* ── Summary cards ── */
+.cards {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 14px;
+  margin-bottom: 20px;
+}
+@media (max-width: 1100px) { .cards { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 700px)  { .cards { grid-template-columns: repeat(2, 1fr); } }
+
+.card {
+  background: #fff;
+  border-radius: 10px;
+  padding: 18px 20px 16px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.07);
+}
+.card .c-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .6px;
+  color: #9e9e9e;
+  margin-bottom: 8px;
+}
+.card .c-value {
+  font-size: 30px;
+  font-weight: 700;
+  color: #0d1b2a;
+  line-height: 1.1;
+}
+.card .c-sub {
+  font-size: 12px;
+  color: #9e9e9e;
+  margin-top: 4px;
+}
+.card.accent-red  .c-value { color: #c62828; }
+.card.accent-blue .c-value { color: #1565c0; }
+
+/* ── Chart grid ── */
+.chart-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+@media (max-width: 900px) { .chart-grid { grid-template-columns: 1fr; } }
+.chart-grid.single { grid-template-columns: 1fr; }
+
+.chart-card {
+  background: #fff;
+  border-radius: 10px;
+  padding: 20px 22px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.07);
+}
+.chart-card h3 {
+  font-size: 13px;
+  font-weight: 600;
+  color: #424242;
+  margin-bottom: 4px;
+}
+.chart-card .chart-note {
+  font-size: 11px;
+  color: #9e9e9e;
+  margin-bottom: 14px;
+}
+.chart-wrap { position: relative; }
+
+/* ── Heatmap ── */
+.heatmap-scroll { overflow-x: auto; margin-top: 14px; }
+.heatmap-tbl { border-collapse: collapse; font-size: 10.5px; white-space: nowrap; }
+.heatmap-tbl th {
+  padding: 4px 5px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #757575;
+  text-align: center;
+  background: #f8f9fb;
+}
+.heatmap-tbl th.row-head { text-align: right; min-width: 36px; padding-right: 8px; }
+.heatmap-tbl td {
+  width: 34px; height: 26px;
+  text-align: center;
+  border: 1px solid rgba(0,0,0,.04);
+  cursor: default;
+  font-size: 9.5px;
+  transition: opacity .1s;
+}
+.heatmap-tbl td:hover { outline: 2px solid #1565c0; outline-offset: -2px; }
+.heatmap-legend {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  font-size: 11px;
+  color: #9e9e9e;
+}
+.legend-grad {
+  width: 120px; height: 10px;
+  border-radius: 4px;
+  background: linear-gradient(to right, #fff9c4, #e53935);
+  border: 1px solid #e0e0e0;
+}
+
+/* ── Google Ads table ── */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  margin-top: 14px;
+}
+.data-table thead th {
+  background: #f8f9fb;
+  padding: 9px 14px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  color: #757575;
+  border-bottom: 2px solid #e8eaed;
+}
+.data-table thead th.num { text-align: right; }
+.data-table tbody td {
+  padding: 8px 14px;
+  border-bottom: 1px solid #f0f2f5;
+  color: #424242;
+}
+.data-table tbody td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.data-table tbody tr:hover td { background: #f8f9fb; }
+.data-table .total-row td {
+  font-weight: 700;
+  background: #f0f4ff;
+  border-top: 2px solid #d0daf5;
+}
+.no-data { color: #bdbdbd; font-style: italic; padding: 20px 0; text-align: center; }
+
+/* ── Section divider ── */
+.section-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .7px;
+  color: #9e9e9e;
+  margin: 6px 0 10px;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.07 12 19.79 19.79 0 0 1 1 3.18 2 2 0 0 1 2.96 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.09 8.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/>
+  </svg>
+  <h1>ODC Call Analytics</h1>
+  <span class="header-tag">CallTrackingMetrics · Google Ads</span>
+</header>
+
+<div class="utc-banner">
+  ⚠️ Time-of-day and day-of-week data is in <strong>UTC</strong>. Per-franchise local-time accuracy requires timezone data in client_mapping, which is not yet available. Use peak-hour analysis as an approximation only.
+</div>
+
+<div id="loading-state">
+  <div class="spinner"></div>
+  Loading dashboard data…
+</div>
+
+<div id="error-state">
+  <h2>data.json not found</h2>
+  <p>Run the export script to generate the data file:</p>
+  <code>cd ctm-dashboard<br>python export_data.py</code>
+  <p>Then reload this page. The script requires <code>google-cloud-bigquery</code> and Application Default Credentials.</p>
+</div>
+
+<!-- Filters (shown after data loads) -->
+<div id="filter-bar">
+  <label for="client-filter">Client</label>
+  <select id="client-filter"></select>
+  <label>Date range</label>
+  <div class="day-btns">
+    <button data-days="30" class="active">30 days</button>
+    <button data-days="60">60 days</button>
+    <button data-days="90">90 days</button>
+  </div>
+  <span class="data-as-of" id="data-as-of"></span>
+</div>
+
+<!-- Dashboard (shown after data loads) -->
+<div id="dashboard">
+
+  <!-- Summary cards -->
+  <div class="cards">
+    <div class="card">
+      <div class="c-label">Total Calls</div>
+      <div class="c-value" id="c-total">—</div>
+      <div class="c-sub" id="c-total-sub"></div>
+    </div>
+    <div class="card accent-red">
+      <div class="c-label">Missed Calls</div>
+      <div class="c-value" id="c-missed">—</div>
+      <div class="c-sub" id="c-miss-rate"></div>
+    </div>
+    <div class="card">
+      <div class="c-label">Answered Calls</div>
+      <div class="c-value" id="c-answered">—</div>
+      <div class="c-sub" id="c-ans-rate"></div>
+    </div>
+    <div class="card accent-blue">
+      <div class="c-label">Google Ads Spend</div>
+      <div class="c-value" id="c-spend">—</div>
+      <div class="c-sub">last selected period</div>
+    </div>
+    <div class="card accent-blue">
+      <div class="c-label">Cost per Call</div>
+      <div class="c-value" id="c-cpc">—</div>
+      <div class="c-sub">Google Ads only</div>
+    </div>
+  </div>
+
+  <!-- Row 1: donut + stacked daily bar -->
+  <div class="chart-grid">
+    <div class="chart-card">
+      <h3>Calls by Channel</h3>
+      <div class="chart-note">Share of total call volume in selected period</div>
+      <div class="chart-wrap" style="height:280px">
+        <canvas id="chart-donut"></canvas>
+      </div>
+    </div>
+    <div class="chart-card">
+      <h3>Daily Call Volume</h3>
+      <div class="chart-note">Stacked by channel — all channels</div>
+      <div class="chart-wrap" style="height:280px">
+        <canvas id="chart-daily"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Row 2: missed bar + ads dual-axis -->
+  <div class="chart-grid">
+    <div class="chart-card">
+      <h3>Answered vs Missed by Channel</h3>
+      <div class="chart-note">Stacked; hover for miss rate</div>
+      <div class="chart-wrap" style="height:260px">
+        <canvas id="chart-missed"></canvas>
+      </div>
+    </div>
+    <div class="chart-card">
+      <h3>Google Ads: Spend vs Calls</h3>
+      <div class="chart-note">Bars = spend (left axis) · Line = call volume (right axis)</div>
+      <div class="chart-wrap" style="height:260px">
+        <canvas id="chart-ads"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Heatmap -->
+  <div class="chart-grid single">
+    <div class="chart-card">
+      <h3>Call Volume Heatmap — Day of Week × Hour (UTC)</h3>
+      <div class="chart-note">Based on full call history for selected client, not the date window above. Darker = higher volume.</div>
+      <div class="heatmap-scroll">
+        <table class="heatmap-tbl" id="heatmap-table"></table>
+      </div>
+      <div class="heatmap-legend">
+        <span>Low</span>
+        <div class="legend-grad"></div>
+        <span>High</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Google Ads performance table -->
+  <div class="chart-grid single">
+    <div class="chart-card">
+      <h3>Google Ads Daily Performance</h3>
+      <div class="chart-note" id="ads-table-note"></div>
+      <div style="overflow-x:auto">
+        <table class="data-table" id="ads-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th class="num">Google Ads Calls</th>
+              <th class="num">Spend</th>
+              <th class="num">Cost / Call</th>
+            </tr>
+          </thead>
+          <tbody id="ads-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /#dashboard -->
+
+<script>
+// ── Constants ─────────────────────────────────────────────────────────────────
+const CHANNEL_COLORS = {
+  'Google Ads':      '#4285F4',
+  'Bing Ads':        '#00897B',
+  'Nextdoor':        '#00B246',
+  'Meta':            '#1877F2',
+  'Organic / Direct':'#43A047',
+  'Other':           '#9E9E9E',
+};
+const CHANNEL_ORDER = ['Google Ads','Bing Ads','Nextdoor','Meta','Organic / Direct','Other'];
+const DAY_LABELS    = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let DATA        = null;
+let activeClient = 'all';
+let activeDays   = 30;
+let charts       = {};
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+(async function init() {
+  try {
+    const res = await fetch('data.json');
+    if (!res.ok) throw new Error(res.statusText);
+    DATA = await res.json();
+  } catch (err) {
+    document.getElementById('loading-state').style.display = 'none';
+    document.getElementById('error-state').style.display = 'block';
+    return;
+  }
+
+  document.getElementById('loading-state').style.display = 'none';
+
+  // Populate client dropdown
+  const sel = document.getElementById('client-filter');
+  sel.innerHTML = '<option value="all">All Clients</option>' +
+    DATA.clients.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+
+  document.getElementById('data-as-of').textContent =
+    `Data exported ${DATA.generated_at}`;
+
+  // Show UI
+  document.getElementById('filter-bar').style.display  = 'flex';
+  document.getElementById('dashboard').style.display   = 'block';
+
+  bindEvents();
+  renderAll();
+})();
+
+
+// ── Event wiring ──────────────────────────────────────────────────────────────
+function bindEvents() {
+  document.getElementById('client-filter').addEventListener('change', e => {
+    activeClient = e.target.value;
+    renderAll();
+  });
+
+  document.querySelectorAll('.day-btns button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.day-btns button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      activeDays = +btn.dataset.days;
+      renderAll();
+    });
+  });
+}
+
+
+// ── Data helpers ──────────────────────────────────────────────────────────────
+function dateCutoff(days) {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  return d.toISOString().slice(0, 10);
+}
+
+function filteredCalls() {
+  const cutoff = dateCutoff(activeDays);
+  return DATA.calls_daily.filter(r =>
+    r.date >= cutoff &&
+    (activeClient === 'all' || r.client_name === activeClient)
+  );
+}
+
+function filteredAds() {
+  const cutoff = dateCutoff(activeDays);
+  return DATA.ads_daily.filter(r =>
+    r.date >= cutoff &&
+    (activeClient === 'all' || r.client_name === activeClient)
+  );
+}
+
+function filteredHeatmap() {
+  return DATA.calls_heatmap.filter(r =>
+    activeClient === 'all' || r.client_name === activeClient
+  );
+}
+
+function groupByChannel(rows) {
+  const map = {};
+  for (const r of rows) {
+    if (!map[r.channel]) map[r.channel] = { total: 0, missed: 0, answered: 0 };
+    map[r.channel].total    += r.total_calls;
+    map[r.channel].missed   += r.missed_calls;
+    map[r.channel].answered += r.answered_calls;
+  }
+  return map;
+}
+
+function groupByDate(rows) {
+  const map = {};
+  for (const r of rows) {
+    if (!map[r.date]) map[r.date] = {};
+    map[r.date][r.channel] = (map[r.date][r.channel] || 0) + r.total_calls;
+  }
+  return map;
+}
+
+function fmt(n)   { return n.toLocaleString(); }
+function fmtPct(n){ return n.toFixed(1) + '%'; }
+function fmtUsd(n){ return '$' + n.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}); }
+
+
+// ── Render all ────────────────────────────────────────────────────────────────
+function renderAll() {
+  const calls   = filteredCalls();
+  const ads     = filteredAds();
+  const heatmap = filteredHeatmap();
+
+  renderCards(calls, ads);
+  renderDonut(calls);
+  renderDailyBar(calls);
+  renderMissedBar(calls);
+  renderAdsChart(calls, ads);
+  renderHeatmap(heatmap);
+  renderAdsTable(calls, ads);
+}
+
+
+// ── Summary cards ─────────────────────────────────────────────────────────────
+function renderCards(calls, ads) {
+  const total    = calls.reduce((s, r) => s + r.total_calls, 0);
+  const missed   = calls.reduce((s, r) => s + r.missed_calls, 0);
+  const answered = calls.reduce((s, r) => s + r.answered_calls, 0);
+  const spend    = ads.reduce((s, r) => s + r.spend_usd, 0);
+  const gCalls   = calls.filter(r => r.channel === 'Google Ads')
+                        .reduce((s, r) => s + r.total_calls, 0);
+  const cpc      = gCalls > 0 ? spend / gCalls : null;
+  const missRate = total > 0 ? missed / total * 100 : 0;
+  const ansRate  = total > 0 ? answered / total * 100 : 0;
+
+  setText('c-total',    fmt(total));
+  setText('c-total-sub','all channels');
+  setText('c-missed',   fmt(missed));
+  setText('c-miss-rate',total > 0 ? fmtPct(missRate) + ' miss rate' : '');
+  setText('c-answered', fmt(answered));
+  setText('c-ans-rate', total > 0 ? fmtPct(ansRate) + ' answer rate' : '');
+  setText('c-spend',    fmtUsd(spend));
+  setText('c-cpc',      cpc !== null ? fmtUsd(cpc) : '—');
+}
+
+
+// ── Channel donut ─────────────────────────────────────────────────────────────
+function renderDonut(calls) {
+  const byChannel = groupByChannel(calls);
+  const labels = CHANNEL_ORDER.filter(ch => byChannel[ch]);
+  const values = labels.map(ch => byChannel[ch].total);
+  const colors = labels.map(ch => CHANNEL_COLORS[ch] || '#ccc');
+
+  destroyChart('donut');
+  charts.donut = new Chart(document.getElementById('chart-donut'), {
+    type: 'doughnut',
+    data: { labels, datasets: [{ data: values, backgroundColor: colors, borderWidth: 2, borderColor: '#fff' }] },
+    options: {
+      cutout: '62%',
+      plugins: {
+        legend: { position: 'right', labels: { font: { size: 12 }, padding: 14 } },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              const tot = ctx.dataset.data.reduce((a, b) => a + b, 0);
+              const pct = tot > 0 ? (ctx.parsed / tot * 100).toFixed(1) : 0;
+              return ` ${fmt(ctx.parsed)} calls (${pct}%)`;
+            }
+          }
+        }
+      },
+      maintainAspectRatio: false,
+    }
+  });
+}
+
+
+// ── Daily stacked bar ─────────────────────────────────────────────────────────
+function renderDailyBar(calls) {
+  const byDate = groupByDate(calls);
+  const dates  = Object.keys(byDate).sort();
+
+  // Compress x-axis labels for 60/90 day views
+  const tickLimit = activeDays <= 30 ? 30 : activeDays <= 60 ? 20 : 15;
+
+  const presentChannels = CHANNEL_ORDER.filter(ch =>
+    calls.some(r => r.channel === ch)
+  );
+
+  const datasets = presentChannels.map(ch => ({
+    label: ch,
+    data: dates.map(d => byDate[d][ch] || 0),
+    backgroundColor: CHANNEL_COLORS[ch] || '#ccc',
+    stack: 'calls',
+    borderWidth: 0,
+  }));
+
+  destroyChart('daily');
+  charts.daily = new Chart(document.getElementById('chart-daily'), {
+    type: 'bar',
+    data: { labels: dates, datasets },
+    options: {
+      scales: {
+        x: {
+          stacked: true,
+          ticks: { maxTicksLimit: tickLimit, font: { size: 10 } },
+          grid: { display: false },
+        },
+        y: { stacked: true, beginAtZero: true, ticks: { font: { size: 11 } } },
+      },
+      plugins: { legend: { display: false } },
+      maintainAspectRatio: false,
+      interaction: { mode: 'index' },
+    }
+  });
+}
+
+
+// ── Answered vs Missed horizontal bar ────────────────────────────────────────
+function renderMissedBar(calls) {
+  const byChannel = groupByChannel(calls);
+  const labels = CHANNEL_ORDER
+    .filter(ch => byChannel[ch])
+    .sort((a, b) => byChannel[b].missed - byChannel[a].missed);
+
+  destroyChart('missed');
+  charts.missed = new Chart(document.getElementById('chart-missed'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Missed',
+          data: labels.map(l => byChannel[l].missed),
+          backgroundColor: '#e53935cc',
+          borderColor: '#e53935',
+          borderWidth: 1,
+        },
+        {
+          label: 'Answered',
+          data: labels.map(l => byChannel[l].answered),
+          backgroundColor: '#43a04788',
+          borderColor: '#43a047',
+          borderWidth: 1,
+        },
+      ],
+    },
+    options: {
+      indexAxis: 'y',
+      scales: {
+        x: { stacked: true, beginAtZero: true, ticks: { font: { size: 11 } } },
+        y: { stacked: true, ticks: { font: { size: 12 } } },
+      },
+      plugins: {
+        legend: { position: 'top', labels: { font: { size: 12 } } },
+        tooltip: {
+          callbacks: {
+            afterLabel: ctx => {
+              const ch  = labels[ctx.dataIndex];
+              const tot = byChannel[ch].total;
+              const pct = tot > 0 ? (byChannel[ch].missed / tot * 100).toFixed(1) : 0;
+              return ctx.datasetIndex === 0 ? `Miss rate: ${pct}%` : '';
+            }
+          }
+        }
+      },
+      maintainAspectRatio: false,
+    }
+  });
+}
+
+
+// ── Google Ads dual-axis chart ────────────────────────────────────────────────
+function renderAdsChart(calls, ads) {
+  const adsCallsByDate = {};
+  for (const r of calls.filter(r => r.channel === 'Google Ads')) {
+    adsCallsByDate[r.date] = (adsCallsByDate[r.date] || 0) + r.total_calls;
+  }
+  const spendByDate = {};
+  for (const r of ads) {
+    spendByDate[r.date] = (spendByDate[r.date] || 0) + r.spend_usd;
+  }
+
+  const allDates = [...new Set([
+    ...Object.keys(adsCallsByDate),
+    ...Object.keys(spendByDate),
+  ])].sort();
+
+  const tickLimit = activeDays <= 30 ? 30 : 15;
+
+  destroyChart('ads');
+  charts.ads = new Chart(document.getElementById('chart-ads'), {
+    data: {
+      labels: allDates,
+      datasets: [
+        {
+          type: 'bar',
+          label: 'Spend ($)',
+          data: allDates.map(d => +(spendByDate[d] || 0).toFixed(2)),
+          backgroundColor: 'rgba(66, 133, 244, 0.35)',
+          borderColor: '#4285F4',
+          borderWidth: 1,
+          yAxisID: 'ySpend',
+        },
+        {
+          type: 'line',
+          label: 'Google Ads Calls',
+          data: allDates.map(d => adsCallsByDate[d] || 0),
+          borderColor: '#00897B',
+          backgroundColor: 'rgba(0,137,123,.1)',
+          borderWidth: 2,
+          pointRadius: activeDays <= 30 ? 3 : 1,
+          tension: 0.3,
+          fill: false,
+          yAxisID: 'yCalls',
+        },
+      ],
+    },
+    options: {
+      scales: {
+        ySpend: {
+          type: 'linear', position: 'left', beginAtZero: true,
+          ticks: { callback: v => '$' + v, font: { size: 11 } },
+        },
+        yCalls: {
+          type: 'linear', position: 'right', beginAtZero: true,
+          grid: { drawOnChartArea: false },
+          ticks: { font: { size: 11 } },
+        },
+        x: {
+          ticks: { maxTicksLimit: tickLimit, font: { size: 10 } },
+          grid: { display: false },
+        },
+      },
+      plugins: { legend: { position: 'top', labels: { font: { size: 12 } } } },
+      interaction: { mode: 'index' },
+      maintainAspectRatio: false,
+    }
+  });
+}
+
+
+// ── Heatmap ───────────────────────────────────────────────────────────────────
+function renderHeatmap(rows) {
+  // Build grid[dayOfWeekSun1][hour] = total calls
+  const grid = {};
+  let maxVal = 0;
+  for (const r of rows) {
+    const d = r.day_of_week_sun1;
+    const h = r.hour_of_day;
+    if (!grid[d]) grid[d] = {};
+    grid[d][h] = (grid[d][h] || 0) + r.total_calls;
+    if (grid[d][h] > maxVal) maxVal = grid[d][h];
+  }
+
+  const tbl = document.getElementById('heatmap-table');
+
+  // Header row
+  let html = '<thead><tr><th class="row-head"></th>';
+  for (let h = 0; h < 24; h++) {
+    const label = h === 0 ? '12a' : h < 12 ? h + 'a' : h === 12 ? '12p' : (h - 12) + 'p';
+    html += `<th>${label}</th>`;
+  }
+  html += '</tr></thead><tbody>';
+
+  for (let d = 1; d <= 7; d++) {
+    html += `<tr><th class="row-head">${DAY_LABELS[d - 1]}</th>`;
+    for (let h = 0; h < 24; h++) {
+      const count = (grid[d] && grid[d][h]) || 0;
+      const t     = maxVal > 0 ? count / maxVal : 0;
+      const bg    = heatColor(t);
+      const fg    = t > 0.55 ? '#fff' : '#424242';
+      const label = count > 0 ? count : '';
+      html += `<td style="background:${bg};color:${fg}" title="${DAY_LABELS[d-1]} ${h}:00 UTC — ${count} calls">${label}</td>`;
+    }
+    html += '</tr>';
+  }
+  html += '</tbody>';
+  tbl.innerHTML = html;
+}
+
+function heatColor(t) {
+  // Cream (#fff9c4) → orange-red (#e53935)
+  const r = Math.round(255 + t * (229 - 255));
+  const g = Math.round(249 + t * ( 57 - 249));
+  const b = Math.round(196 + t * ( 53 - 196));
+  return `rgb(${r},${g},${b})`;
+}
+
+
+// ── Google Ads table ──────────────────────────────────────────────────────────
+function renderAdsTable(calls, ads) {
+  const adsCallsByDate = {};
+  for (const r of calls.filter(r => r.channel === 'Google Ads')) {
+    adsCallsByDate[r.date] = (adsCallsByDate[r.date] || 0) + r.total_calls;
+  }
+  const spendByDate = {};
+  for (const r of ads) {
+    spendByDate[r.date] = (spendByDate[r.date] || 0) + r.spend_usd;
+  }
+
+  const allDates = [...new Set([
+    ...Object.keys(adsCallsByDate),
+    ...Object.keys(spendByDate),
+  ])].sort().reverse();
+
+  const tbody = document.getElementById('ads-tbody');
+
+  if (allDates.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="4" class="no-data">No Google Ads data for this selection.</td></tr>';
+    setText('ads-table-note', '');
+    return;
+  }
+
+  let totalCalls = 0, totalSpend = 0;
+  const rows = allDates.map(d => {
+    const c = adsCallsByDate[d] || 0;
+    const s = spendByDate[d] || 0;
+    totalCalls += c;
+    totalSpend += s;
+    const cpc = c > 0 ? fmtUsd(s / c) : '—';
+    return `<tr>
+      <td>${d}</td>
+      <td class="num">${fmt(c)}</td>
+      <td class="num">${fmtUsd(s)}</td>
+      <td class="num">${cpc}</td>
+    </tr>`;
+  });
+
+  const totalCpc = totalCalls > 0 ? fmtUsd(totalSpend / totalCalls) : '—';
+  rows.push(`<tr class="total-row">
+    <td>Total</td>
+    <td class="num">${fmt(totalCalls)}</td>
+    <td class="num">${fmtUsd(totalSpend)}</td>
+    <td class="num">${totalCpc}</td>
+  </tr>`);
+
+  tbody.innerHTML = rows.join('');
+  const note = activeClient === 'all'
+    ? 'Aggregated across all clients with a linked Google Ads account.'
+    : 'Calls with channel = Google Ads from CTM · Spend from Google Ads MCC transfer.';
+  setText('ads-table-note', note);
+}
+
+
+// ── Utilities ─────────────────────────────────────────────────────────────────
+function destroyChart(key) {
+  if (charts[key]) { charts[key].destroy(); charts[key] = null; }
+}
+
+function setText(id, txt) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = txt;
+}
+
+function esc(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>
