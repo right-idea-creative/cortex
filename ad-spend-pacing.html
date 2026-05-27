@@ -4,10 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Ad Spend Pacing — Córtex OS</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f0f2f5; color: #1a1a2e; font-size: 14px; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f0f2f5; color: #1a1a2e; font-size: 14px; line-height: 1.5; }
 
+/* ── Site nav (matches Nate's pattern) ── */
 .site-top { position: sticky; top: 0; z-index: 100; }
 .site-header { background: #0d1b2a; padding: 0 32px; height: 52px; display: flex; align-items: center; box-shadow: 0 1px 0 rgba(255,255,255,.06); }
 .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
@@ -19,20 +21,93 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .nav-link:hover { color: rgba(255,255,255,.85); }
 .nav-link.active { color: #fff; border-bottom-color: #4285F4; }
 
-.coming-soon {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: calc(100vh - 88px);
-  text-align: center;
-  padding: 40px 32px;
-  gap: 16px;
-}
-.coming-soon .icon { font-size: 48px; opacity: .35; }
-.coming-soon h1 { font-size: 22px; font-weight: 700; color: #1a1a2e; }
-.coming-soon p { font-size: 14px; color: #9e9e9e; max-width: 360px; line-height: 1.6; }
-.coming-soon .badge { display: inline-block; background: #e8f0fe; color: #1565c0; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; border-radius: 20px; padding: 4px 12px; }
+/* ── Loading & error states ── */
+#loading-state { text-align: center; padding: 80px 32px; color: #757575; font-size: 15px; }
+.spinner { width: 36px; height: 36px; border: 3px solid #e0e0e0; border-top-color: #1565c0; border-radius: 50%; animation: spin .8s linear infinite; margin: 0 auto 16px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+#error-state { display: none; margin: 40px auto; max-width: 520px; background: #fff; border: 1px solid #ffcdd2; border-radius: 10px; padding: 28px 32px; text-align: center; }
+#error-state h2 { color: #c62828; margin-bottom: 10px; font-size: 16px; }
+#error-state code { display: block; background: #f5f5f5; border-radius: 6px; padding: 10px 14px; font-size: 13px; margin: 14px 0; text-align: left; color: #333; }
+#error-state p { color: #616161; font-size: 13px; }
+
+/* ── Info banner ── */
+.info-banner { background: #fff8e1; border-bottom: 1px solid #ffe082; padding: 7px 32px; font-size: 12px; color: #6d4c00; }
+.info-banner strong { font-weight: 700; }
+
+/* ── Filters bar ── */
+#filter-bar { display: none; background: #fff; border-bottom: 1px solid #e4e6ea; padding: 12px 32px; align-items: center; gap: 20px; flex-wrap: wrap; }
+#filter-bar label { font-size: 12px; font-weight: 600; color: #616161; text-transform: uppercase; letter-spacing: .4px; }
+select.filter-select { border: 1px solid #d0d3d8; border-radius: 6px; padding: 6px 28px 6px 10px; font-size: 13px; color: #1a1a2e; background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%23666' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E") no-repeat right 10px center; appearance: none; cursor: pointer; }
+select#account-filter { min-width: 220px; }
+select#platform-filter { min-width: 150px; }
+select#group-filter { min-width: 110px; }
+.data-as-of { margin-left: auto; font-size: 12px; color: #9e9e9e; }
+
+/* ── Main content ── */
+#dashboard { display: none; padding: 24px 32px; }
+
+/* ── Summary cards (mirror Nate's call-tracking pattern) ── */
+.cards { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; margin-bottom: 20px; }
+@media (max-width: 1100px) { .cards { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 700px)  { .cards { grid-template-columns: repeat(2, 1fr); } }
+.card { background: #fff; border-radius: 10px; padding: 18px 20px 16px; box-shadow: 0 1px 4px rgba(0,0,0,.07); }
+.card .c-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .6px; color: #9e9e9e; margin-bottom: 8px; }
+.card .c-value { font-size: 28px; font-weight: 700; color: #0d1b2a; line-height: 1.15; }
+.card .c-sub { font-size: 12px; color: #9e9e9e; margin-top: 4px; }
+.card.accent-red    .c-value { color: #c62828; }
+.card.accent-blue   .c-value { color: #1565c0; }
+.card.accent-green  .c-value { color: #2e7d32; }
+.card.accent-orange .c-value { color: #ef6c00; }
+
+/* ── Chart grid ── */
+.chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+@media (max-width: 900px) { .chart-grid { grid-template-columns: 1fr; } }
+.chart-grid.single { grid-template-columns: 1fr; }
+.chart-card { background: #fff; border-radius: 10px; padding: 20px 22px; box-shadow: 0 1px 4px rgba(0,0,0,.07); }
+.chart-card h3 { font-size: 13px; font-weight: 600; color: #424242; margin-bottom: 4px; }
+.chart-card .chart-note { font-size: 11px; color: #9e9e9e; margin-bottom: 14px; }
+.chart-wrap { position: relative; }
+
+/* ── Status distribution bar ── */
+.status-bar-wrap { background: #fff; border-radius: 10px; padding: 20px 22px; box-shadow: 0 1px 4px rgba(0,0,0,.07); margin-bottom: 14px; }
+.status-bar-wrap h3 { font-size: 13px; font-weight: 600; color: #424242; margin-bottom: 4px; }
+.status-bar-wrap .chart-note { font-size: 11px; color: #9e9e9e; margin-bottom: 14px; }
+.status-bar { display: flex; width: 100%; height: 32px; border-radius: 6px; overflow: hidden; gap: 1px; }
+.status-seg { display: flex; align-items: center; justify-content: center; color: #fff; font-size: 11px; font-weight: 600; min-width: 22px; transition: opacity .15s; }
+.status-seg:hover { opacity: .85; }
+.status-legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 12px; font-size: 12px; color: #616161; }
+.status-legend .dot { width: 10px; height: 10px; border-radius: 2px; display: inline-block; margin-right: 6px; vertical-align: middle; }
+
+/* ── Data table ── */
+.data-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 14px; }
+.data-table thead th { background: #f8f9fb; padding: 9px 14px; text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .4px; color: #757575; border-bottom: 2px solid #e8eaed; white-space: nowrap; }
+.data-table thead th.num { text-align: right; }
+.data-table tbody td { padding: 8px 14px; border-bottom: 1px solid #f0f2f5; color: #424242; }
+.data-table tbody td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.data-table tbody tr:hover td { background: #f8f9fb; }
+.data-table .total-row td { font-weight: 700; background: #f0f4ff; border-top: 2px solid #d0daf5; }
+.no-data { color: #bdbdbd; font-style: italic; padding: 20px 0; text-align: center; }
+
+/* ── Status pills ── */
+.pill { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 4px; white-space: nowrap; }
+.pill-crit       { background: #ffebee; color: #c62828; }
+.pill-warn       { background: #fff3e0; color: #ef6c00; }
+.pill-ok         { background: #e8f5e9; color: #2e7d32; }
+.pill-info       { background: #e3f2fd; color: #1565c0; }
+.pill-neutral    { background: #eceff1; color: #546e7a; }
+
+/* ── Account name truncate ── */
+.acct-name { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ── Freshness footer ── */
+.freshness-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-top: 14px; }
+@media (max-width: 900px) { .freshness-grid { grid-template-columns: repeat(2, 1fr); } }
+.freshness-item { background: #fafbfc; border: 1px solid #ebedf0; border-radius: 6px; padding: 10px 12px; font-size: 11px; }
+.freshness-item .fr-platform { color: #757575; font-weight: 600; text-transform: uppercase; letter-spacing: .4px; font-size: 10px; margin-bottom: 4px; }
+.freshness-item .fr-date { color: #1a1a2e; font-weight: 600; font-size: 12px; }
+.freshness-item .fr-lag { margin-top: 4px; display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: #757575; }
+.freshness-item .fr-lag .dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
 </style>
 </head>
 <body>
@@ -53,12 +128,589 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
   </nav>
 </div>
 
-<div class="coming-soon">
-  <div class="icon">📈</div>
-  <span class="badge">Coming Soon</span>
-  <h1>Ad Spend Pacing</h1>
-  <p>Budget pacing, impression share, and performance trends across Google and Meta campaigns. In development.</p>
+<div class="info-banner">
+  💡 Budget pacing & captura BQ vs Planner — datos derivados de <strong>pacing_dashboard_view</strong>. Refresh diario 8 AM CT desde BigQuery. Ventana rolling de 7 meses.
 </div>
 
+<div id="loading-state"><div class="spinner"></div>Loading pacing data…</div>
+
+<div id="error-state">
+  <h2>pacing-data.json not found</h2>
+  <p>Run the export script to generate the data file:</p>
+  <code>python export_pacing_data.py</code>
+  <p>Then reload this page. Requires <code>google-cloud-bigquery</code> and Application Default Credentials.</p>
+</div>
+
+<div id="filter-bar">
+  <label for="group-filter">Group</label>
+  <select id="group-filter" class="filter-select">
+    <option value="all">All</option>
+    <option value="ODC">ODC</option>
+    <option value="Other">Other</option>
+  </select>
+  <label for="platform-filter">Platform</label>
+  <select id="platform-filter" class="filter-select">
+    <option value="all">All Platforms</option>
+  </select>
+  <label for="account-filter">Account</label>
+  <select id="account-filter" class="filter-select">
+    <option value="all">All Accounts</option>
+  </select>
+  <span class="data-as-of" id="data-as-of"></span>
+</div>
+
+<div id="dashboard">
+
+  <!-- Summary cards (current month) -->
+  <div class="cards">
+    <div class="card accent-blue">
+      <div class="c-label">Spend MTD</div>
+      <div class="c-value" id="c-spend">—</div>
+      <div class="c-sub" id="c-spend-sub">current month</div>
+    </div>
+    <div class="card">
+      <div class="c-label">Budget</div>
+      <div class="c-value" id="c-budget">—</div>
+      <div class="c-sub">current month</div>
+    </div>
+    <div class="card accent-green">
+      <div class="c-label">Pacing</div>
+      <div class="c-value" id="c-pacing">—</div>
+      <div class="c-sub" id="c-pacing-sub">vs day-of-month</div>
+    </div>
+    <div class="card accent-red">
+      <div class="c-label">Critical Alerts</div>
+      <div class="c-value" id="c-critical">—</div>
+      <div class="c-sub" id="c-critical-sub">need attention</div>
+    </div>
+    <div class="card accent-orange">
+      <div class="c-label">Review</div>
+      <div class="c-value" id="c-review">—</div>
+      <div class="c-sub">underpacing / no spend</div>
+    </div>
+  </div>
+
+  <!-- Status distribution -->
+  <div class="status-bar-wrap">
+    <h3>Status Distribution — Current Month</h3>
+    <div class="chart-note" id="status-note">Distribución de cuentas por estado de pacing</div>
+    <div class="status-bar" id="status-bar"></div>
+    <div class="status-legend" id="status-legend"></div>
+  </div>
+
+  <!-- Trend + Status by platform -->
+  <div class="chart-grid">
+    <div class="chart-card">
+      <h3>Trend — Spend vs Budget (7-Month Window)</h3>
+      <div class="chart-note">Aggregated by month. Bars = budget, line = actual spend.</div>
+      <div class="chart-wrap" style="height:280px"><canvas id="chart-trend"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h3>Spend by Platform — Current Month</h3>
+      <div class="chart-note">Share of MTD spend across platforms</div>
+      <div class="chart-wrap" style="height:280px"><canvas id="chart-platform"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Attention required table -->
+  <div class="chart-grid single">
+    <div class="chart-card">
+      <h3>Attention Required — Critical & Review</h3>
+      <div class="chart-note">Accounts with Critical or Review severity in the current month, ordered by urgency.</div>
+      <div style="overflow-x:auto">
+        <table class="data-table" id="attention-table">
+          <thead>
+            <tr>
+              <th>Account</th>
+              <th>Group</th>
+              <th>Platform</th>
+              <th class="num">Budget</th>
+              <th class="num">Spend MTD</th>
+              <th class="num">Pacing</th>
+              <th class="num">Forecast EOM</th>
+              <th>Status</th>
+              <th>Annual</th>
+            </tr>
+          </thead>
+          <tbody id="attention-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Capture (historical BQ vs Planner) -->
+  <div class="chart-grid single">
+    <div class="chart-card">
+      <h3>Captura Histórica — BQ vs Planner</h3>
+      <div class="chart-note">Discrepancias entre lo reportado por el AM en el Planner y lo registrado en BigQuery (meses pasados).</div>
+      <div style="overflow-x:auto">
+        <table class="data-table" id="capture-table">
+          <thead>
+            <tr>
+              <th>Account</th>
+              <th>Platform</th>
+              <th>Mes</th>
+              <th class="num">Reportado AM</th>
+              <th class="num">Real BQ</th>
+              <th class="num">Diferencia</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="capture-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- All accounts (full window) -->
+  <div class="chart-grid single">
+    <div class="chart-card">
+      <h3>All Accounts — Full Rolling Window</h3>
+      <div class="chart-note" id="all-note">Todas las rows del view filtradas por los selectores arriba.</div>
+      <div style="overflow-x:auto">
+        <table class="data-table" id="all-table">
+          <thead>
+            <tr>
+              <th>Account</th>
+              <th>Group</th>
+              <th>Platform</th>
+              <th>Mes</th>
+              <th>Position</th>
+              <th class="num">Budget</th>
+              <th class="num">Spend</th>
+              <th class="num">Pacing</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="all-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Data freshness footer -->
+  <div class="chart-card" style="margin-top: 14px;">
+    <h3>Data Freshness por Plataforma</h3>
+    <div class="chart-note">Última fecha con spend registrado. Google Ads vía transfer diario; otras plataformas vía Sheet refrescado manualmente.</div>
+    <div class="freshness-grid" id="freshness-grid"></div>
+  </div>
+
+</div>
+
+<script>
+const PLATFORM_COLORS = {
+  'Google Ads': '#4285F4',
+  'Bing':       '#00897B',
+  'Bing Ads':   '#00897B',
+  'Nextdoor':   '#00B246',
+  'Meta Ads':   '#1877F2',
+  'Meta':       '#1877F2',
+  'LSA':        '#FF6F00',
+  'Other':      '#9E9E9E',
+};
+
+const STATUS_COLORS = {
+  'On Track':                              { bg: '#43a047', cls: 'pill-ok' },
+  'Underpacing':                           { bg: '#ef6c00', cls: 'pill-warn' },
+  'Overpacing':                            { bg: '#e53935', cls: 'pill-crit' },
+  'No Spend':                              { bg: '#ffa726', cls: 'pill-warn' },
+  'No Budget':                             { bg: '#90a4ae', cls: 'pill-neutral' },
+  'Spending Without Budget':               { bg: '#c62828', cls: 'pill-crit' },
+  'Paused':                                { bg: '#78909c', cls: 'pill-neutral' },
+  'Upcoming':                              { bg: '#42a5f5', cls: 'pill-info' },
+  'Historical Match':                      { bg: '#66bb6a', cls: 'pill-ok' },
+  'Captured Mismatch (>10% diff)':         { bg: '#ffa726', cls: 'pill-warn' },
+  'Captured Mismatch (AM Over-reported)':  { bg: '#ff7043', cls: 'pill-warn' },
+  'Captured Mismatch (AM Under-reported)': { bg: '#c62828', cls: 'pill-crit' },
+  'Paused (Historical)':                   { bg: '#90a4ae', cls: 'pill-neutral' },
+  'BQ Data Gap':                           { bg: '#5c6bc0', cls: 'pill-info' },
+};
+
+const STATUS_FALLBACK = { bg: '#9e9e9e', cls: 'pill-neutral' };
+
+let DATA = null;
+let filters = { group: 'all', platform: 'all', account: 'all' };
+let charts = {};
+
+// ── Init ──
+(async function init() {
+  try {
+    const res = await fetch('pacing-data.json');
+    if (!res.ok) throw new Error('not-ok');
+    DATA = await res.json();
+  } catch {
+    document.getElementById('loading-state').style.display = 'none';
+    document.getElementById('error-state').style.display = 'block';
+    return;
+  }
+
+  document.getElementById('loading-state').style.display = 'none';
+  document.getElementById('data-as-of').textContent = `Generated ${DATA.generated_at}`;
+
+  // Populate filter selects
+  const acctSel = document.getElementById('account-filter');
+  for (const a of DATA.accounts) {
+    const opt = document.createElement('option');
+    opt.value = a; opt.textContent = a;
+    acctSel.appendChild(opt);
+  }
+  const platSel = document.getElementById('platform-filter');
+  for (const p of DATA.platforms) {
+    const opt = document.createElement('option');
+    opt.value = p; opt.textContent = p;
+    platSel.appendChild(opt);
+  }
+
+  document.getElementById('filter-bar').style.display = 'flex';
+  document.getElementById('dashboard').style.display = 'block';
+
+  bindEvents();
+  renderFreshness();
+  renderAll();
+})();
+
+function bindEvents() {
+  document.getElementById('group-filter').addEventListener('change', e => {
+    filters.group = e.target.value; renderAll();
+  });
+  document.getElementById('platform-filter').addEventListener('change', e => {
+    filters.platform = e.target.value; renderAll();
+  });
+  document.getElementById('account-filter').addEventListener('change', e => {
+    filters.account = e.target.value; renderAll();
+  });
+}
+
+// ── Helpers ──
+function rows() {
+  return DATA.rows.filter(r => {
+    if (filters.group !== 'all' && r.source_group !== filters.group) return false;
+    if (filters.platform !== 'all' && r.platform !== filters.platform) return false;
+    if (filters.account !== 'all' && r.account_display_name !== filters.account) return false;
+    return true;
+  });
+}
+
+function curr(rs)   { return rs.filter(r => r.month_position === 'current'); }
+function past(rs)   { return rs.filter(r => r.month_position === 'past'); }
+function num(v)     { return Number(v) || 0; }
+function sum(rs, k) { return rs.reduce((s, r) => s + num(r[k]), 0); }
+
+function fmtMoney(v, decimals = 0) {
+  if (v === null || v === undefined || v === '') return '—';
+  v = Number(v);
+  if (!isFinite(v)) return '—';
+  const abs = Math.abs(v);
+  if (abs >= 1000000) return '$' + (v/1000000).toFixed(1) + 'M';
+  if (abs >= 1000)    return '$' + (v/1000).toFixed(decimals > 0 ? decimals : 1) + 'k';
+  return '$' + v.toLocaleString('en-US', { maximumFractionDigits: 0 });
+}
+
+function fmtMoneyFull(v) {
+  if (v === null || v === undefined || v === '') return '—';
+  v = Number(v);
+  if (!isFinite(v)) return '—';
+  return '$' + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function fmtPct(v) {
+  if (v === null || v === undefined || v === '') return '—';
+  v = Number(v);
+  if (!isFinite(v)) return '—';
+  return Math.round(v * 100) + '%';
+}
+
+function statusPill(status, severity) {
+  const cfg = STATUS_COLORS[status] || STATUS_FALLBACK;
+  return `<span class="pill ${cfg.cls}">${status || '—'}</span>`;
+}
+
+function annualPill(annual) {
+  if (!annual) return '<span class="pill pill-neutral">—</span>';
+  let cls = 'pill-neutral';
+  if (annual.includes('Critical')) cls = 'pill-crit';
+  else if (annual.includes('Warning')) cls = 'pill-warn';
+  else if (annual.includes('On Track')) cls = 'pill-ok';
+  return `<span class="pill ${cls}">${annual}</span>`;
+}
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function destroyChart(k) { if (charts[k]) { charts[k].destroy(); charts[k] = null; } }
+
+// ── Render orchestrator ──
+function renderAll() {
+  const r = rows();
+  renderCards(r);
+  renderStatusBar(r);
+  renderTrendChart(r);
+  renderPlatformChart(r);
+  renderAttentionTable(r);
+  renderCaptureTable(r);
+  renderAllTable(r);
+}
+
+function renderCards(r) {
+  const c = curr(r);
+  const spend = sum(c, 'bq_spend');
+  const budget = sum(c, 'budget');
+  const pacing = budget > 0 ? (spend / budget) : 0;
+
+  const today = new Date();
+  const dim = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+  const dayOfMonth = today.getDate();
+  const expected = dayOfMonth / dim;
+  const pacingVsExpected = budget > 0 ? (spend / budget) / expected : 0;
+
+  const critical = c.filter(x => x.severity === 'Critical').length;
+  const review   = c.filter(x => x.severity === 'Review').length;
+
+  document.getElementById('c-spend').textContent = fmtMoney(spend);
+  document.getElementById('c-spend-sub').textContent = `${c.length} combos`;
+  document.getElementById('c-budget').textContent = fmtMoney(budget);
+  document.getElementById('c-pacing').textContent = fmtPct(pacing);
+
+  // Pacing comparison
+  const ratio = pacingVsExpected;
+  let pacingSub = '';
+  if (budget === 0) pacingSub = 'no budget';
+  else if (ratio > 1.10) pacingSub = `${Math.round((ratio-1)*100)}% above pace`;
+  else if (ratio < 0.85) pacingSub = `${Math.round((1-ratio)*100)}% below pace`;
+  else pacingSub = 'on pace';
+  document.getElementById('c-pacing-sub').textContent = pacingSub;
+
+  document.getElementById('c-critical').textContent = critical;
+  document.getElementById('c-review').textContent = review;
+}
+
+function renderStatusBar(r) {
+  const c = curr(r);
+  const dist = {};
+  for (const row of c) {
+    const s = row.status || 'Unknown';
+    dist[s] = (dist[s] || 0) + 1;
+  }
+  const total = c.length;
+  const sorted = Object.entries(dist).sort((a, b) => b[1] - a[1]);
+
+  const bar = document.getElementById('status-bar');
+  const legend = document.getElementById('status-legend');
+
+  if (total === 0) {
+    bar.innerHTML = '<div style="flex:1;background:#eee;display:flex;align-items:center;justify-content:center;color:#9e9e9e;font-size:12px;">No data for current selection</div>';
+    legend.innerHTML = '';
+    return;
+  }
+
+  bar.innerHTML = sorted.map(([s, n]) => {
+    const color = (STATUS_COLORS[s] || STATUS_FALLBACK).bg;
+    const showNum = (n / total * 100) > 4;
+    return `<div class="status-seg" style="flex:${n};background:${color}" title="${esc(s)}: ${n}">${showNum ? n : ''}</div>`;
+  }).join('');
+
+  legend.innerHTML = sorted.map(([s, n]) => {
+    const color = (STATUS_COLORS[s] || STATUS_FALLBACK).bg;
+    return `<span><span class="dot" style="background:${color}"></span>${esc(s)} <strong>${n}</strong></span>`;
+  }).join('');
+}
+
+function renderTrendChart(r) {
+  // Aggregate by month_date
+  const byMonth = {};
+  for (const row of r) {
+    if (!row.month_date) continue;
+    if (!byMonth[row.month_date]) byMonth[row.month_date] = { spend: 0, budget: 0 };
+    byMonth[row.month_date].spend  += num(row.bq_spend);
+    byMonth[row.month_date].budget += num(row.budget);
+  }
+  const months = Object.keys(byMonth).sort();
+  const labels = months.map(m => {
+    const d = new Date(m + 'T00:00:00');
+    return d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+  });
+  const budgetData = months.map(m => +byMonth[m].budget.toFixed(2));
+  const spendData  = months.map(m => +byMonth[m].spend.toFixed(2));
+
+  destroyChart('trend');
+  charts.trend = new Chart(document.getElementById('chart-trend'), {
+    data: {
+      labels,
+      datasets: [
+        { type: 'bar', label: 'Budget', data: budgetData, backgroundColor: 'rgba(66,133,244,.25)', borderColor: '#4285F4', borderWidth: 1 },
+        { type: 'line', label: 'Spend', data: spendData, borderColor: '#0d1b2a', backgroundColor: 'rgba(13,27,42,.08)', borderWidth: 2, pointRadius: 4, tension: .3, fill: false },
+      ]
+    },
+    options: {
+      maintainAspectRatio: false,
+      interaction: { mode: 'index' },
+      plugins: {
+        legend: { position: 'top', labels: { font: { size: 12 } } },
+        tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${fmtMoneyFull(ctx.parsed.y)}` } }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { font: { size: 11 } } },
+        y: { beginAtZero: true, ticks: { callback: v => fmtMoney(v), font: { size: 11 } } }
+      }
+    }
+  });
+}
+
+function renderPlatformChart(r) {
+  const c = curr(r);
+  const byPlat = {};
+  for (const row of c) {
+    const p = row.platform || 'Unknown';
+    byPlat[p] = (byPlat[p] || 0) + num(row.bq_spend);
+  }
+  const entries = Object.entries(byPlat).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
+  const labels = entries.map(e => e[0]);
+  const data   = entries.map(e => +e[1].toFixed(2));
+  const colors = labels.map(l => PLATFORM_COLORS[l] || '#9e9e9e');
+
+  destroyChart('platform');
+  if (!labels.length) {
+    document.getElementById('chart-platform').getContext('2d').clearRect(0, 0, 9999, 9999);
+    return;
+  }
+  charts.platform = new Chart(document.getElementById('chart-platform'), {
+    type: 'doughnut',
+    data: { labels, datasets: [{ data, backgroundColor: colors, borderWidth: 2, borderColor: '#fff' }] },
+    options: {
+      maintainAspectRatio: false,
+      cutout: '62%',
+      plugins: {
+        legend: { position: 'right', labels: { font: { size: 12 }, padding: 14 } },
+        tooltip: { callbacks: { label: ctx => {
+          const tot = ctx.dataset.data.reduce((a, b) => a + b, 0);
+          return ` ${fmtMoneyFull(ctx.parsed)} (${(ctx.parsed/tot*100).toFixed(1)}%)`;
+        }}}
+      }
+    }
+  });
+}
+
+function renderAttentionTable(r) {
+  const c = curr(r);
+  const sevOrder = { Critical: 0, Review: 1 };
+  const rows = c
+    .filter(x => x.severity === 'Critical' || x.severity === 'Review')
+    .sort((a, b) => {
+      const sa = sevOrder[a.severity] ?? 9, sb = sevOrder[b.severity] ?? 9;
+      if (sa !== sb) return sa - sb;
+      return num(b.budget) - num(a.budget);
+    });
+
+  const tbody = document.getElementById('attention-tbody');
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="9" class="no-data">No accounts requiring attention for current selection 🎉</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(x => `
+    <tr>
+      <td class="acct-name" title="${esc(x.account_display_name)}">${esc(x.account_display_name)}</td>
+      <td>${esc(x.source_group || '—')}</td>
+      <td>${esc(x.platform)}</td>
+      <td class="num">${fmtMoney(x.budget)}</td>
+      <td class="num">${fmtMoney(x.bq_spend)}</td>
+      <td class="num">${fmtPct(x.pacing_ratio)}</td>
+      <td class="num">${fmtMoney(x.forecast_eom)}</td>
+      <td>${statusPill(x.status, x.severity)}</td>
+      <td>${annualPill(x.annual_status)}</td>
+    </tr>
+  `).join('');
+}
+
+function renderCaptureTable(r) {
+  const p = past(r).filter(x =>
+    x.status === 'Captured Mismatch (AM Over-reported)'  ||
+    x.status === 'Captured Mismatch (AM Under-reported)' ||
+    x.status === 'Captured Mismatch (>10% diff)'
+  );
+  p.sort((a, b) => Math.abs(num(b.capture_discrepancy)) - Math.abs(num(a.capture_discrepancy)));
+
+  const tbody = document.getElementById('capture-tbody');
+  if (!p.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="no-data">No capture discrepancies in current selection ✓</td></tr>';
+    return;
+  }
+  tbody.innerHTML = p.slice(0, 50).map(x => {
+    const diff = num(x.capture_discrepancy);
+    const diffCls = diff < 0 ? 'pill-crit' : 'pill-warn';
+    return `
+    <tr>
+      <td class="acct-name" title="${esc(x.account_display_name)}">${esc(x.account_display_name)}</td>
+      <td>${esc(x.platform)}</td>
+      <td>${esc(x.month_date)}</td>
+      <td class="num">${fmtMoney(x.planner_spend)}</td>
+      <td class="num">${fmtMoney(x.bq_spend)}</td>
+      <td class="num"><span class="pill ${diffCls}">${fmtMoney(diff)}</span></td>
+      <td>${statusPill(x.status, x.severity)}</td>
+    </tr>
+    `;
+  }).join('');
+}
+
+function renderAllTable(r) {
+  const sevOrder = { Critical: 0, Review: 1, Healthy: 2, Neutral: 3 };
+  const posOrder = { current: 0, past: 1, future: 2 };
+  const sorted = r.slice().sort((a, b) => {
+    const pa = posOrder[a.month_position] ?? 9, pb = posOrder[b.month_position] ?? 9;
+    if (pa !== pb) return pa - pb;
+    const sa = sevOrder[a.severity] ?? 9, sb = sevOrder[b.severity] ?? 9;
+    if (sa !== sb) return sa - sb;
+    return num(b.budget) - num(a.budget);
+  });
+
+  const tbody = document.getElementById('all-tbody');
+  const noteEl = document.getElementById('all-note');
+  if (!sorted.length) {
+    tbody.innerHTML = '<tr><td colspan="9" class="no-data">No rows match the current filters.</td></tr>';
+    noteEl.textContent = '';
+    return;
+  }
+  const limit = 200;
+  tbody.innerHTML = sorted.slice(0, limit).map(x => `
+    <tr>
+      <td class="acct-name" title="${esc(x.account_display_name)}">${esc(x.account_display_name)}</td>
+      <td>${esc(x.source_group || '—')}</td>
+      <td>${esc(x.platform)}</td>
+      <td>${esc(x.month_date)}</td>
+      <td>${esc(x.month_position)}</td>
+      <td class="num">${fmtMoney(x.budget)}</td>
+      <td class="num">${fmtMoney(x.bq_spend)}</td>
+      <td class="num">${fmtPct(x.pacing_ratio)}</td>
+      <td>${statusPill(x.status, x.severity)}</td>
+    </tr>
+  `).join('');
+  noteEl.textContent = `Mostrando ${Math.min(sorted.length, limit)} de ${sorted.length} filas.`;
+}
+
+function renderFreshness() {
+  const grid = document.getElementById('freshness-grid');
+  const items = Object.entries(DATA.freshness || {}).sort((a, b) => a[0].localeCompare(b[0]));
+  grid.innerHTML = items.map(([platform, info]) => {
+    const lag = info.lag_days;
+    let dotColor = '#9e9e9e', label = 'sin data';
+    if (lag === null || lag === undefined) {
+      dotColor = '#9e9e9e'; label = 'sin data';
+    } else if (lag <= 2) {
+      dotColor = '#43a047'; label = `${lag}d`;
+    } else if (lag <= 7) {
+      dotColor = '#ef6c00'; label = `${lag}d lag`;
+    } else {
+      dotColor = '#c62828'; label = `${lag}d lag`;
+    }
+    return `
+      <div class="freshness-item">
+        <div class="fr-platform">${esc(platform)}</div>
+        <div class="fr-date">${info.last_date || '—'}</div>
+        <div class="fr-lag"><span class="dot" style="background:${dotColor}"></span>${label}</div>
+      </div>
+    `;
+  }).join('');
+}
+</script>
 </body>
 </html>

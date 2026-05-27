@@ -1,0 +1,62 @@
+name: Refresh Pacing Dashboard Data
+
+# Corre diario a las 8 AM Central Time (= 13:00 UTC en horario estándar, 14:00 UTC en daylight saving)
+# Usamos 14:00 UTC que cubre la mayor parte del año (DST en US: marzo a noviembre).
+# Adicionalmente expone trigger manual desde la UI de Actions.
+
+on:
+  schedule:
+    - cron: '0 14 * * *'  # 14:00 UTC = 8 AM Central (DST) / 9 AM Central (no DST)
+  workflow_dispatch:       # permite trigger manual desde GitHub Actions UI
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write       # para hacer git commit & push
+      id-token: write       # para Workload Identity Federation (futuro)
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: '${{ secrets.GCP_SA_KEY }}'
+
+      - name: Export pacing data from BigQuery
+        env:
+          GCP_PROJECT: rightidea-cortex
+        run: python export_pacing_data.py
+
+      - name: Check if pacing-data.json changed
+        id: check_changes
+        run: |
+          if git diff --quiet pacing-data.json; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+            echo "No changes in pacing-data.json"
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "pacing-data.json updated"
+          fi
+
+      - name: Commit and push if changed
+        if: steps.check_changes.outputs.changed == 'true'
+        run: |
+          git config user.name "cortex-pacing-bot"
+          git config user.email "[email protected]"
+          git add pacing-data.json
+          git commit -m "chore: refresh pacing-data.json [auto $(date -u +%Y-%m-%d)]"
+          git push origin main
