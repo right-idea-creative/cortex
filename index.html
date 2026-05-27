@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ODC Call Analytics</title>
+<link href="https://cdn.jsdelivr.net/npm/@n8n/chat/dist/style.css" rel="stylesheet" />
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -891,6 +892,24 @@ function setText(id, txt) {
 function esc(str) {
   return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+</script>
+
+<script type="module">
+  import { createChat } from 'https://cdn.jsdelivr.net/npm/@n8n/chat/dist/chat.bundle.es.js';
+  createChat({
+    webhookUrl: 'https://naterimc.app.n8n.cloud/webhook/80464afc-47e2-4cd9-9164-1f2a9aac272e/chat',
+    mode: 'window',
+    chatInputKey: 'chatInput',
+    i18n: {
+      en: {
+        title: 'ODC Analytics Assistant',
+        subtitle: 'Ask me about call data, missed calls, Google Ads performance, and more.',
+        inputPlaceholder: 'Ask a question…',
+        getStarted: 'Start Chat',
+        footer: '',
+      },
+    },
+  });
 </script>
 </body>
 </html>
