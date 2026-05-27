@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tickets — Córtex OS</title>
+<link href="https://cdn.jsdelivr.net/npm/@n8n/chat/dist/style.css" rel="stylesheet" />
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f0f2f5; color: #1a1a2e; font-size: 14px; line-height: 1.5; }
+
+/* ── Site nav ── */
+.site-top { position: sticky; top: 0; z-index: 100; }
+.site-header { background: #0d1b2a; padding: 0 32px; height: 52px; display: flex; align-items: center; box-shadow: 0 1px 0 rgba(255,255,255,.06); }
+.brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+.brand-name { font-size: 17px; font-weight: 700; color: #fff; letter-spacing: -.3px; }
+.brand-divider { color: rgba(255,255,255,.25); font-size: 14px; }
+.brand-sub { font-size: 11px; color: rgba(255,255,255,.45); font-weight: 500; }
+.site-nav { background: #0f2236; padding: 0 32px; display: flex; gap: 2px; border-bottom: 1px solid rgba(255,255,255,.07); }
+.nav-link { color: rgba(255,255,255,.5); text-decoration: none; font-size: 13px; font-weight: 500; padding: 10px 16px; border-bottom: 2px solid transparent; transition: color .15s, border-color .15s; }
+.nav-link:hover { color: rgba(255,255,255,.85); }
+.nav-link.active { color: #fff; border-bottom-color: #4285F4; }
+
+/* ── Page layout ── */
+.page { max-width: 860px; margin: 0 auto; padding: 40px 32px 80px; }
+
+.page-header { margin-bottom: 32px; }
+.page-header h1 { font-size: 24px; font-weight: 700; color: #0d1b2a; margin-bottom: 6px; }
+.page-header p { font-size: 14px; color: #757575; }
+
+/* ── Command cards ── */
+.commands { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 36px; }
+@media (max-width: 620px) { .commands { grid-template-columns: 1fr; } }
+
+.cmd-card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 24px 22px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.07);
+  border: 1px solid #e8eaed;
+  border-left: 4px solid var(--accent);
+}
+.cmd-card .cmd-tag {
+  display: inline-block;
+  font-family: 'SF Mono', 'Fira Code', 'Fira Mono', monospace;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--accent);
+  background: var(--accent-bg);
+  border-radius: 6px;
+  padding: 4px 10px;
+  margin-bottom: 12px;
+  letter-spacing: -.3px;
+}
+.cmd-card h3 { font-size: 15px; font-weight: 700; color: #1a1a2e; margin-bottom: 6px; }
+.cmd-card p { font-size: 13px; color: #616161; line-height: 1.6; }
+.cmd-card ul { font-size: 13px; color: #616161; line-height: 1.8; padding-left: 18px; margin-top: 6px; }
+
+.cmd-card.digital { --accent: #1565c0; --accent-bg: #e8f0fe; }
+.cmd-card.creative { --accent: #6a1b9a; --accent-bg: #f3e5f5; }
+
+/* ── Chat section ── */
+.chat-section { background: #fff; border-radius: 12px; padding: 24px 22px; box-shadow: 0 1px 4px rgba(0,0,0,.07); border: 1px solid #e8eaed; }
+.chat-section h2 { font-size: 15px; font-weight: 700; color: #1a1a2e; margin-bottom: 4px; }
+.chat-section .chat-hint { font-size: 13px; color: #9e9e9e; margin-bottom: 20px; }
+
+/* Inline chat container */
+#chat-container { border: 1px solid #e8eaed; border-radius: 10px; overflow: hidden; height: 480px; display: flex; flex-direction: column; }
+#chat-messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 12px; background: #fafbfc; }
+.msg { max-width: 78%; padding: 10px 14px; border-radius: 12px; font-size: 13px; line-height: 1.55; }
+.msg.user { align-self: flex-end; background: #1565c0; color: #fff; border-bottom-right-radius: 4px; }
+.msg.bot  { align-self: flex-start; background: #fff; color: #212121; border: 1px solid #e8eaed; border-bottom-left-radius: 4px; }
+.msg.bot.thinking { color: #9e9e9e; font-style: italic; }
+.chat-input-row { display: flex; gap: 10px; padding: 14px 16px; border-top: 1px solid #e8eaed; background: #fff; }
+#chat-input { flex: 1; border: 1px solid #d0d3d8; border-radius: 8px; padding: 9px 14px; font-size: 13px; font-family: inherit; color: #1a1a2e; outline: none; transition: border-color .15s; resize: none; height: 40px; }
+#chat-input:focus { border-color: #1565c0; }
+#chat-send { background: #1565c0; color: #fff; border: none; border-radius: 8px; padding: 9px 18px; font-size: 13px; font-weight: 600; cursor: pointer; transition: background .15s; white-space: nowrap; }
+#chat-send:hover { background: #1976d2; }
+#chat-send:disabled { background: #bdbdbd; cursor: default; }
+</style>
+</head>
+<body>
+
+<div class="site-top">
+  <header class="site-header">
+    <a href="index.html" class="brand">
+      <span class="brand-name">Córtex OS</span>
+      <span class="brand-divider">|</span>
+      <span class="brand-sub">Right Idea Media & Creative</span>
+    </a>
+  </header>
+  <nav class="site-nav">
+    <a href="index.html" class="nav-link">Home</a>
+    <a href="call-tracking.html" class="nav-link">Call Tracking</a>
+    <a href="ad-spend-pacing.html" class="nav-link">Ad Spend Pacing</a>
+    <a href="tickets.html" class="nav-link active">Tickets</a>
+  </nav>
+</div>
+
+<div class="page">
+
+  <div class="page-header">
+    <h1>Submit a Ticket</h1>
+    <p>Use the assistant below to create a ticket. Start your message with a slash command to route it correctly.</p>
+  </div>
+
+  <div class="commands">
+    <div class="cmd-card digital">
+      <div class="cmd-tag">/digital</div>
+      <h3>Digital Ticket</h3>
+      <p>For website updates, SEO requests, tracking issues, ad account changes, or anything digital.</p>
+      <ul>
+        <li>Landing page edits</li>
+        <li>Analytics & tracking</li>
+        <li>Google / Meta Ads changes</li>
+        <li>Technical requests</li>
+      </ul>
+    </div>
+    <div class="cmd-card creative">
+      <div class="cmd-tag">/creative</div>
+      <h3>Creative Work Order</h3>
+      <p>For design, content, and creative asset production requests across any channel.</p>
+      <ul>
+        <li>Graphic design & ads</li>
+        <li>Copywriting & content</li>
+        <li>Video & photography</li>
+        <li>Brand & identity</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="chat-section">
+    <h2>Assistant</h2>
+    <p class="chat-hint">Start with <code>/digital</code> or <code>/creative</code> followed by a description of your request.</p>
+    <div id="chat-container">
+      <div id="chat-messages">
+        <div class="msg bot">👋 Hi! To create a ticket, start your message with <strong>/digital</strong> or <strong>/creative</strong> and describe what you need.</div>
+      </div>
+      <div class="chat-input-row">
+        <textarea id="chat-input" placeholder="/digital or /creative — describe your request…" rows="1"></textarea>
+        <button id="chat-send">Send</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const WEBHOOK = 'https://naterimc.app.n8n.cloud/webhook/80464afc-47e2-4cd9-9164-1f2a9aac272e/chat';
+const sessionId = crypto.randomUUID();
+const messages  = document.getElementById('chat-messages');
+const input     = document.getElementById('chat-input');
+const sendBtn   = document.getElementById('chat-send');
+
+function addMsg(text, role) {
+  const div = document.createElement('div');
+  div.className = `msg ${role}`;
+  div.innerHTML = text.replace(/\n/g, '<br>');
+  messages.appendChild(div);
+  messages.scrollTop = messages.scrollHeight;
+  return div;
+}
+
+async function send() {
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  input.style.height = '40px';
+  sendBtn.disabled = true;
+
+  addMsg(text, 'user');
+  const thinking = addMsg('Thinking…', 'bot thinking');
+
+  try {
+    const res = await fetch(WEBHOOK, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chatInput: text, sessionId }),
+    });
+    const data = await res.json();
+    const reply = data?.output ?? data?.text ?? data?.message ?? JSON.stringify(data);
+    thinking.className = 'msg bot';
+    thinking.innerHTML = reply.replace(/\n/g, '<br>');
+  } catch (err) {
+    thinking.className = 'msg bot';
+    thinking.textContent = 'Something went wrong. Please try again.';
+  }
+
+  sendBtn.disabled = false;
+  input.focus();
+}
+
+sendBtn.addEventListener('click', send);
+input.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+});
+// Auto-resize textarea
+input.addEventListener('input', () => {
+  input.style.height = '40px';
+  input.style.height = Math.min(input.scrollHeight, 100) + 'px';
+});
+</script>
+</body>
+</html>
