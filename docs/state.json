@@ -1,0 +1,140 @@
+{
+  "schema_version": "1.0",
+  "last_updated": "2026-05-27",
+  "last_session_id": "2026-05-27-dashboard-live",
+  "platform": {
+    "name": "Cortex OS",
+    "host": "Cloudflare Pages",
+    "production_url": "https://cortex-cmv.pages.dev",
+    "repo": "https://github.com/right-idea-creative/cortex",
+    "tech_stack": ["HTML", "vanilla JS", "Chart.js"],
+    "build_step": false,
+    "auto_deploy_on_push": true
+  },
+  "modules": {
+    "home": {
+      "path": "/",
+      "file": "index.html",
+      "status": "live",
+      "owner": "nate",
+      "data_source": null,
+      "refresh": "manual"
+    },
+    "call_tracking": {
+      "path": "/call-tracking.html",
+      "file": "call-tracking.html",
+      "status": "live",
+      "owner": "nate",
+      "data_source": "data.json",
+      "refresh": "manual via export_data.py"
+    },
+    "ad_spend_pacing": {
+      "path": "/ad-spend-pacing.html",
+      "file": "ad-spend-pacing.html",
+      "status": "live",
+      "owner": "sebas",
+      "data_source": "pacing-data.json",
+      "refresh": "auto daily 14:00 UTC via GitHub Actions"
+    },
+    "tickets": {
+      "path": "/tickets.html",
+      "file": "tickets.html",
+      "status": "live",
+      "owner": "nate",
+      "data_source": "n8n webhook",
+      "refresh": "live"
+    }
+  },
+  "gcp": {
+    "project_id": "rightidea-cortex",
+    "project_number": "427224510681",
+    "bigquery_datasets": {
+      "raw_google_ads": {
+        "purpose": "Daily transfer from Master MCC",
+        "main_table": "p_ads_CampaignBasicStats_6118198619",
+        "mcc_id": "611-819-8619",
+        "transfer_time_utc": "06:00"
+      },
+      "raw_budget": {
+        "purpose": "Source-of-truth budget data from Sheets",
+        "external_tables": ["planner_sheet", "other_channels_sheet"],
+        "views": ["budgets_normalized", "other_channels_normalized"]
+      },
+      "reference": {
+        "purpose": "Reference tables (some legacy)",
+        "tables": ["client_mapping"],
+        "note": "client_mapping is NOT used in pacing pipeline"
+      },
+      "transformed": {
+        "purpose": "Derived views for dashboards",
+        "views": [
+          "spend_combined",
+          "pacing_calculations",
+          "pacing_dashboard_view"
+        ]
+      }
+    },
+    "service_accounts": {
+      "cortex-bigquery@rightidea-cortex.iam.gserviceaccount.com": {
+        "roles": ["bigquery.admin"],
+        "used_for": ["pacing export (local + GHA)"],
+        "shared_sheets": [
+          "1uk_4iYe_UaAZbxgD-Hv4I4WnJ07pIa_A4JOMOp8T2WA",
+          "1pJ8GyxepeoO_yddEvVleUaUQ8zAN7_EVckJ_zvg93G4"
+        ]
+      },
+      "ctm-pipeline-sa@rightidea-cortex.iam.gserviceaccount.com": {
+        "roles": ["bigquery.dataEditor", "bigquery.jobUser"],
+        "used_for": ["call tracking pipeline (nate)"]
+      }
+    }
+  },
+  "google_sheets": {
+    "odc_forecast_2026_live": {
+      "id": "1uk_4iYe_UaAZbxgD-Hv4I4WnJ07pIa_A4JOMOp8T2WA",
+      "name": "ODC Forecast - 2026 (LIVE)",
+      "connected_via": "raw_budget.planner_sheet",
+      "used_in": "pacing budgets"
+    },
+    "other_channel_spend_official": {
+      "id": "1pJ8GyxepeoO_yddEvVleUaUQ8zAN7_EVckJ_zvg93G4",
+      "name": "Other Channel Spend [OFFICIAL]",
+      "connected_via": "raw_budget.other_channels_sheet",
+      "used_in": "pacing spend (non-Google platforms)"
+    }
+  },
+  "github_actions": {
+    "refresh_pacing": {
+      "file": ".github/workflows/refresh-pacing.yml",
+      "cron_utc": "0 14 * * *",
+      "cron_local_dst": "08:00 America/Chicago",
+      "manual_trigger": true,
+      "uses_secrets": ["GCP_SA_KEY"]
+    }
+  },
+  "team": {
+    "sebas_guzman": {
+      "role": "Technical Lead",
+      "claude_instances": ["work", "personal"]
+    },
+    "nate_rutledge": {
+      "role": "Product / Stakeholder",
+      "claude_instances": ["work", "personal"]
+    },
+    "daniel_pena": {
+      "role": "Data Engineer (freelance)",
+      "claude_instances": []
+    },
+    "dan_rutledge": {
+      "role": "CEO / Sponsor",
+      "claude_instances": []
+    }
+  },
+  "data_freshness_expectations": {
+    "google_ads": "1 day (via daily transfer)",
+    "bing": "weekly (manual sheet)",
+    "meta_ads": "weekly (manual sheet)",
+    "nextdoor": "weekly (manual sheet)",
+    "lsa": "weekly (manual sheet)"
+  }
+}
