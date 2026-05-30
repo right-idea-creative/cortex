@@ -106,3 +106,36 @@ The pacing pipeline now expresses these as `bq_data_available`, `status`, and `c
 **Observation, not a single mistake:** The Monday.com doc that served as a bitácora for 3 months worked because someone wrote in it. The shared-brain folder in this repo will work only if every session commits an update. The format is secondary; the discipline is primary.
 
 **Rule:** At end of every session, **before closing**, complete the end-of-session protocol from `README.md`. If it's not committed, it didn't happen.
+
+## L-011: `ctm_data.ctm_calls.called_at_ts` is epoch, not TIMESTAMP
+
+**Observation, not a single mistake:** the `called_at_ts` column in `ctm_data.ctm_calls` is declared TIMESTAMP and used as the partition key, but the upstream pipeline stores raw epoch numeric values in it. This means `PARTITION BY DATE(called_at_ts)` partitions exist but **partition pruning silently does not work** — queries that filter on `called_at_ts` end up scanning the entire table.
+
+**Rule:** do NOT attempt to "fix" `called_at_ts` by casting or converting it in BigQuery without first understanding the upstream pipeline. The fix has to happen at write time in the CTM pipeline code, not at read time in a view. Nate has documented this in the DDL of `ctm_calls_enriched`; treat that as the source of truth until the upstream is fixed.
+
+If a future query needs date-based filtering on CTM data, use `call_date` from `ctm_calls_enriched` instead — that column is a real DATE and partition-prunes correctly.
+
+---
+
+## L-012: Reverse-engineering invisible BigQuery pipelines via JOBS_BY_PROJECT
+
+When a BigQuery dataset has data being written to it by a process you didn't build and can't immediately locate (no scheduled query, no obvious Cloud Function, no documentation), you can reconstruct the pipeline from BigQuery's own audit logs:
+
+```sql
+SELECT
+  user_email,
+  statement_type,
+  start_time,
+  destination_table.table_id,
+  SUBSTR(query, 1, 500) AS query_preview
+FROM `region-us`.INFORMATION_SCHEMA.JOBS_BY_PROJECT
+WHERE creation_time >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 14 DAY)
+  AND destination_table.dataset_id = '<DATASET>'
+  AND statement_type IN ('INSERT', 'MERGE', 'CREATE_TABLE_AS_SELECT')
+ORDER BY start_time DESC
+LIMIT 50;
+```
+
+This reveals **who** writes (user_email — SA name if it's a service account), **when** (cadence visible in `start_time`), **what** (SQL preview), and **volume** (`total_bytes_processed`).
+
+Combined with `INFORMATION_SCHEMA.TABLES` to inspect table DDLs, this gives a complete picture of a pipeline's structure and cadence without ever seeing the code that runs it. Used this technique on 2026-05-30 to fully map the CTM pipeline in 10 minutes.

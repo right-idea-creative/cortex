@@ -1,6 +1,6 @@
 # Cortex OS — Current State
 
-> **Last updated:** 2026-05-27 (session 4)
+> **Last updated:** 2026-05-30 (session 5)
 > **Updated by:** Claude (Sebas, work account)
 >
 > This is a **snapshot of the system right now**, not a history. If a section feels stale, rewrite it. History lives in `/sessions/`.
@@ -107,3 +107,19 @@ Both Sheets are shared as Viewer with the service account `cortex-bigquery@right
 - **Old bitácora doc ID `39619258`** — superseded by this `/docs/` folder on 2026-05-27. Will eventually be archived.
 - New bitácora doc ID `42308796` — also superseded by this folder. Last entry: session 4 (2026-05-27).
 - Client Mapping board ID `18406601738` — operational, not used by pacing pipeline anymore.
+
+## CTM data pipeline
+
+Dataset `ctm_data` contains data sourced from the CallTrackingMetrics API. Loaded daily at **04:01 UTC** by service account `ctm-pipeline-sa@rightidea-cortex.iam.gserviceaccount.com` using a staging-swap pattern.
+
+**Layers (bottom-up):**
+
+1. `ctm_data.ctm_calls` — master raw table, 90+ columns, partitioned by `DATE(called_at_ts)`, clustered by `account_id, source`. **Note:** `called_at_ts` stores epoch values not real TIMESTAMPs due to an upstream pipeline bug (see LEARNINGS L-011). Partition pruning silently does not work as expected.
+2. `ctm_data.ctm_calls_enriched` — cleaned and normalized version (created by Nate 2026-05-27). Schema: `account_id, client_name, google_ads_customer_id, call_date, day_of_week_sun1, hour_of_day, call_status, duration, is_missed, source, web_source, medium, channel`. Filtered to active ODC clients only.
+3. `ctm_data.ctm_calls_daily` — VIEW: daily aggregates by client + channel.
+4. `ctm_data.ctm_calls_heatmap` — VIEW: hourly aggregates by client + day-of-week + hour.
+5. `ctm_data.v_chatbot_calls` — VIEW: chatbot-friendly version with formatted month/day labels.
+
+**Pipeline mechanics:** for each daily run, the external pipeline creates `ctm_data.ctm_calls_staging_<unix_ms>` with fresh API data, then runs `MERGE INTO ctm_calls USING staging ON T.id = S.id`. Staging tables are not cleaned up automatically (see PENDING P-TECH-06).
+
+**Where the pipeline runs:** unconfirmed as of 2026-05-30. Probable candidates: Cloud Run, Cloud Function, n8n flow, or external server. See PENDING P-TECH-05.

@@ -88,3 +88,16 @@
 ## Resolved this week (will be deleted on next update)
 
 Nothing yet — this section gets purged at the start of each new session.
+
+## Added in session 2026-05-30
+
+### P-TECH-05: Locate where CTM pipeline actually runs
+- **What:** The CTM pipeline writes to BigQuery daily at 04:01 UTC as `ctm-pipeline-sa@`. The code that creates the staging tables and runs the MERGE is somewhere outside the BigQuery audit logs.
+- **Candidates:** Cloud Run service, Cloud Function, n8n flow, external server, Cloud Scheduler triggering one of the above.
+- **Owner:** Sebas to ask Nate directly (fastest), or run `gcloud functions list` / `gcloud run services list` / `gcloud scheduler jobs list` to find it.
+- **Priority:** medium — pipeline works, but we need to know where to debug or modify it.
+
+### P-TECH-06: Orphan CTM staging tables in `ctm_data`
+- **What:** The CTM pipeline creates `ctm_data.ctm_calls_staging_<unix_ms>` tables but doesn't drop them after MERGE completes. At least 3 orphan tables exist as of 2026-05-30.
+- **Fix:** add cleanup step to the pipeline (drop staging after successful MERGE), OR add a scheduled query that drops staging tables older than 7 days.
+- **Priority:** low — cost is negligible, but it's untidy and could mask real failures if pipeline run-count metrics are derived from table presence.
