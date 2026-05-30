@@ -83,6 +83,63 @@ td.r { text-align:right; font-variant-numeric:tabular-nums; }
 .foot { color:var(--c-text-3); font-size:12px; margin-top:14px; }
 .empty { padding:40px; text-align:center; color:var(--c-text-2); }
 .err { padding:30px; border:1px solid var(--c-border); border-radius:var(--c-radius); color:var(--c-danger-tx); background:var(--c-danger-bg); margin-top:16px; }
+
+/* ===== Diagnosis panel ===== */
+.panel-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.28); opacity:0; pointer-events:none;
+  transition:opacity .2s ease; z-index:40; }
+.panel-overlay.open { opacity:1; pointer-events:auto; }
+.panel { position:fixed; top:0; right:0; height:100%; width:400px; max-width:92vw;
+  background:var(--c-bg); border-left:1px solid var(--c-border); box-shadow:-8px 0 28px rgba(0,0,0,0.12);
+  transform:translateX(100%); transition:transform .24s ease; z-index:50; display:flex; flex-direction:column; }
+.panel.open { transform:translateX(0); }
+.panel-head { padding:16px 18px 14px; border-bottom:1px solid var(--c-border); flex:0 0 auto; }
+.panel-head .row { display:flex; align-items:flex-start; gap:10px; }
+.panel-head h2 { font-size:16px; font-weight:500; margin:0; letter-spacing:-0.01em; }
+.panel-head .psub { color:var(--c-text-2); font-size:12px; margin-top:3px; }
+.panel-close { font:inherit; font-size:20px; line-height:1; color:var(--c-text-2); background:transparent;
+  border:0; cursor:pointer; padding:0 2px; border-radius:var(--c-radius-sm); }
+.panel-close:hover { color:var(--c-text); }
+.panel-body { flex:1 1 auto; overflow-y:auto; padding:16px 18px; }
+.msg { margin-bottom:14px; }
+.msg .who { font-size:11px; text-transform:uppercase; letter-spacing:0.04em; color:var(--c-text-3); margin-bottom:4px; }
+.msg.user .bubble { background:var(--c-surface-2); border-radius:var(--c-radius-sm); padding:9px 12px; }
+.msg.agent .bubble { color:var(--c-text); }
+.msg.agent .bubble > *:first-child { margin-top:0; }
+.msg.agent .bubble > *:last-child { margin-bottom:0; }
+.msg.agent .bubble h1,.msg.agent .bubble h2,.msg.agent .bubble h3 { font-size:14px; font-weight:600; margin:14px 0 6px; }
+.msg.agent .bubble p { margin:0 0 9px; }
+.msg.agent .bubble ul,.msg.agent .bubble ol { margin:0 0 9px; padding-left:20px; }
+.msg.agent .bubble li { margin-bottom:3px; }
+.msg.agent .bubble code { font-family:var(--font-mono); font-size:12px; background:var(--c-surface-2);
+  padding:1px 5px; border-radius:4px; }
+.msg.agent .bubble pre { background:var(--c-surface-2); padding:10px 12px; border-radius:var(--c-radius-sm);
+  overflow-x:auto; margin:0 0 9px; }
+.msg.agent .bubble pre code { background:transparent; padding:0; }
+.msg.agent .bubble a { color:var(--c-info-tx); }
+.msg.agent .bubble strong { font-weight:600; }
+.typing { display:inline-flex; gap:4px; padding:4px 0; }
+.typing span { width:6px; height:6px; border-radius:50%; background:var(--c-text-3); animation:blink 1.2s infinite both; }
+.typing span:nth-child(2){ animation-delay:.2s; } .typing span:nth-child(3){ animation-delay:.4s; }
+@keyframes blink { 0%,80%,100%{opacity:.2;} 40%{opacity:1;} }
+.panel-err { color:var(--c-danger-tx); background:var(--c-danger-bg); border-radius:var(--c-radius-sm);
+  padding:9px 12px; font-size:13px; margin-bottom:14px; }
+.panel-foot { flex:0 0 auto; border-top:1px solid var(--c-border); padding:12px 14px; background:var(--c-bg); }
+.panel-foot .ticket-row { margin-bottom:9px; }
+.ticket-btn { font:inherit; font-size:12px; color:var(--c-text); background:transparent;
+  border:1px solid var(--c-border-2); border-radius:var(--c-radius-sm); padding:5px 11px; cursor:pointer; transition:background .12s; }
+.ticket-btn:hover:not(:disabled) { background:var(--c-surface); }
+.ticket-btn:disabled { opacity:.5; cursor:default; }
+.ticket-btn.done { color:var(--c-ok-tx); border-color:var(--c-ok-tx); }
+.compose { display:flex; gap:8px; align-items:flex-end; }
+.compose textarea { font:inherit; font-size:13px; color:var(--c-text); background:var(--c-bg); flex:1;
+  border:1px solid var(--c-border-2); border-radius:var(--c-radius-sm); padding:8px 11px; resize:none;
+  max-height:120px; line-height:1.4; }
+.compose textarea::placeholder { color:var(--c-text-3); }
+.send-btn { font:inherit; font-size:13px; color:var(--c-bg); background:var(--c-text); border:1px solid var(--c-text);
+  border-radius:var(--c-radius-sm); padding:8px 14px; cursor:pointer; transition:opacity .12s; }
+.send-btn:hover:not(:disabled) { opacity:.85; }
+.send-btn:disabled { opacity:.4; cursor:default; }
+@media (max-width:480px){ .panel { width:100%; max-width:100%; } }
 </style>
 </head>
 <body>
@@ -126,7 +183,40 @@ td.r { text-align:right; font-variant-numeric:tabular-nums; }
   </div>
   <div class="foot" id="foot"></div>
 </div>
+
+<!-- Diagnosis panel -->
+<div class="panel-overlay" id="panelOverlay"></div>
+<aside class="panel" id="panel" aria-hidden="true">
+  <div class="panel-head">
+    <div class="row">
+      <div style="flex:1;min-width:0;">
+        <h2 id="panelTitle">—</h2>
+        <div class="psub" id="panelSub">—</div>
+      </div>
+      <button class="panel-close" id="panelClose" aria-label="Close panel">&times;</button>
+    </div>
+  </div>
+  <div class="panel-body" id="panelBody"></div>
+  <div class="panel-foot">
+    <div class="ticket-row">
+      <button class="ticket-btn" id="ticketBtn">＋ Create Monday ticket</button>
+    </div>
+    <div class="compose">
+      <textarea id="composeInput" rows="1" placeholder="Ask a follow-up…" aria-label="Follow-up message"></textarea>
+      <button class="send-btn" id="sendBtn">Send</button>
+    </div>
+  </div>
+</aside>
+
+<script id="embeddedData" type="application/json">{"summary":{"snapshot_date":"2026-05-30","total":136,"critical":35,"at_risk":14,"low_volume":47,"ok":40,"total_cost_7d":21801},"items":[{"client_name":"ODC Dallas Fort Worth","account_manager":"Cole Bauer","tier":"Tier 1","biz_type":"Branded","campaign_name":"ODC Dallas Fort Worth - Branded - Dallas TX - Search - Google Ads - RIMC","cost":395.02,"conv":3,"clicks":20,"cpa":131.67,"bench":21.45,"search_is":0.46,"budget_lost_is":0.3,"conv_delta":-2,"cpa_delta_pct":59.7,"status":"Critical","reason":"CPA far above portfolio benchmark","streak":9,"dir":"Worsening","cpa_history":[105,108,166,69,104,171,75,70,132],"conv_history":[4,5,3,10,8,2,6,6,3],"status_history":["Critical","Critical","Critical","Critical","Critical","Critical","Critical","Critical","Critical"],"account_calls_7d":null,"account_missed_7d":null},{"client_name":"ODC Knoxville","account_manager":"Eli E Monson","tier":"Tier 1","biz_type":"Residential","campaign_name":"ODC Knoxville - Residential - Knoxville TN - Search - Google - RIMC","cost":363.64,"conv":4,"clicks":100,"cpa":90.91,"bench":50.65,"search_is":0.246,"budget_lost_is":0.094,"conv_delta":3,"cpa_delta_pct":-47.1,"status":"Critical","reason":"CPA far above portfolio benchmark","streak":9,"dir":"Improving","cpa_history":[402,248,-1,-1,148,-1,-1,175,91],"conv_history":[3,2,0,0,1,0,0,1,4],"status_history":["Critical","Critical","Critical","Critical","Critical","Critical","Critical","Critical","Critical"],"account_calls_7d":null,"account_missed_7d":null},{"client_name":"ODC Denver","account_manager":"Cole Bauer","tier":"Tier 1","biz_type":"Branded","campaign_name":"ODC Denver - Branded - Various Locations CO - Search - Google Ads - RIMC","cost":1133.98,"conv":4,"clicks":42,"cpa":283.74,"bench":21.45,"search_is":0.811,"budget_lost_is":0.08,"conv_delta":2,"cpa_delta_pct":-33,"status":"Critical","reason":"CPA far above portfolio benchmark","streak":2,"dir":"Worsening","cpa_history":[-1,7,84,152,414,284],"conv_history":[0,1,5,3,2,4],"status_history":["Low Volume","Low Volume","Critical","Low Volume","Critical","Critical"],"account_calls_7d":null,"account_missed_7d":null},{"client_name":"ODC Denver","account_manager":"Cole Bauer","tier":"Tier 1","biz_type":"S&R","campaign_name":"ODC Denver - S&R - Various Locations CO - Search - Google Ads - RIMC","cost":1017.36,"conv":3,"clicks":92,"cpa":339.12,"bench":82.96,"search_is":0.355,"budget_lost_is":0,"conv_delta":-1,"cpa_delta_pct":57.3,"status":"Critical","reason":"CPA far above portfolio benchmark","streak":2,"dir":"Worsening","cpa_history":[-1,13,501,114,152,339],"conv_history":[0,2,1,6,6,3],"status_history":["Low Volume","Low Volume","Critical","At Risk","Critical","Critical"],"account_calls_7d":null,"account_missed_7d":null},{"client_name":"ODC Sioux Falls","account_manager":"Cole Bauer","tier":"Tier 1","biz_type":"S&R","campaign_name":"ODC Sioux Falls - S&R - Sioux Falls SD - Search - Google Ads - RIMC","cost":953.31,"conv":4,"clicks":30,"cpa":238.33,"bench":82.96,"search_is":0.493,"budget_lost_is":0.361,"conv_delta":-4,"cpa_delta_pct":148.1,"status":"Critical","reason":"CPA far above portfolio benchmark","streak":1,"dir":"Worsening","cpa_history":[38,89,78,129,50,41,81,105,238],"conv_history":[15,11,10,5,14,16,10,8,4],"status_history":["OK","Critical","At Risk","Critical","OK","OK","OK","At Risk","Critical"],"account_calls_7d":null,"account_missed_7d":null},{"client_name":"ODC Tulsa","account_manager":"Cole Bauer","tier":"Tier 1","biz_type":"Residential","campaign_name":"ODC Tulsa - Residential - Tulsa OK - Search - Google Ads - RIMC","cost":738.59,"conv":9,"clicks":36,"cpa":82.11,"bench":50.65,"search_is":0.255,"budget_lost_is":0.257,"conv_delta":7,"cpa_delta_pct":39.3,"status":"Critical","reason":"CPA far above portfolio benchmark","streak":1,"dir":"New/insufficient history","cpa_history":[44,123,39,61,-1,46,143,63,82],"conv_history":[5,2,5,4,0,4,1,2,9],"status_history":["OK","Critical","OK","OK","Critical","OK","At Risk","OK","Critical"],"account_calls_7d":null,"account_missed_7d":null},{"client_name":"ODC Dallas Fort Worth","account_manager":"Cole Bauer","tier":"Tier 1","biz_type":"S&R","campaign_name":"ODC Dallas Fort Worth - S&R - Fort Worth TX - Search - Google Ads - RIMC","cost":464.44,"conv":2,"clicks":19,"cpa":232.22,"bench":82.96,"search_is":0.257,"budget_lost_is":0.23,"conv_delta":-4,"cpa_delta_pct":143.9,"status":"Critical","reason":"CPA far above portfolio benchmark","streak":1,"dir":"Worsening","cpa_history":[83,93,57,190,164,122,98,94,232],"conv_history":[4,4,5,4,5,5,5,6,2],"status_history":["At Risk","Critical","OK","Critical","Critical","At Risk","At Risk","At Risk","Critical"],"account_calls_7d":null,"account_missed_7d":null},{"client_name":"ODC Norfolk Virginia","account_manager":"Cole Bauer","tier":"Tier 2","biz_type":"S&R","campaign_name":"ODC Norfolk VA - S&R - Norfolk VA - Search - Google Ads - RIMC","cost":415.01,"conv":1,"clicks":49,"cpa":415.01,"bench":82.96,"search_is":0.153,"budget_lost_is":0.128,"conv_delta":1,"cpa_delta_pct":null,"status":"Critical","reason":"CPA far above portfolio benchmark","streak":2,"dir":"New/insufficient history","cpa_history":[-1,415],"conv_history":[0,1],"status_history":["Critical","Critical"],"account_calls_7d":null,"account_missed_7d":null},{"client_name":"ODC Dallas Fort Worth","account_manager":"Cole Bauer","tier":"Tier 1","biz_type":"S&R","campaign_name":"ODC Dallas Fort Worth - S&R - Dallas TX - Search - Google Ads - RIMC","cost":403.71,"conv":3,"clicks":15,"cpa":134.57,"bench":82.96,"search_is":0.33,"budget_lost_is":0.202,"conv_delta":2,"cpa_delta_pct":-70.1,"status":"Critical","reason":"CPA far above portfolio benchmark","streak":6,"dir":"Improving","cpa_history":[-1,58,53,317,239,139,164,395,135],"conv_history":[0,2,2,1,2,3,3,1,3],"status_history":["Critical","At Risk","Low Volume","Critical","Critical","Critical","Critical","Critical","Critical"],"account_calls_7d":null,"account_missed_7d":null},{"client_name":"ODC Dallas Fort Worth","account_manager":"Cole Bauer","tier":"Tier 1","biz_type":"Branded","campaign_name":"ODC Dallas Fort Worth - Branded - Fort Worth TX - Search - Google Ads - RIMC","cost":390.24,"conv":5,"clicks":16,"cpa":78.05,"bench":21.45,"search_is":0.487,"budget_lost_is":0.399,"conv_delta":-3,"cpa_delta_pct":57,"status":"Critical","reason":"CPA far above portfolio benchmark","streak":6,"dir":"Improving","cpa_history":[85,73,34,103,97,119,111,48,78],"conv_history":[2,5,7,5,7,4,4,8,5],"status_history":["Critical","Critical","OK","Critical","Critical","Critical","Critical","Critical","Critical"],"account_calls_7d":null,"account_missed_7d":null},{"client_name":"ODC Sarasota","account_manager":"Cole Bauer","tier":"Tier 1","biz_type":"S&R","campaign_name":"ODC Sarasota - S&R - Various locations FL - Search - Google Ads - RIMC","cost":290.34,"conv":0,"clicks":33,"cpa":null,"bench":82.96,"search_is":0.239,"budget_lost_is":0.214,"conv_delta":0,"cpa_delta_pct":null,"status":"Critical","reason":"Zero conversions on real spend","streak":9,"dir":"New/insufficient history","cpa_history":[-1,-1,-1,342,294,-1,143,-1,-1],"conv_history":[0,0,0,2,2,0,2,0,0],"status_history":["Critical","Critical","Critical","Critical","Critical","Critical","Critical","Critical","Critical"],"account_calls_7d":null,"account_missed_7d":null},{"client_name":"ODC Casper","account_manager":"Eli E Monson","tier":"Tier 2","biz_type":"Generic","campaign_name":"ODC Casper - Generic - Casper WY - Search - Google Ads - RIMC","cost":292.86,"conv":0,"clicks":11,"cpa":null,"bench":46.71,"search_is":0.933,"budget_lost_is":0.055,"conv_delta":-2,"cpa_delta_pct":null,"status":"Critical","reason":"Zero conversions on real spend","streak":1,"dir":"New/insufficient history","cpa_history":[-1,-1,-1,-1,85,-1,103,28,-1],"conv_history":[0,0,0,0,1,0,1,2,0],"status_history":["Critical","Critical","Critical","Critical","Low Volume","Critical","Low Volume","Low Volume","Critical"],"account_calls_7d":null,"account_missed_7d":null},{"client_name":"ODC Savannah","account_manager":"Cole Bauer","tier":"Tier 2","biz_type":"Branded","campaign_name":"ODC Savannah - Branded - Various locations GA - Search - Google Ads - RIMC","cost":286.69,"conv":8,"clicks":22,"cpa":35.84,"bench":21.45,"search_is":0.878,"budget_lost_is":0,"conv_delta":2,"cpa_delta_pct":-9.8,"status":"Critical","reason":"CPA far above portfolio benchmark","streak":1,"dir":"Worsening","cpa_history":[39,88,26,30,25,30,37,38,36],"conv_history":[5,3,7,4,3,3,3,6,8],"status_history":["At Risk","Critical","Low Volume","Low Volume","Low Volume","Low Volume","Low Volume","At Risk","Critical"],"account_calls_7d":null,"account_missed_7d":null},{"client_name":"ODC Mobile Bay","account_manager":"Eli E Monson","tier":"Tier 2","biz_type":"S&R","campaign_name":"ODC Mobile Bay - S&R - Various Locations AL - Search - Google Ads - RIMC","cost":221.54,"conv":0,"clicks":56,"cpa":null,"bench":82.96,"search_is":0.182,"budget_lost_is":0.328,"conv_delta":-1,"cpa_delta_pct":null,"status":"Critical","reason":"Zero conversions on real spend","streak":2,"dir":"New/insufficient history","cpa_history":[51,124,-1,91,147,43,95,216,-1],"conv_history":[5,2,0,3,3,4,2,1,0],"status_history":["OK","Critical","Critical","At Risk","Critical","OK","At Risk","Critical","Critical"],"account_calls_7d":null,"account_missed_7d":null},{"client_name":"ODC Mobile Bay","account_manager":"Eli E Monson","tier":"Tier 2","biz_type":"Branded","campaign_name":"ODC Mobile Bay - Branded - Various Locations AL - Search - Google Ads - RIMC","cost":201.71,"conv":1,"clicks":20,"cpa":201.71,"bench":21.45,"search_is":0.524,"budget_lost_is":0.098,"conv_delta":1,"cpa_delta_pct":null,"status":"Critical","reason":"CPA far above portfolio benchmark","streak":9,"dir":"Improving","cpa_history":[-1,192,82,201,406,-1,53,-1,202],"conv_history":[0,1,2,1,1,0,2,0,1],"status_history":["Critical","Critical","Critical","Critical","Critical","Critical","Critical","Critical","Critical"],"account_calls_7d":null,"account_missed_7d":null},{"client_name":"ODC Knoxville","account_manager":"Eli E Monson","tier":"Tier 1","biz_type":"S&R","campaign_name":"ODC Knoxville - S&R - Knoxville TN - Search - Google - RIMC","cost":315.79,"conv":2,"clicks":34,"cpa":157.9,"bench":82.96,"search_is":0.353,"budget_lost_is":0.163,"conv_delta":0,"cpa_delta_pct":-6,"status":"Critical","reason":"CPA far above portfolio benchmark","streak":3,"dir":"New/insufficient history","cpa_history":[1138,-1,-1,-1,-1,112,418,168,158],"conv_history":[1,0,0,0,0,4,1,2,2],"status_history":["Critical","Critical","Critical","Critical","Critical","At Risk","Critical","Critical","Critical"],"account_calls_7d":null,"account_missed_7d":null},{"client_name":"ODC NW Indiana","account_manager":"Cole Bauer","tier":"Tier 1","biz_type":"S&R","campaign_name":"ODC NW Indiana - S&R - Various locations IN - Search - Google Ads - RIMC","cost":133.73,"conv":1,"clicks":15,"cpa":133.73,"bench":82.96,"search_is":0.17,"budget_lost_is":0.374,"conv_delta":-5,"cpa_delta_pct":247.9,"status":"Critical","reason":"CPA far above portfolio benchmark","streak":1,"dir":"New/insufficient history","cpa_history":[208,126,38,11,-1,23,35,41,134],"conv_history":[5,10,13,5,0,9,8,5,1],"status_history":["Critical","Critical","OK","At Risk","Critical","OK","OK","OK","Critical"],"account_calls_7d":null,"account_missed_7d":null},{"client_name":"ODC Omaha","account_manager":"Cole Bauer","tier":"Tier 2","biz_type":"Branded","campaign_name":"ODC Omaha - Branded - Various locations NE - Search - Google Ads - RIMC","cost":145.32,"conv":4,"clicks":17,"cpa":36.33,"bench":21.45,"search_is":0.292,"budget_lost_is":0.452,"conv_delta":-4,"cpa_delta_pct":41.1,"status":"Critical","reason":"CPA far above portfolio benchmark","streak":1,"dir":"Worsening","cpa_history":[11,29,10,20,9,16,17,23,36],"conv_history":[12,6,13,6,8,12,11,9,4],"status_history":["OK","OK","OK","At Risk","OK","OK","OK","OK","Critical"],"account_calls_7d":null,"account_missed_7d":null},{"client_name":"ODC Western Kentucky","account_manager":"Eli E Monson","tier":"Tier 2","biz_type":"All Products","campaign_name":"ODC Western Kentucky - All Products - W Kentucky KY -  Search - Google Ads - RIMC","cost":517.2,"conv":19,"clicks":69,"cpa":27.23,"bench":18.21,"search_is":0.428,"budget_lost_is":0.251,"conv_delta":-1.5,"cpa_delta_pct":25.7,"status":"At Risk","reason":"CPA above portfolio benchmark","streak":0,"dir":"Worsening","cpa_history":[50,33,44,6,4,2,10,22,27],"conv_history":[17,27,12,1,2,4,20,20,19],"status_history":["Critical","Critical","Critical","Low Volume","OK","Low Volume","At Risk","Critical","At Risk"],"account_calls_7d":null,"account_missed_7d":null},{"client_name":"ODC Knoxville","account_manager":"Eli E Monson","tier":"Tier 1","biz_type":"Branded","campaign_name":"ODC Knoxville - Branded - Knoxville TN - Search - Google - RIMC","cost":489.62,"conv":18,"clicks":43,"cpa":27.2,"bench":21.45,"search_is":0.915,"budget_lost_is":0,"conv_delta":6,"cpa_delta_pct":-51.2,"status":"At Risk","reason":"CPA above portfolio benchmark","streak":0,"dir":"Improving","cpa_history":[166,533,70,55,68,123,86,47,27],"conv_history":[5,1,6,5,6,7,9,12,18],"status_history":["Critical","Critical","Critical","Critical","Critical","Critical","Critical","Critical","At Risk"],"account_calls_7d":null,"account_missed_7d":null},{"client_name":"ODC Bowling Green","account_manager":"Cole Bauer","tier":"Tier 1","biz_type":"S&R","campaign_name":"ODC Bowling Green - S&R - Various Locations KY - Search - Google Ads - RIMC","cost":373.08,"conv":3,"clicks":22,"cpa":124.36,"bench":82.96,"search_is":0.71,"budget_lost_is":0.144,"conv_delta":-3,"cpa_delta_pct":614.5,"status":"At Risk","reason":"CPA above portfolio benchmark","streak":0,"dir":"Worsening","cpa_history":[32,27,65,53,24,21,18,17,124],"conv_history":[7,7,7,3,2,2,4,6,3],"status_history":["OK","OK","OK","At Risk","OK","Low Volume","OK","OK","At Risk"],"account_calls_7d":null,"account_missed_7d":null},{"client_name":"ODC Daytona Beach","account_manager":"Cole Bauer","tier":"Tier 1","biz_type":"Branded","campaign_name":"ODC Daytona Beach - Branded - Daytona Beach FL - Search - Google Ads - RIMC","cost":307.71,"conv":10,"clicks":20,"cpa":30.78,"bench":21.45,"search_is":0.588,"budget_lost_is":0.234,"conv_delta":-4,"cpa_delta_pct":174.2,"status":"At Risk","reason":"CPA above portfolio benchmark","streak":0,"dir":"Worsening","cpa_history":[88,35,11,23,23,27,8,11,31],"conv_history":[2,9,20,16,23,9,17,14,10],"status_history":["Low Volume","OK","OK","OK","OK","At Risk","OK","OK","At Risk"],"account_calls_7d":null,"account_missed_7d":null},{"client_name":"ODC Memphis","account_manager":"Cole Bauer","tier":"Tier 2","biz_type":"Branded","campaign_name":"ODC Memphis - Branded - Memphis TN - Search - Google Ads - RIMC","cost":190.9,"conv":2,"clicks":12,"cpa":95.45,"bench":21.45,"search_is":0.516,"budget_lost_is":0.378,"conv_delta":-3,"cpa_delta_pct":126.6,"status":"At Risk","reason":"Conversions dropped >50% WoW","streak":0,"dir":"Worsening","cpa_history":[65,88,31,158,67,27,266,42,95],"conv_history":[2,2,5,1,2,9,1,5,2],"status_history":["Low Volume","Low Volume","Low Volume","At Risk","Low Volume","At Risk","Critical","Low Volume","At Risk"],"account_calls_7d":null,"account_missed_7d":null},{"client_name":"ODC Chippewa Valley","account_manager":"Eli E Monson","tier":"Tier 1","biz_type":"S&R","campaign_name":"ODC Chippewa Valley - S&R - Various Locations WI - Search - Google Ads - RIMC","cost":94.41,"conv":4,"clicks":9,"cpa":23.63,"bench":82.96,"search_is":0.496,"budget_lost_is":0.213,"conv_delta":-7,"cpa_delta_pct":146.9,"status":"At Risk","reason":"Conversions dropped >50% WoW","streak":0,"dir":"Stable","cpa_history":[57,44,24,30,21,38,20,9,24],"conv_history":[3,5,7,6,8,4,8,11,4],"status_history":["OK","OK","OK","OK","OK","OK","OK","OK","At Risk"],"account_calls_7d":null,"account_missed_7d":null},{"client_name":"ODC Sioux Falls","account_manager":"Cole Bauer","tier":"Tier 1","biz_type":"Branded","campaign_name":"ODC Sioux Falls - Branded - Sioux Falls SD - Search - Google Ads - RIMC","cost":315.2,"conv":34,"clicks":107,"cpa":9.27,"bench":21.45,"search_is":0.876,"budget_lost_is":0,"conv_delta":19,"cpa_delta_pct":-50,"status":"OK","reason":"Within expected range","streak":0,"dir":"Improving","cpa_history":[9,18,10,10,14,22,20,18,9],"conv_history":[32,20,19,30,24,16,15,15,34],"status_history":["OK","OK","OK","OK","OK","OK","OK","OK","OK"],"account_calls_7d":null,"account_missed_7d":null},{"client_name":"ODC Lansing","account_manager":"Eli E Monson","tier":"Tier 1","biz_type":"Branded","campaign_name":"ODC Lansing - Branded - Various locations MI - Search - Google Ads - RIMC","cost":302.68,"conv":23,"clicks":46,"cpa":13.17,"bench":21.45,"search_is":0.509,"budget_lost_is":0.267,"conv_delta":2,"cpa_delta_pct":-13.4,"status":"OK","reason":"Within expected range","streak":0,"dir":"Improving","cpa_history":[21,11,16,20,17,12,15,15,13],"conv_history":[7,7,23,28,33,28,24,21,23],"status_history":["OK","Low Volume","OK","OK","OK","OK","OK","OK","OK"],"account_calls_7d":null,"account_missed_7d":null},{"client_name":"ODC Eugene","account_manager":"Cole Bauer","tier":"Tier 1","biz_type":"Unclassified","campaign_name":"LocalServicesCampaign:SystemGenerated:0006311b8ee7230e","cost":243.56,"conv":30,"clicks":96,"cpa":8.12,"bench":25.85,"search_is":0,"budget_lost_is":0,"conv_delta":7,"cpa_delta_pct":-6.7,"status":"OK","reason":"Within expected range","streak":0,"dir":"Stable","cpa_history":[6,7,8,8,8,8,8,9,8],"conv_history":[34,30,29,29,41,29,23,23,30],"status_history":["OK","OK","OK","OK","OK","OK","OK","OK","OK"],"account_calls_7d":null,"account_missed_7d":null},{"client_name":"ODC Cook Inlet","account_manager":"Eli E Monson","tier":"Tier 1","biz_type":"Branded","campaign_name":"ODC Cook Inlet - Branded - Various Locations AK - Search - Google Ads - RIMC","cost":129.45,"conv":17,"clicks":38,"cpa":7.62,"bench":21.45,"search_is":0.668,"budget_lost_is":0.052,"conv_delta":2,"cpa_delta_pct":-10.4,"status":"OK","reason":"Within expected range","streak":0,"dir":"Improving","cpa_history":[79,60,50,82,55,50,17,9,8],"conv_history":[13,17,17,8,11,5,9,15,17],"status_history":["Critical","Critical","At Risk","Critical","Critical","Critical","OK","OK","OK"],"account_calls_7d":null,"account_missed_7d":null},{"client_name":"ODC Lafayette (LA)","account_manager":"Cole Bauer","tier":"Tier 2","biz_type":"Residential","campaign_name":"ODC Lafayette - Residential - Lafayette LA - Search - Google Ads - RIMC","cost":50.53,"conv":16.5,"clicks":30,"cpa":3.06,"bench":50.65,"search_is":0.562,"budget_lost_is":0.139,"conv_delta":-5.5,"cpa_delta_pct":32,"status":"OK","reason":"Within expected range","streak":0,"dir":"Improving","cpa_history":[3,5,6,6,7,5,2,2,3],"conv_history":[22,23,14,16,16,15,15,22,16],"status_history":["OK","OK","OK","OK","OK","OK","OK","OK","OK"],"account_calls_7d":null,"account_missed_7d":null},{"client_name":"ODC Santa Rosa","account_manager":"Cole Bauer","tier":"Tier 1","biz_type":"S&R","campaign_name":"ODC Santa Rosa - S&R - Santa Rosa CA - Search - Google Ads - RIMC","cost":756.32,"conv":2,"clicks":6,"cpa":378.16,"bench":82.96,"search_is":0.455,"budget_lost_is":0.207,"conv_delta":1,"cpa_delta_pct":-9.4,"status":"Low Volume","reason":"Below significance threshold (clicks)","streak":0,"dir":"Improving","cpa_history":[-1,493,746,860,618,-1,-1,418,378],"conv_history":[0,2,1,1,2,0,0,1,2],"status_history":["Critical","Low Volume","Low Volume","Critical","Critical","Critical","Critical","Low Volume","Low Volume"],"account_calls_7d":null,"account_missed_7d":null},{"client_name":"ODC Sioux Falls","account_manager":"Cole Bauer","tier":"Tier 1","biz_type":"Residential","campaign_name":"ODC Sioux Falls - Residential - Sioux Falls SD - Search - Google Ads - RIMC","cost":274.66,"conv":6,"clicks":14,"cpa":45.78,"bench":50.65,"search_is":0.521,"budget_lost_is":0.221,"conv_delta":3,"cpa_delta_pct":-58.8,"status":"Low Volume","reason":"Below significance threshold (clicks)","streak":0,"dir":"Improving","cpa_history":[76,86,101,65,80,104,136,108,46],"conv_history":[6,6,5,9,6,4,2,3,6],"status_history":["At Risk","At Risk","At Risk","OK","At Risk","At Risk","Critical","At Risk","Low Volume"],"account_calls_7d":null,"account_missed_7d":null}]}</script>
 <script>
+// ==========================================================
+//  PASTE YOUR n8n WEBHOOK URL HERE  (between the quotes)
+//  e.g. "https://your-instance.app.n8n.cloud/webhook/triage-agent"
+// ==========================================================
+const WEBHOOK_URL = "https://naterimc.app.n8n.cloud/webhook/098cd887-6614-4f2f-8095-30d956a0ccc9";
+// ==========================================================
+
 const STATE={data:null,filter:"flagged",type:"",q:"",sortK:null,sortDir:1};
 const fmtMoney=n=>(n==null)?"—":"$"+Math.round(n).toLocaleString();
 const fmtCpa=n=>(n==null||n<0)?"—":"$"+Math.round(n);
@@ -211,14 +301,9 @@ function render(){
     </tr>`;
   }).join("");
   [...tb.querySelectorAll("tr[data-i]")].forEach(tr=>{
-    tr.onclick=()=>{
-      const r=rows[+tr.dataset.i];
-      const prompt=`Diagnose the ${r.client_name} ${r.biz_type} campaign — flagged ${r.status} (${r.reason}), CPA ${fmtCpa(r.cpa)} vs ${fmtCpa(r.bench)} benchmark, ${fmtPct(r.budget_lost_is)} budget-lost IS, trend ${r.dir}, ${r.streak}-week streak. What's the likely cause and fix?`;
-      if(typeof window.sendPrompt==="function")window.sendPrompt(prompt);
-      else{navigator.clipboard&&navigator.clipboard.writeText(prompt);tr.style.background="var(--c-surface-2)";setTimeout(()=>tr.style.background="",400);}
-    };
+    tr.onclick=()=>openPanel(rows[+tr.dataset.i]);
   });
-  document.getElementById("foot").textContent=`Showing ${rows.length} of ${d.items.length} campaigns · click a row to copy a diagnosis prompt · sparkline = weekly CPA oldest→newest, dot = no conversions`;
+  document.getElementById("foot").textContent=`Showing ${rows.length} of ${d.items.length} campaigns · click a row to open the diagnosis panel · sparkline = weekly CPA oldest→newest, dot = no conversions`;
 }
 function wire(){
   document.querySelectorAll("#statusFilters .f").forEach(b=>{
@@ -243,11 +328,199 @@ function populateTypes(){
   const sel=document.getElementById("typeFilter");
   types.forEach(t=>{const o=document.createElement("option");o.value=t;o.textContent=t;sel.appendChild(o);});
 }
+
+/* ============ Minimal markdown renderer (no dependencies) ============ */
+/* Supports: headers, bold, italic, inline code, fenced code, links,
+   unordered + ordered lists, paragraphs. Escapes HTML first. */
+function inlineMd(t){
+  t=esc(t);
+  t=t.replace(/`([^`]+)`/g,(_,c)=>`<code>${c}</code>`);
+  t=t.replace(/\*\*([^*]+)\*\*/g,"<strong>$1</strong>");
+  t=t.replace(/__([^_]+)__/g,"<strong>$1</strong>");
+  t=t.replace(/(^|[^*])\*([^*\n]+)\*/g,"$1<em>$2</em>");
+  t=t.replace(/(^|[^_])_([^_\n]+)_/g,"$1<em>$2</em>");
+  t=t.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,'<a href="$2" target="_blank" rel="noopener">$1</a>');
+  return t;
+}
+function renderMarkdown(src){
+  src=String(src==null?"":src).replace(/\r\n/g,"\n");
+  const lines=src.split("\n");
+  let html="",i=0,inFence=false,fenceBuf=[];
+  let listType=null,listBuf=[];
+  function closeList(){
+    if(listType){html+=`<${listType}>`+listBuf.map(li=>`<li>${inlineMd(li)}</li>`).join("")+`</${listType}>`;listType=null;listBuf=[];}
+  }
+  while(i<lines.length){
+    let ln=lines[i];
+    const fence=ln.match(/^```/);
+    if(fence){
+      if(!inFence){inFence=true;fenceBuf=[];}
+      else{inFence=false;html+=`<pre><code>${esc(fenceBuf.join("\n"))}</code></pre>`;}
+      i++;continue;
+    }
+    if(inFence){fenceBuf.push(ln);i++;continue;}
+    const h=ln.match(/^(#{1,3})\s+(.*)$/);
+    if(h){closeList();html+=`<h${h[1].length}>${inlineMd(h[2])}</h${h[1].length}>`;i++;continue;}
+    const ul=ln.match(/^\s*[-*+]\s+(.*)$/);
+    const ol=ln.match(/^\s*\d+[.)]\s+(.*)$/);
+    if(ul){if(listType&&listType!=="ul")closeList();listType="ul";listBuf.push(ul[1]);i++;continue;}
+    if(ol){if(listType&&listType!=="ol")closeList();listType="ol";listBuf.push(ol[1]);i++;continue;}
+    if(ln.trim()===""){closeList();i++;continue;}
+    closeList();
+    let para=[ln];i++;
+    while(i<lines.length && lines[i].trim()!=="" && !lines[i].match(/^(#{1,3})\s/) &&
+          !lines[i].match(/^\s*[-*+]\s/) && !lines[i].match(/^\s*\d+[.)]\s/) && !lines[i].match(/^```/)){
+      para.push(lines[i]);i++;
+    }
+    html+=`<p>${inlineMd(para.join(" "))}</p>`;
+  }
+  closeList();
+  if(inFence){html+=`<pre><code>${esc(fenceBuf.join("\n"))}</code></pre>`;}
+  return html;
+}
+
+/* ============ Diagnosis panel logic ============ */
+const PANEL={row:null,sessionId:null,busy:false,lastUserMessage:null};
+const $body=()=>document.getElementById("panelBody");
+
+function openPanel(r){
+  PANEL.row=r;
+  PANEL.sessionId=`${r.client_name}-${Date.now()}`;
+  PANEL.busy=false;
+  PANEL.lastUserMessage="Start the diagnosis.";
+  document.getElementById("panelTitle").textContent=r.client_name;
+  document.getElementById("panelSub").textContent=`${r.biz_type} · ${r.status} · CPA ${fmtCpa(r.cpa)} vs ${fmtCpa(r.bench)} bench`;
+  $body().innerHTML="";
+  resetTicketBtn();
+  document.getElementById("composeInput").value="";
+  document.getElementById("panel").classList.add("open");
+  document.getElementById("panel").setAttribute("aria-hidden","false");
+  document.getElementById("panelOverlay").classList.add("open");
+  // initial diagnosis (per spec: not echoed as a user bubble)
+  sendToAgent("Start the diagnosis.",{showUser:false});
+}
+function closePanel(){
+  document.getElementById("panel").classList.remove("open");
+  document.getElementById("panel").setAttribute("aria-hidden","true");
+  document.getElementById("panelOverlay").classList.remove("open");
+  PANEL.row=null;PANEL.sessionId=null;PANEL.busy=false;PANEL.lastUserMessage=null;
+  $body().innerHTML="";
+}
+function addMsg(who,text,isMarkdown){
+  const div=document.createElement("div");
+  div.className="msg "+who;
+  const label=who==="user"?"You":"Agent";
+  const inner=isMarkdown?renderMarkdown(text):esc(text);
+  div.innerHTML=`<div class="who">${label}</div><div class="bubble">${inner}</div>`;
+  $body().appendChild(div);
+  $body().scrollTop=$body().scrollHeight;
+  return div;
+}
+function addTyping(){
+  const div=document.createElement("div");
+  div.className="msg agent";div.id="typingMsg";
+  div.innerHTML=`<div class="who">Agent</div><div class="bubble"><span class="typing"><span></span><span></span><span></span></span></div>`;
+  $body().appendChild(div);
+  $body().scrollTop=$body().scrollHeight;
+  return div;
+}
+function removeTyping(){const t=document.getElementById("typingMsg");if(t)t.remove();}
+function addErr(text){
+  const div=document.createElement("div");
+  div.className="panel-err";div.textContent=text;
+  $body().appendChild(div);
+  $body().scrollTop=$body().scrollHeight;
+}
+function setBusy(b){
+  PANEL.busy=b;
+  document.getElementById("sendBtn").disabled=b;
+  document.getElementById("composeInput").disabled=b;
+  document.getElementById("ticketBtn").disabled=b;
+}
+function resetTicketBtn(){
+  const t=document.getElementById("ticketBtn");
+  t.textContent="＋ Create Monday ticket";t.classList.remove("done");t.disabled=false;
+}
+
+async function sendToAgent(message,opts){
+  opts=opts||{};
+  if(PANEL.busy)return;
+  const r=PANEL.row;if(!r)return;
+  if(opts.showUser!==false) addMsg("user",message,false);
+  if(message && !opts.isTicket) PANEL.lastUserMessage=message;
+  setBusy(true);
+  addTyping();
+  const payload={
+    sessionId:PANEL.sessionId,
+    customer_id:r.customer_id,
+    client_name:r.client_name,
+    message:message
+  };
+  if(opts.isTicket) payload.createTicket=true;
+  try{
+    if(!WEBHOOK_URL) throw new Error("WEBHOOK_URL is not set in triage.html");
+    const res=await fetch(WEBHOOK_URL,{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify(payload)
+    });
+    if(!res.ok)throw new Error("HTTP "+res.status);
+    const data=await res.json();
+    removeTyping();
+    const text=(data&&typeof data.response==="string")?data.response:JSON.stringify(data);
+    addMsg("agent",text,true);
+  }catch(e){
+    removeTyping();
+    addErr("Couldn't reach the diagnosis agent ("+e.message+").");
+    throw e;
+  }finally{
+    setBusy(false);
+    if(document.getElementById("panel").classList.contains("open"))
+      document.getElementById("composeInput").focus();
+  }
+}
+
+function wirePanel(){
+  document.getElementById("panelClose").onclick=closePanel;
+  document.getElementById("panelOverlay").onclick=closePanel;
+  document.addEventListener("keydown",e=>{
+    if(e.key==="Escape"&&document.getElementById("panel").classList.contains("open"))closePanel();
+  });
+  const input=document.getElementById("composeInput");
+  function autoGrow(){input.style.height="auto";input.style.height=Math.min(input.scrollHeight,120)+"px";}
+  input.addEventListener("input",autoGrow);
+  function doSend(){
+    const v=input.value.trim();
+    if(!v||PANEL.busy)return;
+    input.value="";autoGrow();
+    sendToAgent(v,{}).catch(()=>{});
+  }
+  document.getElementById("sendBtn").onclick=doSend;
+  input.addEventListener("keydown",e=>{
+    if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();doSend();}
+  });
+  document.getElementById("ticketBtn").onclick=()=>{
+    if(PANEL.busy||!PANEL.row)return;
+    const t=document.getElementById("ticketBtn");
+    sendToAgent(PANEL.lastUserMessage||"Create a Monday ticket for this account.",{isTicket:true,showUser:false})
+      .then(()=>{t.textContent="✓ Ticket requested";t.classList.add("done");t.disabled=true;})
+      .catch(()=>{/* error already shown; leave button enabled to retry */});
+  };
+}
+
+function boot(d){STATE.data=d;populateTypes();wire();wirePanel();render();}
+function embeddedData(){
+  try{return JSON.parse(document.getElementById("embeddedData").textContent);}catch(_){return null;}
+}
 fetch("./triage_data.json",{cache:"no-store"})
   .then(r=>{if(!r.ok)throw new Error("HTTP "+r.status);return r.json();})
-  .then(d=>{STATE.data=d;populateTypes();wire();render();})
-  .catch(e=>{document.querySelector(".wrap").insertAdjacentHTML("beforeend",
-    `<div class="err">Couldn't load triage_data.json (${esc(e.message)}). Make sure it sits next to triage.html in the repo root.</div>`);});
+  .then(boot)
+  .catch(e=>{
+    const d=embeddedData();
+    if(d){boot(d);} // preview / file missing: use bundled sample
+    else{document.querySelector(".wrap").insertAdjacentHTML("beforeend",
+      `<div class="err">Couldn't load triage_data.json (${esc(e.message)}). Make sure it sits next to triage.html in the repo root.</div>`);}
+  });
 </script>
 </body>
 </html>
