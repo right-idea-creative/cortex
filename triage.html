@@ -146,6 +146,7 @@ td.tcell { width:1%; white-space:nowrap; padding-right:4px; }
 .tkbtn.view .cnt { font-weight:700; }
 .tkbtn.create { color:var(--c-text); background:transparent; border-color:var(--c-border-2); font-weight:400; }
 .tkbtn.create:hover { background:var(--c-surface); }
+.tkbtn.none { color:var(--c-text-3); background:var(--c-surface); border-color:var(--c-border); font-weight:400; cursor:default; opacity:.7; }
 .tkbtn.loading { color:var(--c-text-3); border-color:var(--c-border); cursor:default; }
 
 /* ===== Tickets drawer (second panel) ===== */
@@ -499,19 +500,19 @@ function ticketCount(entry){
 
 /* paint a row's ticket button based on its client's loaded state */
 function paintTicketBtn(btn,entry){
-  btn.classList.remove("loading","view","create");
-  if(!entry||entry.state==="loading"){btn.classList.add("loading");btn.textContent="…";return;}
-  if(entry.state==="error"){btn.classList.add("create");btn.textContent="Create Ticket";btn.title=entry.err||"";return;}
+  btn.classList.remove("loading","view","create","none");
+  if(!entry||entry.state==="loading"){btn.classList.add("loading");btn.textContent="…";btn.disabled=true;return;}
+  if(entry.state==="error"){btn.classList.add("none");btn.textContent="No active tickets";btn.title=entry.err||"";btn.disabled=true;return;}
   const n=ticketCount(entry);
   if(n>0){btn.classList.add("view");btn.innerHTML=`View Active Tickets <span class="cnt">(${n})</span>`;}
-  else{btn.classList.add("create");btn.textContent="Create Ticket";}
+  else{btn.classList.add("none");btn.textContent="No active tickets";btn.disabled=true;}
 }
 
 function hydrateTicketBtn(btn,row){
   const id=row.mondayClientId;
-  if(!id){ // no Monday ID stamped for this franchise — let them create, but flag it
-    btn.classList.remove("loading","view");
-    btn.classList.add("create");btn.textContent="Create Ticket";
+  if(!id){ // no Monday ID stamped for this franchise
+    btn.classList.remove("loading","view","create","none");
+    btn.classList.add("none");btn.textContent="No active tickets";btn.disabled=true;
     btn.title="No Monday client ID on this row — check the master board join.";
     return;
   }
