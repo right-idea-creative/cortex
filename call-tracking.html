@@ -183,9 +183,28 @@ const WEBHOOK_URL = "https://naterimc.app.n8n.cloud/webhook/8772e93a-d4aa-48fe-b
 
 let DATA=null,activeClient='all',activeDays=30,charts={};
 
+// Normalize whatever n8n/BigQuery returns into the expected object.
+// Handles: clean object, array wrapper [{...}], stringified JSON,
+// and the BigQuery TO_JSON_STRING shape [{json:"{...}"}] / {json:"{...}"}.
+function normalize(raw){
+  let d = raw;
+  if (typeof d === 'string') { try { d = JSON.parse(d); } catch { /* leave as-is */ } }
+  if (Array.isArray(d)) d = d[0];
+  if (d && typeof d.json !== 'undefined') {
+    d = typeof d.json === 'string' ? JSON.parse(d.json) : d.json;
+  }
+  if (typeof d === 'string') { try { d = JSON.parse(d); } catch {} }
+  return d;
+}
+
 (async function init(){
-  try{const res=await fetch(WEBHOOK_URL,{cache:'no-store'});if(!res.ok)throw new Error('HTTP '+res.status);DATA=await res.json();}
-  catch{document.getElementById('loading-state').style.display='none';document.getElementById('error-state').style.display='block';return;}
+  try{
+    const res=await fetch(WEBHOOK_URL,{cache:'no-store'});
+    if(!res.ok)throw new Error('HTTP '+res.status);
+    DATA=normalize(await res.json());
+    if(!DATA || !Array.isArray(DATA.calls_daily)) throw new Error('Unexpected data shape');
+  }
+  catch(e){console.error('Load failed:',e);document.getElementById('loading-state').style.display='none';document.getElementById('error-state').style.display='block';return;}
   document.getElementById('loading-state').style.display='none';
   const sel=document.getElementById('client-filter');
   sel.innerHTML='<option value="all">All Clients</option>'+DATA.clients.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
@@ -201,9 +220,9 @@ function bindEvents(){
 }
 
 function cut(){const d=new Date();d.setDate(d.getDate()-activeDays);return d.toISOString().slice(0,10);}
-function fCalls(){const c=cut();return DATA.calls_daily.filter(r=>r.date>=c&&(activeClient==='all'||r.client_name===activeClient));}
-function fAds(){const c=cut();return DATA.ads_daily.filter(r=>r.date>=c&&(activeClient==='all'||r.client_name===activeClient));}
-function fHeat(){return DATA.calls_heatmap.filter(r=>activeClient==='all'||r.client_name===activeClient);}
+function fCalls(){const c=cut();return (DATA.calls_daily||[]).filter(r=>r.date>=c&&(activeClient==='all'||r.client_name===activeClient));}
+function fAds(){const c=cut();return (DATA.ads_daily||[]).filter(r=>r.date>=c&&(activeClient==='all'||r.client_name===activeClient));}
+function fHeat(){return (DATA.calls_heatmap||[]).filter(r=>activeClient==='all'||r.client_name===activeClient);}
 function gCh(rows){const m={};for(const r of rows){if(!m[r.channel])m[r.channel]={total:0,missed:0,answered:0};m[r.channel].total+=r.total_calls;m[r.channel].missed+=r.missed_calls;m[r.channel].answered+=r.answered_calls;}return m;}
 function gDt(rows){const m={};for(const r of rows){if(!m[r.date])m[r.date]={};m[r.date][r.channel]=(m[r.date][r.channel]||0)+r.total_calls;}return m;}
 function fmt(n){return n.toLocaleString();}
