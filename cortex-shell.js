@@ -59,7 +59,18 @@
     /* move launcher + window to the bottom-left corner */
     '.n8n-chat .chat-window-toggle,' +
     '.n8n-chat .chat-window-wrapper{right:auto !important;left:20px !important;}' +
-    '.n8n-chat .chat-window{right:auto !important;left:20px !important;}';
+    '.n8n-chat .chat-window{right:auto !important;left:20px !important;}' +
+    /* ---- swap the default chat-bubble launcher icon for a ticket icon ---- */
+    /* hide n8n's built-in toggle SVG... */
+    '.n8n-chat .chat-window-toggle svg{display:none !important;}' +
+    /* ...and paint a ticket glyph via a mask so it inherits the toggle color */
+    '.n8n-chat .chat-window-toggle::after{' +
+      'content:"";' +
+      'width:26px;height:26px;' +
+      'background-color:var(--chat--toggle--color,#fff);' +
+      "-webkit-mask:url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"black\"><path d=\"M22 10V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v4a2 2 0 0 1 0 4v4a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-4a2 2 0 0 1 0-4zM13 5.5h-2v2h2zm0 5h-2v3h2zm0 6h-2v2h2z\"/></svg>') center/contain no-repeat;" +
+      "mask:url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"black\"><path d=\"M22 10V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v4a2 2 0 0 1 0 4v4a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-4a2 2 0 0 1 0-4zM13 5.5h-2v2h2zm0 5h-2v3h2zm0 6h-2v2h2z\"/></svg>') center/contain no-repeat;" +
+    '}';
 
   // ---- Figure out which link is the current page ----
   function currentFile() {
