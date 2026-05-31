@@ -3,41 +3,43 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Campaign Triage — Cortex</title>
+<title>Campaign Triage — Córtex OS</title>
 <style>
 :root {
-  --c-bg:#ffffff; --c-surface:#f7f7f4; --c-surface-2:#f1efe8;
-  --c-text:#1d1c1a; --c-text-2:#5f5e5a; --c-text-3:#8a8980;
-  --c-border:rgba(0,0,0,0.10); --c-border-2:rgba(0,0,0,0.18);
-  --c-danger-bg:#fceaea; --c-danger-tx:#a32d2d;
-  --c-warn-bg:#faeeda; --c-warn-tx:#854f0b;
-  --c-ok-bg:#eaf3de; --c-ok-tx:#3b6d11; --c-info-tx:#185fa5;
+  --c-bg:#ffffff; --c-surface:#f0f2f5; --c-surface-2:#e9edf3;
+  --c-text:#1a1a2e; --c-text-2:#5f6470; --c-text-3:#9099a6;
+  --c-border:#e4e6ea; --c-border-2:#d0d3d8;
+  --c-danger-bg:#fdecea; --c-danger-tx:#c62828;
+  --c-warn-bg:#fff4e0; --c-warn-tx:#a35a00;
+  --c-ok-bg:#e8f5e9; --c-ok-tx:#2e7d32; --c-info-tx:#1565c0;
   --c-radius:10px; --c-radius-sm:7px;
-  --font-sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+  --font-sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   --font-mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
 }
-@media (prefers-color-scheme: dark) {
-  :root {
-    --c-bg:#1a1a18; --c-surface:#242421; --c-surface-2:#2c2c2a;
-    --c-text:#f1efe8; --c-text-2:#b4b2a9; --c-text-3:#888780;
-    --c-border:rgba(255,255,255,0.12); --c-border-2:rgba(255,255,255,0.22);
-    --c-danger-bg:#3a1c1c; --c-danger-tx:#f09595;
-    --c-warn-bg:#3a2c12; --c-warn-tx:#f5c97a;
-    --c-ok-bg:#20300f; --c-ok-tx:#b6d97f; --c-info-tx:#85b7eb;
-  }
-}
-* { box-sizing:border-box; }
-body { margin:0; background:var(--c-bg); color:var(--c-text);
+* { box-sizing:border-box; margin:0; padding:0; }
+body { margin:0; background:#f0f2f5; color:var(--c-text);
   font-family:var(--font-sans); font-size:14px; line-height:1.5; -webkit-font-smoothing:antialiased; }
-.wrap { max-width:1180px; margin:0 auto; padding:28px 22px 60px; }
-header.page { margin-bottom:22px; }
-header.page h1 { font-size:22px; font-weight:500; margin:0 0 4px; letter-spacing:-0.01em; }
+
+/* ── Site nav (shared chrome) ── */
+.site-top { position: sticky; top: 0; z-index: 100; }
+.site-header { background: #0d1b2a; padding: 0 32px; height: 52px; display: flex; align-items: center; box-shadow: 0 1px 0 rgba(255,255,255,.06); }
+.brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+.brand-name { font-size: 17px; font-weight: 700; color: #fff; letter-spacing: -.3px; }
+.brand-divider { color: rgba(255,255,255,.25); font-size: 14px; }
+.brand-sub { font-size: 11px; color: rgba(255,255,255,.45); font-weight: 500; }
+.site-nav { background: #0f2236; padding: 0 32px; display: flex; gap: 2px; border-bottom: 1px solid rgba(255,255,255,.07); }
+.nav-link { color: rgba(255,255,255,.5); text-decoration: none; font-size: 13px; font-weight: 500; padding: 10px 16px; border-bottom: 2px solid transparent; transition: color .15s, border-color .15s; }
+.nav-link:hover { color: rgba(255,255,255,.85); }
+.nav-link.active { color: #fff; border-bottom-color: #4285F4; }
+.wrap { max-width:1180px; margin:0 auto; padding:24px 32px 60px; }
+header.page { margin-bottom:18px; }
+header.page h1 { font-size:22px; font-weight:700; margin:0 0 4px; letter-spacing:-0.01em; color:#0d1b2a; }
 header.page .sub { color:var(--c-text-2); font-size:13px; }
-header.page .sub b { color:var(--c-text); font-weight:500; }
-.cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:10px; margin:20px 0 22px; }
-.card { background:var(--c-surface); border-radius:var(--c-radius-sm); padding:13px 15px; }
-.card .lab { font-size:12px; color:var(--c-text-2); margin-bottom:3px; }
-.card .val { font-size:23px; font-weight:500; letter-spacing:-0.01em; }
+header.page .sub b { color:var(--c-text); font-weight:600; }
+.cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:14px; margin:20px 0 22px; }
+.card { background:#fff; border-radius:var(--c-radius); padding:16px 18px; box-shadow:0 1px 4px rgba(0,0,0,.07); }
+.card .lab { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.6px; color:#9e9e9e; margin-bottom:6px; }
+.card .val { font-size:28px; font-weight:700; letter-spacing:-0.01em; color:#0d1b2a; line-height:1.1; }
 .card .val.crit { color:var(--c-danger-tx); }
 .card .val.risk { color:var(--c-warn-tx); }
 .card .val.ok { color:var(--c-ok-tx); }
@@ -52,7 +54,7 @@ button.f.on { background:var(--c-text); color:var(--c-bg); border-color:var(--c-
 input.search { font:inherit; font-size:13px; color:var(--c-text); width:180px; background:var(--c-bg);
   border:1px solid var(--c-border-2); border-radius:var(--c-radius-sm); padding:5px 11px; }
 input.search::placeholder { color:var(--c-text-3); }
-.tablecard { background:var(--c-bg); border:1px solid var(--c-border); border-radius:var(--c-radius); overflow:hidden; }
+.tablecard { background:#fff; border:1px solid var(--c-border); border-radius:var(--c-radius); overflow:hidden; box-shadow:0 1px 4px rgba(0,0,0,.07); }
 .scroll { overflow-x:auto; }
 table { width:100%; border-collapse:collapse; font-size:13px; min-width:920px; }
 thead th { text-align:left; font-weight:500; color:var(--c-text-2); padding:11px 12px;
@@ -143,6 +145,24 @@ td.r { text-align:right; font-variant-numeric:tabular-nums; }
 </style>
 </head>
 <body>
+
+<div class="site-top">
+  <header class="site-header">
+    <a href="index.html" class="brand">
+      <span class="brand-name">Córtex OS</span>
+      <span class="brand-divider">|</span>
+      <span class="brand-sub">Right Idea Media & Creative</span>
+    </a>
+  </header>
+  <nav class="site-nav">
+    <a href="index.html" class="nav-link">Home</a>
+    <a href="call-tracking.html" class="nav-link">Call Tracking</a>
+    <a href="ad-spend-pacing.html" class="nav-link">Ad Spend Pacing</a>
+    <a href="triage.html" class="nav-link active">Campaign Triage</a>
+    <a href="tickets.html" class="nav-link">Tickets</a>
+  </nav>
+</div>
+
 <div class="wrap">
   <header class="page">
     <h1>Campaign triage</h1>

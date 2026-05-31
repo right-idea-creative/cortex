@@ -1,109 +1,167 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Ad Spend Pacing</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ad Spend Pacing — Córtex OS</title>
 <style>
-  :root{
-    --bg:#ffffff; --bg2:#f6f5f1; --bg3:#efeee8; --text:#1f1e1c; --muted:#6b6a64; --hint:#9a9890;
-    --border:#e4e2da; --border2:#cfccc2;
-    --ok-bg:#e1f5ee; --ok-tx:#0f6e56; --ok-bd:#9cd9c4;
-    --warn-bg:#faeeda; --warn-tx:#854f0b; --warn-bd:#e9c98f;
-    --dang-bg:#fcebeb; --dang-tx:#a32d2d; --dang-bd:#e7a9a9;
-    --idle-bg:#f0efea; --idle-tx:#9a9890; --idle-bd:#e0ded6;
-    --info:#185fa5;
-  }
-  *{box-sizing:border-box}
-  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-    color:var(--text);background:var(--bg);font-size:15px;line-height:1.5;}
-  .page{max-width:1200px;margin:0 auto;padding:24px 20px 80px;}
-  h1{font-size:22px;font-weight:600;margin:0 0 4px;}
-  h2{font-size:18px;font-weight:600;margin:0 0 4px;}
-  h3{font-size:14px;font-weight:600;margin:22px 0 8px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);}
-  .sub{font-size:13px;color:var(--hint);margin:0;}
-  .bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:16px 0;}
-  .bar label{font-size:13px;color:var(--muted);}
-  select{font:inherit;padding:6px 10px;border:1px solid var(--border2);border-radius:8px;background:var(--bg);}
-  .filters{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;margin:16px 0;padding:14px 16px;background:var(--bg2);border-radius:10px;}
-  .filters .fg{display:flex;flex-direction:column;gap:4px;}
-  .filters .fg span{font-size:12px;color:var(--muted);}
-  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:16px 0;}
-  .card{background:var(--bg2);border-radius:8px;padding:14px 16px;}
-  .card .lbl{font-size:13px;color:var(--muted);margin:0 0 4px;}
-  .card .val{font-size:23px;font-weight:600;margin:0;}
-  table{width:100%;border-collapse:collapse;font-size:13px;}
-  th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--border);vertical-align:middle;}
-  th{color:var(--muted);font-weight:600;}
-  td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;}
-  tr.clk:hover{background:var(--bg2);cursor:pointer;}
-  .pill{font-size:12px;padding:3px 9px;border-radius:8px;font-weight:600;display:inline-block;white-space:nowrap;}
-  .p-ok{background:var(--ok-bg);color:var(--ok-tx);} .p-warn{background:var(--warn-bg);color:var(--warn-tx);} .p-dang{background:var(--dang-bg);color:var(--dang-tx);}
-  /* channel chips */
-  .chips{display:flex;gap:5px;flex-wrap:wrap;}
-  .chip{font-size:11px;font-weight:600;padding:2px 7px;border-radius:6px;border:1px solid;white-space:nowrap;}
-  .c-ok{background:var(--ok-bg);color:var(--ok-tx);border-color:var(--ok-bd);}
-  .c-warn{background:var(--warn-bg);color:var(--warn-tx);border-color:var(--warn-bd);}
-  .c-dang{background:var(--dang-bg);color:var(--dang-tx);border-color:var(--dang-bd);}
-  .c-idle{background:var(--idle-bg);color:var(--idle-tx);border-color:var(--idle-bd);}
-  .back{font-size:13px;color:var(--info);cursor:pointer;display:inline-block;margin-bottom:8px;}
-  .tablewrap{border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-top:6px;}
-  .tablewrap table th,.tablewrap table td{padding:9px 12px;}
-  .tablewrap table tr:last-child td{border-bottom:none;}
-  .agentbtn{font:inherit;font-size:12px;padding:5px 10px;border:1px solid var(--border2);border-radius:8px;background:var(--bg);cursor:pointer;white-space:nowrap;}
-  .agentbtn:hover{background:var(--bg2);}
-  .state{padding:40px 16px;text-align:center;color:var(--muted);}
-  .state .big{font-size:16px;color:var(--text);margin-bottom:6px;}
-  .state code{background:var(--bg3);padding:2px 6px;border-radius:4px;font-size:12px;}
-  .retry{margin-top:14px;font:inherit;padding:8px 16px;border:1px solid var(--border2);border-radius:8px;background:var(--bg);cursor:pointer;}
-  .spinner{width:22px;height:22px;border:3px solid var(--border);border-top-color:var(--info);border-radius:50%;
-    animation:spin .8s linear infinite;margin:0 auto 14px;}
-  @keyframes spin{to{transform:rotate(360deg)}}
-  .muted-row td{color:var(--hint);}
-  .note{font-size:12px;color:var(--hint);margin:6px 0 0;}
-  .legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin:10px 0 0;}
-  .legend .chip{cursor:default;}
-  /* chat drawer */
-  .drawer-overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);display:none;z-index:50;}
-  .drawer-overlay.open{display:block;}
-  .drawer{position:fixed;top:0;right:0;height:100%;width:min(440px,100%);background:var(--bg);
-    border-left:1px solid var(--border2);display:flex;flex-direction:column;transform:translateX(100%);
-    transition:transform .18s ease;z-index:51;}
-  .drawer.open{transform:translateX(0);}
-  .drawer-head{padding:16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:8px;}
-  .drawer-head .x{cursor:pointer;color:var(--muted);font-size:20px;line-height:1;border:none;background:none;}
-  .chat{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:10px;}
-  .msg{padding:9px 12px;border-radius:12px;max-width:85%;font-size:14px;white-space:pre-wrap;word-wrap:break-word;}
-  .msg.user{align-self:flex-end;background:var(--info);color:#fff;border-bottom-right-radius:4px;}
-  .msg.bot{align-self:flex-start;background:var(--bg2);border-bottom-left-radius:4px;}
-  .msg.err{align-self:flex-start;background:var(--dang-bg);color:var(--dang-tx);}
-  .typing{align-self:flex-start;color:var(--hint);font-size:13px;font-style:italic;}
-  .chat-in{padding:12px;border-top:1px solid var(--border);display:flex;gap:8px;}
-  .chat-in textarea{flex:1;font:inherit;font-size:14px;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;resize:none;height:40px;max-height:120px;}
-  .chat-in button{font:inherit;padding:0 14px;border:none;border-radius:8px;background:var(--info);color:#fff;cursor:pointer;}
-  .chat-in button:disabled{opacity:.5;cursor:default;}
-  .suggest{display:flex;flex-wrap:wrap;gap:6px;padding:0 16px 12px;}
-  .suggest button{font:inherit;font-size:12px;padding:5px 9px;border:1px solid var(--border2);border-radius:14px;background:var(--bg);cursor:pointer;}
-  .suggest button:hover{background:var(--bg2);}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: #f0f2f5;
+  color: #1a1a2e;
+}
+
+/* ── Site top (shared Córtex chrome) ── */
+.site-top { position: sticky; top: 0; z-index: 100; }
+.site-header {
+  background: #0d1b2a; padding: 0 32px; height: 52px;
+  display: flex; align-items: center; box-shadow: 0 1px 0 rgba(255,255,255,.06);
+}
+.brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+.brand-name { font-size: 17px; font-weight: 700; color: #fff; letter-spacing: -.3px; }
+.brand-divider { color: rgba(255,255,255,.25); font-size: 14px; }
+.brand-sub { font-size: 11px; color: rgba(255,255,255,.45); font-weight: 500; }
+.site-nav {
+  background: #0f2236; padding: 0 32px; display: flex; gap: 2px;
+  border-bottom: 1px solid rgba(255,255,255,.07);
+}
+.nav-link {
+  color: rgba(255,255,255,.5); text-decoration: none; font-size: 13px; font-weight: 500;
+  padding: 10px 16px; border-bottom: 2px solid transparent; transition: color .15s, border-color .15s;
+}
+.nav-link:hover { color: rgba(255,255,255,.85); }
+.nav-link.active { color: #fff; border-bottom-color: #4285F4; }
+
+/* ── Page header ── */
+.page-head { background:#fff; border-bottom:1px solid #e8eaed; padding: 26px 32px 22px; }
+.page-head h1 { font-size: 26px; font-weight: 800; letter-spacing:-.5px; color:#0d1b2a; }
+.page-head p { font-size: 13px; color:#757575; margin-top: 4px; }
+.page-head .monthsel { margin-top:14px; display:flex; align-items:center; gap:10px; }
+.page-head .monthsel label { font-size:12px; font-weight:600; color:#9e9e9e; text-transform:uppercase; letter-spacing:.5px; }
+
+.wrap { max-width: 1200px; margin: 0 auto; padding: 24px 32px 70px; }
+
+select {
+  font: inherit; font-size:13px; padding: 7px 11px; border: 1px solid #d4d7dc;
+  border-radius: 8px; background: #fff; color:#1a1a2e; cursor:pointer;
+}
+select:focus { outline:none; border-color:#4285F4; }
+
+/* ── Filters ── */
+.filters { display:flex; gap:16px; flex-wrap:wrap; align-items:flex-end; margin: 0 0 20px; }
+.filters .fg { display:flex; flex-direction:column; gap:5px; }
+.filters .fg span { font-size:11px; font-weight:700; color:#9e9e9e; text-transform:uppercase; letter-spacing:.5px; }
+
+/* ── Cards ── */
+.cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:14px; margin: 0 0 22px; }
+.card { background:#fff; border:1px solid #e8eaed; border-radius:12px; padding:16px 18px; box-shadow:0 1px 4px rgba(0,0,0,.05); }
+.card .lbl { font-size:12px; color:#9e9e9e; font-weight:600; text-transform:uppercase; letter-spacing:.4px; margin-bottom:6px; }
+.card .val { font-size:24px; font-weight:800; color:#0d1b2a; letter-spacing:-.5px; }
+.card .csub { font-size:12px; color:#9e9e9e; margin-top:2px; }
+
+/* ── Panels / tables ── */
+.panel { background:#fff; border:1px solid #e8eaed; border-radius:12px; box-shadow:0 1px 4px rgba(0,0,0,.05); overflow:hidden; margin-bottom:18px; }
+.panel-h { font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:#9e9e9e; padding:14px 18px 0; }
+table { width:100%; border-collapse:collapse; font-size:13px; }
+th,td { text-align:left; padding:11px 14px; border-bottom:1px solid #eef0f2; vertical-align:middle; }
+th { color:#9e9e9e; font-weight:700; font-size:11px; text-transform:uppercase; letter-spacing:.4px; }
+td.num,th.num { text-align:right; font-variant-numeric:tabular-nums; }
+tr.clk:hover { background:#f7f9fc; cursor:pointer; }
+tbody tr:last-child td { border-bottom:none; }
+
+/* ── Status pills ── */
+.pill { font-size:11px; padding:3px 10px; border-radius:20px; font-weight:700; display:inline-block; white-space:nowrap; }
+.p-ok{ background:#e6f4ea; color:#137333; } .p-warn{ background:#fef7e0; color:#a15c00; } .p-dang{ background:#fce8e6; color:#c5221f; }
+
+/* ── Channel chips ── */
+.chips { display:flex; gap:5px; flex-wrap:wrap; }
+.chip { font-size:11px; font-weight:600; padding:2px 8px; border-radius:6px; border:1px solid; white-space:nowrap; }
+.c-ok{ background:#e6f4ea; color:#137333; border-color:#b7e1c2; }
+.c-warn{ background:#fef7e0; color:#a15c00; border-color:#f3dca0; }
+.c-dang{ background:#fce8e6; color:#c5221f; border-color:#f2c3bf; }
+.c-idle{ background:#fafbfc; color:#d3d6da; border-color:#eef0f2; }   /* very very light grey */
+
+.back { font-size:13px; color:#1565c0; cursor:pointer; display:inline-block; margin-bottom:10px; font-weight:600; }
+.detail-head { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+.detail-head h2 { font-size:20px; font-weight:800; color:#0d1b2a; letter-spacing:-.4px; }
+.detail-sub { font-size:13px; color:#757575; margin:2px 0 18px; }
+
+.agentbtn { font:inherit; font-size:12px; font-weight:600; padding:6px 12px; border:1px solid #d4d7dc; border-radius:8px; background:#fff; cursor:pointer; color:#1565c0; }
+.agentbtn:hover { background:#f0f4fb; border-color:#c5d5f5; }
+
+.muted-row td { color:#bdbdbd; }
+.note { font-size:12px; color:#9e9e9e; margin:8px 2px 0; line-height:1.5; }
+.legend { display:flex; gap:14px; flex-wrap:wrap; font-size:12px; color:#757575; margin:12px 2px 0; align-items:center; }
+.legend .chip { cursor:default; }
+
+.state { padding:60px 16px; text-align:center; color:#757575; }
+.state .big { font-size:16px; color:#1a1a2e; margin-bottom:6px; font-weight:600; }
+.state code { background:#eef0f2; padding:2px 6px; border-radius:4px; font-size:12px; }
+.retry { margin-top:14px; font:inherit; padding:8px 16px; border:1px solid #d4d7dc; border-radius:8px; background:#fff; cursor:pointer; }
+.spinner { width:24px; height:24px; border:3px solid #e8eaed; border-top-color:#1565c0; border-radius:50%; animation:spin .8s linear infinite; margin:0 auto 14px; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+/* ── Chat drawer ── */
+.drawer-overlay { position:fixed; inset:0; background:rgba(13,27,42,.4); display:none; z-index:200; }
+.drawer-overlay.open { display:block; }
+.drawer { position:fixed; top:0; right:0; height:100%; width:min(440px,100%); background:#fff;
+  display:flex; flex-direction:column; transform:translateX(100%); transition:transform .18s ease; z-index:201; }
+.drawer.open { transform:translateX(0); }
+.drawer-head { padding:16px 18px; background:#0d1b2a; color:#fff; display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.drawer-head .dt { font-weight:700; font-size:15px; }
+.drawer-head .ds { font-size:12px; color:rgba(255,255,255,.55); margin-top:2px; }
+.drawer-head .x { cursor:pointer; color:rgba(255,255,255,.7); font-size:22px; line-height:1; border:none; background:none; }
+.chat { flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:10px; background:#f7f9fc; }
+.msg { padding:9px 13px; border-radius:14px; max-width:85%; font-size:14px; white-space:pre-wrap; word-wrap:break-word; }
+.msg.user { align-self:flex-end; background:#1565c0; color:#fff; border-bottom-right-radius:4px; }
+.msg.bot { align-self:flex-start; background:#fff; border:1px solid #e8eaed; border-bottom-left-radius:4px; }
+.msg.err { align-self:flex-start; background:#fce8e6; color:#c5221f; }
+.typing { align-self:flex-start; color:#9e9e9e; font-size:13px; font-style:italic; }
+.suggest { display:flex; flex-wrap:wrap; gap:6px; padding:10px 16px; background:#f7f9fc; }
+.suggest button { font:inherit; font-size:12px; padding:5px 10px; border:1px solid #d4d7dc; border-radius:14px; background:#fff; cursor:pointer; color:#444; }
+.suggest button:hover { background:#f0f4fb; }
+.chat-in { padding:12px; border-top:1px solid #e8eaed; display:flex; gap:8px; background:#fff; }
+.chat-in textarea { flex:1; font:inherit; font-size:14px; padding:9px 11px; border:1px solid #d4d7dc; border-radius:10px; resize:none; height:42px; max-height:120px; }
+.chat-in button { font:inherit; font-weight:600; padding:0 16px; border:none; border-radius:10px; background:#1565c0; color:#fff; cursor:pointer; }
+.chat-in button:disabled { opacity:.5; cursor:default; }
 </style>
 </head>
 <body>
-<div class="page">
-  <h1>Ad Spend Pacing</h1>
-  <p class="sub">Monthly pacing by client and channel. Click a client for detail, or open the agent for analysis.</p>
 
-  <div class="bar">
-    <label>Current month</label>
+<div class="site-top">
+  <header class="site-header">
+    <a href="index.html" class="brand">
+      <span class="brand-name">Córtex OS</span>
+      <span class="brand-divider">|</span>
+      <span class="brand-sub">Right Idea Media &amp; Creative</span>
+    </a>
+  </header>
+  <nav class="site-nav">
+    <a href="index.html" class="nav-link">Home</a>
+    <a href="call-tracking.html" class="nav-link">Call Tracking</a>
+    <a href="ad-spend-pacing.html" class="nav-link active">Ad Spend Pacing</a>
+    <a href="tickets.html" class="nav-link">Tickets</a>
+  </nav>
+</div>
+
+<div class="page-head">
+  <h1>Ad Spend Pacing</h1>
+  <p>Monthly pacing by client and channel. Click a client for detail, or open the agent for analysis.</p>
+  <div class="monthsel">
+    <label for="asof">Current month</label>
     <select id="asof"></select>
   </div>
+</div>
 
+<div class="wrap">
   <div id="view"><div class="state"><div class="spinner"></div>Loading live data&hellip;</div></div>
 </div>
 
 <div class="drawer-overlay" id="overlay"></div>
 <aside class="drawer" id="drawer" aria-label="Client agent chat">
   <div class="drawer-head">
-    <div><strong id="drawer-title">Agent</strong><div class="sub" id="drawer-sub"></div></div>
+    <div><div class="dt" id="drawer-title">Agent</div><div class="ds" id="drawer-sub"></div></div>
     <button class="x" id="drawer-x" aria-label="Close">&times;</button>
   </div>
   <div class="chat" id="chat"></div>
@@ -116,29 +174,23 @@
 
 <script>
 /* =====================================================================
-   N8N WIRING — the two webhook URLs the page calls.
-   ---------------------------------------------------------------------
-   DATA_WEBHOOK_URL : n8n Webhook that runs `SELECT * FROM pacing_api`.
-     Returns rows (bare array or {rows|data:[...]}). Each row now carries:
-       client, channel, year, month, committed, actual,
-       account_manager, source_group, spent_mtd,
-       days_in_month, days_elapsed, days_remaining, current_month
-     Channels expected: google_ads, lsa, bing, meta, nextdoor, yelp
-     GET, CORS enabled.
-   AGENT_WEBHOOK_URL : POST endpoint for the per-client AI chat (unchanged contract).
+   N8N WIRING
+   DATA_WEBHOOK_URL : GET, runs SELECT * FROM pacing_api. Each row:
+     client, channel, year, month, committed, actual,
+     account_manager, source_group, spent_mtd,
+     days_in_month, days_elapsed, days_remaining, current_month
+   AGENT_WEBHOOK_URL : POST, per-client AI chat.
    ===================================================================== */
 const DATA_WEBHOOK_URL  = "https://naterimc.app.n8n.cloud/webhook/odc-pacing-data";
 const AGENT_WEBHOOK_URL = "https://naterimc.app.n8n.cloud/webhook/odc-pacing-agent";
 
-/* Status band: on track within +/-8%. Year-correction trigger at +/-5%. */
-const OK_LOW = 0.92, OK_HIGH = 1.08;
-const YEAR_TRIGGER = 0.05;
+const OK_LOW = 0.92, OK_HIGH = 1.08;     /* on track within +/-8% */
+const YEAR_TRIGGER = 0.05;               /* year correction flag at +/-5% */
 
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const CH_ORDER = ["google_ads","lsa","bing","meta","nextdoor","yelp"];
 const CH_LABEL = {google_ads:"Google Ads", lsa:"LSA", bing:"Bing", meta:"Meta", nextdoor:"Nextdoor", yelp:"Yelp"};
 const fmt = n => (n<0?"-$":"$") + Math.abs(Math.round(n)).toLocaleString();
-const fmt2 = n => (n<0?"-$":"$") + Math.abs(n).toLocaleString(undefined,{minimumFractionDigits:0,maximumFractionDigits:0});
 const pct = n => (n*100).toFixed(0) + "%";
 
 let ROWS = [];
@@ -155,13 +207,12 @@ function buildMonthSelect(){
   asofSel.onchange=()=>{ ASOF=+asofSel.value; renderOverview(); };
 }
 
-/* ---------- live data load ---------- */
 function showState(html){ view.innerHTML='<div class="state">'+html+'</div>'; }
 
 async function loadData(){
   showState('<div class="spinner"></div>Loading live data&hellip;');
   if(!DATA_WEBHOOK_URL || DATA_WEBHOOK_URL.indexOf('PASTE_')===0){
-    showState('<div class="big">Data source not configured</div>Set <code>DATA_WEBHOOK_URL</code> at the top of this file to your n8n endpoint that returns <code>SELECT * FROM pacing_api</code>.');
+    showState('<div class="big">Data source not configured</div>Set <code>DATA_WEBHOOK_URL</code> to your n8n endpoint that returns <code>SELECT * FROM pacing_api</code>.');
     return;
   }
   try{
@@ -196,17 +247,20 @@ async function loadData(){
 function clients(){ return [...new Set(ROWS.map(r=>r.client))].sort(); }
 function rowsFor(client){ return ROWS.filter(r=>r.client===client); }
 function amFor(client){ const r=rowsFor(client)[0]; return r?r.account_manager:'(Unassigned)'; }
-function sourceFor(client){ const r=rowsFor(client)[0]; return r?r.source_group:'Other'; }
+/* ODC detection by client name (per request) */
+function isODC(client){ return /odc/i.test(client); }
+function sourceLabelFor(client){ return isODC(client)?'ODC':'Non-ODC'; }
 
 function statusOf(pacingPct, committed, actual){
   if(committed<=0 && actual<=0) return 'idle';
-  if(committed<=0 && actual>0) return 'dang';        // spending with no budget
+  if(committed<=0 && actual>0) return 'dang';
   if(pacingPct>OK_HIGH) return 'dang';
   if(pacingPct<OK_LOW) return 'warn';
   return 'ok';
 }
 function statusLabel(s){ return s==='ok'?'On track':s==='warn'?'Underspending':s==='dang'?'Overspending':'No activity'; }
 function pillClass(s){ return s==='ok'?'p-ok':s==='warn'?'p-warn':'p-dang'; }
+function chipCls(s){ return s==='ok'?'c-ok':s==='warn'?'c-warn':s==='dang'?'c-dang':'c-idle'; }
 
 function monthPacing(client,m){
   let c=0,a=0; for(const r of rowsFor(client)) if(r.month===m){ c+=r.committed; a+=r.actual; }
@@ -225,43 +279,40 @@ function channelRows(client,m){
   });
 }
 function yearPacing(client,asof){
-  let full=0,cytd=0,sytd=0,monthsLeft=0;
+  let full=0,cytd=0,sytd=0;
   for(const r of rowsFor(client)){
     full+=r.committed;
     if(r.month<=asof){ cytd+=r.committed; sytd+=r.actual; }
   }
-  monthsLeft = Math.max(0, 12 - asof);
-  const ytdVar = sytd - cytd;            // +over, -under for the year so far
-  const ytdPct = cytd? sytd/cytd : 0;
+  const monthsLeft=Math.max(0,12-asof);
+  const ytdVar=sytd-cytd, ytdPct=cytd?sytd/cytd:0;
   return { full, committedYTD:cytd, spentYTD:sytd, ytdVar, ytdPct, remaining:full-sytd, monthsLeft };
 }
-/* Catch-up: spread the YTD gap across remaining months (incl. current).
-   Negative ytdVar (under) -> positive catch-up (add this month).
-   Positive ytdVar (over)  -> negative catch-up (pull back this month). */
 function catchupForMonth(client,asof){
   const y=yearPacing(client,asof);
-  const spread = (y.monthsLeft+1)>0 ? (-y.ytdVar)/(y.monthsLeft+1) : 0;
-  return spread; // dollars to add(+)/subtract(-) on top of this month's original allocation
+  return (y.monthsLeft+1)>0 ? (-y.ytdVar)/(y.monthsLeft+1) : 0;
 }
-/* Recommended daily budget for the CURRENT month only (catch-up aware):
-   (correctionTarget - spent_mtd) / days_remaining  */
 function dailyRec(committed, spentMtd, catchup){
-  const target = committed + catchup;
-  const left = Math.max(0, target - spentMtd);
-  const dr = Math.max(1, DIMS.days_remaining);
-  return left / dr;
+  const target=committed+catchup;
+  const left=Math.max(0, target-spentMtd);
+  return left/Math.max(1, DIMS.days_remaining);
+}
+function sumMtd(client){ let s=0; for(const r of rowsFor(client)) if(r.month===ASOF) s+=r.spent_mtd; return s; }
+function shareCatchup(totalCatchup, chans, row){
+  const tot=chans.reduce((a,c)=>a+(c.committed>0?c.committed:0),0);
+  if(tot<=0) return 0;
+  return totalCatchup*((row.committed>0?row.committed:0)/tot);
 }
 
 /* ---------- filters ---------- */
 function passesFilter(client){
   if(FILTERS.source!=='all'){
-    const sg=sourceFor(client);
-    if(FILTERS.source==='odc' && sg!=='ODC') return false;
-    if(FILTERS.source==='other' && sg==='ODC') return false;
+    if(FILTERS.source==='odc' && !isODC(client)) return false;
+    if(FILTERS.source==='other' && isODC(client)) return false;
   }
   if(FILTERS.am!=='all' && amFor(client)!==FILTERS.am) return false;
   if(FILTERS.status!=='all'){
-    const m=monthPacing(client,ASOF); const s=statusOf(m.pct,m.committed,m.actual);
+    const m=monthPacing(client,ASOF), s=statusOf(m.pct,m.committed,m.actual);
     if(FILTERS.status==='over' && s!=='dang') return false;
     if(FILTERS.status==='under' && s!=='warn') return false;
     if(FILTERS.status==='ontrack' && s!=='ok') return false;
@@ -270,13 +321,9 @@ function passesFilter(client){
 }
 function allAMs(){ return [...new Set(ROWS.map(r=>r.account_manager))].sort(); }
 
-function card(l,v,sub){ return '<div class="card"><p class="lbl">'+l+'</p><p class="val">'+v+'</p>'+(sub?'<p class="sub">'+sub+'</p>':'')+'</div>'; }
-function chip(ch){
-  const cls = ch.status==='idle'?'c-idle':ch.status==='ok'?'c-ok':ch.status==='warn'?'c-warn':'c-dang';
-  return '<span class="chip '+cls+'">'+(CH_LABEL[ch.channel]||ch.channel)+'</span>';
-}
+function card(l,v,sub){ return '<div class="card"><div class="lbl">'+l+'</div><div class="val">'+v+'</div>'+(sub?'<div class="csub">'+sub+'</div>':'')+'</div>'; }
+function chip(ch){ return '<span class="chip '+chipCls(ch.status)+'">'+(CH_LABEL[ch.channel]||ch.channel)+'</span>'; }
 
-/* ---------- overview ---------- */
 function renderFiltersBar(){
   const ams=allAMs().map(a=>'<option value="'+a.replace(/"/g,'&quot;')+'"'+(FILTERS.am===a?' selected':'')+'>'+a+'</option>').join('');
   return '<div class="filters">'
@@ -303,20 +350,21 @@ function wireFilters(){
   if(am) am.onchange=()=>{FILTERS.am=am.value;renderOverview();};
 }
 
+/* ---------- overview ---------- */
 function renderOverview(){
   const cs=clients().filter(passesFilter);
   let tc=0,ta=0; const rows=cs.map(c=>{ const m=monthPacing(c,ASOF); tc+=m.committed; ta+=m.actual; return {c,m}; });
-  const onTrack=rows.filter(r=>{const s=statusOf(r.m.pct,r.m.committed,r.m.actual);return s==='ok';}).length;
+  const onTrack=rows.filter(r=>statusOf(r.m.pct,r.m.committed,r.m.actual)==='ok').length;
 
   let h=renderFiltersBar();
   h+='<div class="cards">';
-  h+=card(MONTHS[ASOF-1]+" committed", fmt(tc));
-  h+=card(MONTHS[ASOF-1]+" actual", fmt(ta));
-  h+=card("On track this month", onTrack+" / "+cs.length);
-  h+=card("Month variance", (ta-tc>=0?'+':'')+fmt(ta-tc));
+  h+=card(MONTHS[ASOF-1]+" Committed", fmt(tc));
+  h+=card(MONTHS[ASOF-1]+" Actual", fmt(ta));
+  h+=card("On Track This Month", onTrack+" / "+cs.length);
+  h+=card("Month Variance", (ta-tc>=0?'+':'')+fmt(ta-tc));
   h+='</div>';
 
-  h+='<div class="tablewrap"><table><thead><tr>'
+  h+='<div class="panel"><table><thead><tr>'
     +'<th>Client</th><th>Channels</th><th class="num">Committed</th><th class="num">Actual</th>'
     +'<th class="num">Variance</th><th class="num">Pacing</th><th class="num">Rec. $/day</th><th>Status</th><th></th>'
     +'</tr></thead><tbody>';
@@ -324,16 +372,14 @@ function renderOverview(){
     const chans=channelRows(c,ASOF);
     const chips=chans.map(chip).join(' ');
     const s=statusOf(m.pct,m.committed,m.actual);
-    const col=Math.abs(m.variance)<1?'':(m.variance>0?'color:var(--dang-tx)':'color:var(--warn-tx)');
-    // client-level recommended daily (only meaningful for current month)
+    const col=Math.abs(m.variance)<1?'':(m.variance>0?'color:#c5221f':'color:#a15c00');
     let rec='&mdash;';
     if(ASOF===DIMS.current_month){
       const cu=catchupForMonth(c,ASOF);
-      let smtd=0; for(const r of rowsFor(c)) if(r.month===ASOF) smtd+=r.spent_mtd;
-      rec=fmt(dailyRec(m.committed, smtd, cu));
+      rec=fmt(dailyRec(m.committed, sumMtd(c), cu));
     }
     h+='<tr class="clk" data-c="'+encodeURIComponent(c)+'">'
-      +'<td><strong>'+c+'</strong><div class="sub">'+amFor(c)+'</div></td>'
+      +'<td><strong>'+c+'</strong><div style="font-size:12px;color:#9e9e9e;">'+amFor(c)+'</div></td>'
       +'<td><div class="chips">'+chips+'</div></td>'
       +'<td class="num">'+fmt(m.committed)+'</td>'
       +'<td class="num">'+fmt(m.actual)+'</td>'
@@ -346,7 +392,7 @@ function renderOverview(){
   h+='</tbody></table></div>';
   h+='<div class="legend"><span class="chip c-ok">On track</span><span class="chip c-warn">Underspending</span>'
     +'<span class="chip c-dang">Overspending / spend w/ no budget</span><span class="chip c-idle">No budget &amp; no spend</span></div>';
-  h+='<p class="note">Channel chips are colored by that channel\u2019s own pacing; the Status column is the whole client. '
+  h+='<p class="note">Channel chips are colored by each channel\u2019s own pacing; the Status column reflects the whole client. '
     +'Rec. $/day is catch-up aware (uses month-to-date spend, days remaining, and the year correction).</p>';
 
   view.innerHTML=h;
@@ -358,27 +404,27 @@ function renderOverview(){
 /* ---------- client detail ---------- */
 function renderClient(client){
   const m=monthPacing(client,ASOF), y=yearPacing(client,ASOF), chans=channelRows(client,ASOF);
-  const isCur = (ASOF===DIMS.current_month);
-  const cu = catchupForMonth(client,ASOF);
+  const isCur=(ASOF===DIMS.current_month);
+  const cu=catchupForMonth(client,ASOF);
   const s=statusOf(m.pct,m.committed,m.actual);
 
   let h='<span class="back" id="back">&larr; All clients</span>';
-  h+='<h2>'+client+' &mdash; '+MONTHS[ASOF-1]+' <span class="pill '+pillClass(s)+'">'+statusLabel(s)+'</span> '
-    +'<button class="agentbtn" id="client-agent">Agent</button></h2>';
-  h+='<p class="sub">'+sourceFor(client)+' &middot; AM: '+amFor(client)+'</p>';
+  h+='<div class="detail-head"><h2>'+client+'</h2><span class="pill '+pillClass(s)+'">'+statusLabel(s)+'</span>'
+    +'<span style="color:#9e9e9e;font-size:13px;">'+MONTHS[ASOF-1]+'</span>'
+    +'<button class="agentbtn" id="client-agent" style="margin-left:auto;">Agent</button></div>';
+  h+='<div class="detail-sub">'+sourceLabelFor(client)+' &middot; AM: '+amFor(client)+'</div>';
 
-  /* TABLE 1 — This month, clean: are we pacing OK this month? */
-  h+='<h3>This month &mdash; pacing by channel</h3>';
-  h+='<div class="tablewrap"><table><thead><tr>'
+  /* TABLE 1 — this month, by channel */
+  h+='<div class="panel"><div class="panel-h">This Month &mdash; Pacing by Channel</div><table><thead><tr>'
     +'<th>Channel</th><th class="num">Committed</th><th class="num">Actual</th>'
     +'<th class="num">Variance</th><th class="num">Pacing</th>'
     + (isCur?'<th class="num">Spent MTD</th><th class="num">Rec. $/day</th>':'')
     +'<th>Status</th></tr></thead><tbody>';
   for(const r of chans){
     const idle=(r.committed<=0&&r.actual<=0);
-    const col=Math.abs(r.variance)<1?'':(r.variance>0?'color:var(--dang-tx)':'color:var(--warn-tx)');
+    const col=Math.abs(r.variance)<1?'':(r.variance>0?'color:#c5221f':'color:#a15c00');
     let rec='&mdash;';
-    if(isCur && !idle){ rec=fmt(dailyRec(r.committed, r.spent_mtd, /*channel share of catchup*/ shareCatchup(cu, chans, r))); }
+    if(isCur && !idle){ rec=fmt(dailyRec(r.committed, r.spent_mtd, shareCatchup(cu,chans,r))); }
     h+='<tr'+(idle?' class="muted-row"':'')+'>'
       +'<td><strong>'+(CH_LABEL[r.channel]||r.channel)+'</strong></td>'
       +'<td class="num">'+fmt(r.committed)+'</td>'
@@ -386,10 +432,9 @@ function renderClient(client){
       +'<td class="num" style="'+col+'">'+(idle?'&mdash;':(r.variance>=0?'+':'')+fmt(r.variance))+'</td>'
       +'<td class="num">'+(r.committed?pct(r.pct):(idle?'&mdash;':'no budget'))+'</td>'
       + (isCur?('<td class="num">'+(idle?'&mdash;':fmt(r.spent_mtd))+'</td><td class="num">'+rec+'</td>'):'')
-      +'<td>'+(idle?'<span class="chip c-idle">No activity</span>':'<span class="chip '+chipCls(r.status)+'">'+statusLabel(r.status)+'</span>')+'</td>'
+      +'<td><span class="chip '+chipCls(r.status)+'">'+(idle?'No activity':statusLabel(r.status))+'</span></td>'
       +'</tr>';
   }
-  // totals row
   const totalRec = isCur? fmt(dailyRec(m.committed, sumMtd(client), cu)) : '&mdash;';
   h+='<tr><td><strong>Total</strong></td><td class="num"><strong>'+fmt(m.committed)+'</strong></td>'
     +'<td class="num"><strong>'+fmt(m.actual)+'</strong></td>'
@@ -399,32 +444,30 @@ function renderClient(client){
     +'<td></td></tr>';
   h+='</tbody></table></div>';
 
-  /* TABLE 2 — Correction breakout: original vs catch-up portion of this month's target */
+  /* TABLE 2 — correction breakout */
   if(isCur){
-    const adjusted = m.committed + cu;
-    h+='<h3>This month\u2019s budget: original vs catch-up</h3>';
-    h+='<div class="tablewrap"><table><tbody>';
+    const adjusted=m.committed+cu;
+    h+='<div class="panel"><div class="panel-h">This Month\u2019s Budget: Original vs Catch-up</div><table><tbody>';
     h+='<tr><td>Originally allocated (this month)</td><td class="num">'+fmt(m.committed)+'</td></tr>';
-    h+='<tr><td>Catch-up adjustment '+(cu>=0?'(add, year is behind)':'(pull back, year is ahead)')+'</td>'
-      +'<td class="num" style="'+(Math.abs(cu)<1?'':(cu>0?'color:var(--warn-tx)':'color:var(--dang-tx)'))+'">'+(cu>=0?'+':'')+fmt(cu)+'</td></tr>';
+    h+='<tr><td>Catch-up adjustment '+(cu>=0?'(add &mdash; year is behind)':'(pull back &mdash; year is ahead)')+'</td>'
+      +'<td class="num" style="'+(Math.abs(cu)<1?'':(cu>0?'color:#a15c00':'color:#c5221f'))+'">'+(cu>=0?'+':'')+fmt(cu)+'</td></tr>';
     h+='<tr><td><strong>Correction-adjusted target</strong></td><td class="num"><strong>'+fmt(adjusted)+'</strong></td></tr>';
     h+='<tr><td>Spent so far this month (MTD)</td><td class="num">'+fmt(sumMtd(client))+'</td></tr>';
     h+='</tbody></table></div>';
     h+='<p class="note">Commitment is never edited \u2014 the catch-up figure is derived from where the year sits, spread across the remaining months. AMs will be able to override corrections on a separate tool.</p>';
   }
 
-  /* TABLE 3 — Year context: full year, to-date, how we're pacing for the year, remaining pool */
-  const corr = y.ytdPct>(1+YEAR_TRIGGER)?'over':(y.ytdPct<(1-YEAR_TRIGGER)?'under':'on');
-  const banner = corr==='over'?'<span class="pill p-dang">Over for the year &mdash; correction mode</span>'
+  /* TABLE 3 — year context */
+  const corr=y.ytdPct>(1+YEAR_TRIGGER)?'over':(y.ytdPct<(1-YEAR_TRIGGER)?'under':'on');
+  const banner=corr==='over'?'<span class="pill p-dang">Over for the year &mdash; correction mode</span>'
     :corr==='under'?'<span class="pill p-warn">Under for the year &mdash; pool to redeploy</span>'
     :'<span class="pill p-ok">On track for the year</span>';
-  h+='<h3>Year context (as of '+MONTHS[ASOF-1]+')</h3>';
-  h+='<div class="tablewrap"><table><tbody>';
+  h+='<div class="panel"><div class="panel-h">Year Context (as of '+MONTHS[ASOF-1]+')</div><table><tbody>';
   h+='<tr><td>Full-year committed</td><td class="num">'+fmt(y.full)+'</td></tr>';
   h+='<tr><td>Committed to date</td><td class="num">'+fmt(y.committedYTD)+'</td></tr>';
   h+='<tr><td>Spent to date</td><td class="num">'+fmt(y.spentYTD)+'</td></tr>';
   h+='<tr><td>Year-to-date pacing</td><td class="num">'+(y.committedYTD?pct(y.ytdPct):'&mdash;')+'</td></tr>';
-  h+='<tr><td>Year-to-date variance</td><td class="num" style="'+(Math.abs(y.ytdVar)<1?'':(y.ytdVar>0?'color:var(--dang-tx)':'color:var(--warn-tx)'))+'">'+(y.ytdVar>=0?'+':'')+fmt(y.ytdVar)+'</td></tr>';
+  h+='<tr><td>Year-to-date variance</td><td class="num" style="'+(Math.abs(y.ytdVar)<1?'':(y.ytdVar>0?'color:#c5221f':'color:#a15c00'))+'">'+(y.ytdVar>=0?'+':'')+fmt(y.ytdVar)+'</td></tr>';
   h+='<tr><td><strong>Remaining pool</strong></td><td class="num"><strong>'+fmt(y.remaining)+'</strong></td></tr>';
   h+='</tbody></table></div>';
   h+='<p class="note">'+banner+'</p>';
@@ -432,14 +475,6 @@ function renderClient(client){
   view.innerHTML=h;
   document.getElementById('back').onclick=renderOverview;
   document.getElementById('client-agent').onclick=()=>openAgent(client);
-}
-function chipCls(s){ return s==='ok'?'c-ok':s==='warn'?'c-warn':s==='dang'?'c-dang':'c-idle'; }
-function sumMtd(client){ let s=0; for(const r of rowsFor(client)) if(r.month===ASOF) s+=r.spent_mtd; return s; }
-/* split the client-level catch-up across channels proportional to committed (so per-channel rec sums sensibly) */
-function shareCatchup(totalCatchup, chans, row){
-  const totCommit = chans.reduce((a,c)=>a+(c.committed>0?c.committed:0),0);
-  if(totCommit<=0) return 0;
-  return totalCatchup * ((row.committed>0?row.committed:0)/totCommit);
 }
 
 /* ---------- AI agent chat drawer ---------- */
@@ -496,7 +531,6 @@ async function send(){
 sendBtn.onclick=send;
 inputEl.addEventListener('keydown',e=>{ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); send(); } });
 
-/* boot */
 loadData();
 </script>
 </body>
