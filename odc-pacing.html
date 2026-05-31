@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ODC Budget Pacing</title>
+<style>
+  :root{
+    --bg:#ffffff; --bg2:#f6f5f1; --bg3:#efeee8; --text:#1f1e1c; --muted:#6b6a64; --hint:#9a9890;
+    --border:#e4e2da; --border2:#cfccc2;
+    --ok-bg:#e1f5ee; --ok-tx:#0f6e56; --warn-bg:#faeeda; --warn-tx:#854f0b; --dang-bg:#fcebeb; --dang-tx:#a32d2d;
+    --info:#185fa5;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color:var(--text);background:var(--bg);font-size:15px;line-height:1.5;}
+  .page{max-width:1100px;margin:0 auto;padding:24px 20px 80px;}
+  h1{font-size:22px;font-weight:600;margin:0 0 4px;}
+  h2{font-size:18px;font-weight:600;margin:0 0 4px;}
+  h3{font-size:15px;font-weight:600;margin:20px 0 8px;}
+  .sub{font-size:13px;color:var(--hint);margin:0;}
+  .bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:16px 0;}
+  .bar label{font-size:13px;color:var(--muted);}
+  select{font:inherit;padding:6px 10px;border:1px solid var(--border2);border-radius:8px;background:var(--bg);}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin:16px 0;}
+  .card{background:var(--bg2);border-radius:8px;padding:14px 16px;}
+  .card .lbl{font-size:13px;color:var(--muted);margin:0 0 4px;}
+  .card .val{font-size:24px;font-weight:600;margin:0;}
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--border);}
+  th{color:var(--muted);font-weight:600;}
+  td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;}
+  tr.clk:hover{background:var(--bg2);cursor:pointer;}
+  .pill{font-size:12px;padding:3px 9px;border-radius:8px;font-weight:600;display:inline-block;white-space:nowrap;}
+  .p-ok{background:var(--ok-bg);color:var(--ok-tx);} .p-warn{background:var(--warn-bg);color:var(--warn-tx);} .p-dang{background:var(--dang-bg);color:var(--dang-tx);}
+  .back{font-size:13px;color:var(--info);cursor:pointer;display:inline-block;margin-bottom:8px;}
+  .yearbox{border:1px solid var(--border2);border-radius:12px;padding:14px 16px;margin-top:8px;}
+  .agentbtn{font:inherit;font-size:12px;padding:5px 10px;border:1px solid var(--border2);border-radius:8px;background:var(--bg);cursor:pointer;white-space:nowrap;}
+  .agentbtn:hover{background:var(--bg2);}
+  .state{padding:40px 16px;text-align:center;color:var(--muted);}
+  .state .big{font-size:16px;color:var(--text);margin-bottom:6px;}
+  .state code{background:var(--bg3);padding:2px 6px;border-radius:4px;font-size:12px;}
+  .retry{margin-top:14px;font:inherit;padding:8px 16px;border:1px solid var(--border2);border-radius:8px;background:var(--bg);cursor:pointer;}
+  .spinner{width:22px;height:22px;border:3px solid var(--border);border-top-color:var(--info);border-radius:50%;
+    animation:spin .8s linear infinite;margin:0 auto 14px;}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  /* chat drawer */
+  .drawer-overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);display:none;z-index:50;}
+  .drawer-overlay.open{display:block;}
+  .drawer{position:fixed;top:0;right:0;height:100%;width:min(440px,100%);background:var(--bg);
+    border-left:1px solid var(--border2);display:flex;flex-direction:column;transform:translateX(100%);
+    transition:transform .18s ease;z-index:51;}
+  .drawer.open{transform:translateX(0);}
+  .drawer-head{padding:16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:8px;}
+  .drawer-head .x{cursor:pointer;color:var(--muted);font-size:20px;line-height:1;border:none;background:none;}
+  .chat{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:10px;}
+  .msg{padding:9px 12px;border-radius:12px;max-width:85%;font-size:14px;white-space:pre-wrap;word-wrap:break-word;}
+  .msg.user{align-self:flex-end;background:var(--info);color:#fff;border-bottom-right-radius:4px;}
+  .msg.bot{align-self:flex-start;background:var(--bg2);border-bottom-left-radius:4px;}
+  .msg.err{align-self:flex-start;background:var(--dang-bg);color:var(--dang-tx);}
+  .typing{align-self:flex-start;color:var(--hint);font-size:13px;font-style:italic;}
+  .chat-in{padding:12px;border-top:1px solid var(--border);display:flex;gap:8px;}
+  .chat-in textarea{flex:1;font:inherit;font-size:14px;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;resize:none;height:40px;max-height:120px;}
+  .chat-in button{font:inherit;padding:0 14px;border:none;border-radius:8px;background:var(--info);color:#fff;cursor:pointer;}
+  .chat-in button:disabled{opacity:.5;cursor:default;}
+  .suggest{display:flex;flex-wrap:wrap;gap:6px;padding:0 16px 12px;}
+  .suggest button{font:inherit;font-size:12px;padding:5px 9px;border:1px solid var(--border2);border-radius:14px;background:var(--bg);cursor:pointer;}
+  .suggest button:hover{background:var(--bg2);}
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>ODC budget pacing</h1>
+  <p class="sub">Monthly pacing by client and channel. Click a client for detail, or open the agent for analysis.</p>
+  <div class="bar">
+    <label>Current month</label>
+    <select id="asof"></select>
+  </div>
+  <div id="view"><div class="state"><div class="spinner"></div>Loading live data&hellip;</div></div>
+</div>
+
+<div class="drawer-overlay" id="overlay"></div>
+<aside class="drawer" id="drawer" aria-label="Client agent chat">
+  <div class="drawer-head">
+    <div><strong id="drawer-title">Agent</strong><div class="sub" id="drawer-sub"></div></div>
+    <button class="x" id="drawer-x" aria-label="Close">&times;</button>
+  </div>
+  <div class="chat" id="chat"></div>
+  <div class="suggest" id="suggest"></div>
+  <div class="chat-in">
+    <textarea id="chat-input" placeholder="Ask about this client&hellip;"></textarea>
+    <button id="chat-send">Send</button>
+  </div>
+</aside>
+
+<script>
+/* =====================================================================
+   N8N WIRING — fill in these two URLs after building the workflows.
+   ---------------------------------------------------------------------
+   DATA_WEBHOOK_URL : n8n Webhook that runs `SELECT * FROM pacing_api`
+     against BigQuery and returns the rows as JSON. Accepts either:
+       (a) a bare array:            [ {row}, {row}, ... ]
+       (b) wrapped:                 { "rows": [ ... ] }  or  { "data": [ ... ] }
+     Each row must have:
+       client (string), channel (string), year (int), month (int 1-12),
+       committed (number), actual (number)
+     Channels expected: google_ads, lsa, bing, meta, nextdoor, yelp
+     This endpoint is GET (no body). Enable CORS for your site's origin.
+
+   AGENT_WEBHOOK_URL : n8n Webhook for the per-client AI chat. The page
+     POSTs JSON: { client, message, month, month_name, history, context }
+     where context = { committed_month, actual_month, variance_month,
+       pacing_pct_month, channels:[{channel,committed,actual,variance}],
+       year:{committed_to_date,spent_to_date,ytd_variance,
+             full_year_committed,remaining_pool} }
+     Respond with JSON containing any of: reply | text | output.
+     Enable CORS for your site's origin.
+   ===================================================================== */
+const DATA_WEBHOOK_URL  = "https://naterimc.app.n8n.cloud/webhook/odc-pacing-data";
+const AGENT_WEBHOOK_URL = "https://naterimc.app.n8n.cloud/webhook/odc-pacing-agent";
+
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const CH_LABEL = {google_ads:"Google Ads", lsa:"LSA", bing:"Bing", meta:"Meta", nextdoor:"Nextdoor", yelp:"Yelp"};
+const fmt = n => (n<0?"-$":"$") + Math.abs(Math.round(n)).toLocaleString();
+const pct = n => (n*100).toFixed(0) + "%";
+
+/* DATA: loaded live from n8n. ROWS = [{client,channel,year,month,committed,actual}] */
+let ROWS = [];
+let ASOF = (new Date()).getMonth() + 1;   // default to current calendar month
+
+const view = document.getElementById('view');
+const asofSel = document.getElementById('asof');
+
+function buildMonthSelect(){
+  asofSel.innerHTML='';
+  MONTHS.forEach((m,i)=>{ const o=document.createElement('option'); o.value=i+1; o.textContent=m; if(i+1===ASOF)o.selected=true; asofSel.appendChild(o); });
+  asofSel.onchange=()=>{ ASOF=+asofSel.value; renderOverview(); };
+}
+
+/* ---------- live data load ---------- */
+function showState(html){ view.innerHTML='<div class="state">'+html+'</div>'; }
+
+async function loadData(){
+  showState('<div class="spinner"></div>Loading live data&hellip;');
+  if(!DATA_WEBHOOK_URL || DATA_WEBHOOK_URL.indexOf('PASTE_')===0){
+    showState('<div class="big">Data source not configured</div>Set <code>DATA_WEBHOOK_URL</code> at the top of this file to your n8n endpoint that returns <code>SELECT * FROM pacing_api</code>.');
+    return;
+  }
+  try{
+    const res = await fetch(DATA_WEBHOOK_URL, {method:'GET'});
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const data = await res.json();
+    const rows = Array.isArray(data) ? data : (data.rows || data.data || []);
+    if(!Array.isArray(rows) || rows.length===0) throw new Error('endpoint returned no rows');
+    ROWS = rows.map(r=>({
+      client:String(r.client), channel:String(r.channel),
+      year:+r.year, month:+r.month,
+      committed:+r.committed||0, actual:+r.actual||0
+    }));
+    buildMonthSelect();
+    renderOverview();
+  }catch(err){
+    showState('<div class="big">Could not load data</div>'+err.message+
+      '<br><button class="retry" onclick="loadData()">Retry</button>');
+  }
+}
+
+/* ---------- derivations (all math from the primitive rows) ---------- */
+function clients(){ return [...new Set(ROWS.map(r=>r.client))].sort(); }
+function rowsFor(client){ return ROWS.filter(r=>r.client===client); }
+
+function monthPacing(client,m){
+  let c=0,a=0;
+  for(const r of rowsFor(client)) if(r.month===m){ c+=r.committed; a+=r.actual; }
+  return { committed:c, actual:a, variance:a-c, pct:c?a/c:0 };
+}
+function yearPacing(client,asof){
+  let full=0,cytd=0,sytd=0;
+  for(const r of rowsFor(client)){
+    full+=r.committed;
+    if(r.month<=asof){ cytd+=r.committed; sytd+=r.actual; }
+  }
+  return { full, committedYTD:cytd, spentYTD:sytd, ytdVar:sytd-cytd, ytdPct:cytd?sytd/cytd:0, remaining:full-sytd };
+}
+function channelRows(client,m){
+  const map={};
+  for(const r of rowsFor(client)) if(r.month===m){
+    map[r.channel]=map[r.channel]||{channel:r.channel,committed:0,actual:0};
+    map[r.channel].committed+=r.committed; map[r.channel].actual+=r.actual;
+  }
+  return Object.values(map).map(o=>({...o,variance:o.actual-o.committed}));
+}
+function pillFor(p){
+  if(p>1.08) return '<span class="pill p-dang">Overspending</span>';
+  if(p<0.92) return '<span class="pill p-warn">Underspending</span>';
+  return '<span class="pill p-ok">On track</span>';
+}
+function card(l,v){ return '<div class="card"><p class="lbl">'+l+'</p><p class="val">'+v+'</p></div>'; }
+
+/* ---------- views ---------- */
+function renderOverview(){
+  const cs=clients();
+  let tc=0,ta=0; const rows=cs.map(c=>{ const m=monthPacing(c,ASOF); tc+=m.committed; ta+=m.actual; return {c,m}; });
+  const onTrack=rows.filter(r=>r.m.pct>=0.92&&r.m.pct<=1.08).length;
+  let h='<div class="cards">';
+  h+=card(MONTHS[ASOF-1]+" committed", fmt(tc));
+  h+=card(MONTHS[ASOF-1]+" actual", fmt(ta));
+  h+=card("On track this month", onTrack+" / "+cs.length);
+  h+=card("Month variance", fmt(ta-tc));
+  h+='</div>';
+  h+='<table><thead><tr><th>Client</th><th class="num">Committed</th><th class="num">Actual</th><th class="num">Variance</th><th class="num">Pacing</th><th>Status</th><th></th></tr></thead><tbody>';
+  for(const {c,m} of rows){
+    const col=Math.abs(m.variance)<1?'':(m.variance>0?'color:var(--dang-tx)':'color:var(--warn-tx)');
+    h+='<tr class="clk" data-c="'+encodeURIComponent(c)+'"><td>'+c+'</td>'
+      +'<td class="num">'+fmt(m.committed)+'</td><td class="num">'+fmt(m.actual)+'</td>'
+      +'<td class="num" style="'+col+'">'+(m.variance>=0?'+':'')+fmt(m.variance)+'</td>'
+      +'<td class="num">'+pct(m.pct)+'</td><td>'+pillFor(m.pct)+'</td>'
+      +'<td><button class="agentbtn" data-agent="'+encodeURIComponent(c)+'">Agent</button></td></tr>';
+  }
+  h+='</tbody></table>';
+  view.innerHTML=h;
+  view.querySelectorAll('tr.clk').forEach(tr=> tr.onclick=(e)=>{ if(e.target.classList.contains('agentbtn'))return; renderClient(decodeURIComponent(tr.dataset.c)); });
+  view.querySelectorAll('button[data-agent]').forEach(b=> b.onclick=(e)=>{ e.stopPropagation(); openAgent(decodeURIComponent(b.dataset.agent)); });
+}
+
+function renderClient(client){
+  const m=monthPacing(client,ASOF), y=yearPacing(client,ASOF), chans=channelRows(client,ASOF);
+  let h='<span class="back" id="back">&larr; All clients</span>';
+  h+='<h2>'+client+' &mdash; '+MONTHS[ASOF-1]+' '+pillFor(m.pct)+' <button class="agentbtn" id="client-agent">Agent</button></h2>';
+  h+='<div class="cards">';
+  h+=card(MONTHS[ASOF-1]+" committed", fmt(m.committed));
+  h+=card(MONTHS[ASOF-1]+" actual", fmt(m.actual));
+  h+=card("This month pacing", pct(m.pct));
+  h+='</div>';
+  h+='<h3>'+MONTHS[ASOF-1]+' by channel</h3>';
+  h+='<table><thead><tr><th>Channel</th><th class="num">Committed</th><th class="num">Actual</th><th class="num">Variance</th></tr></thead><tbody>';
+  for(const r of chans){ const col=Math.abs(r.variance)<1?'':(r.variance>0?'color:var(--dang-tx)':'color:var(--warn-tx)');
+    h+='<tr><td style="font-weight:600">'+(CH_LABEL[r.channel]||r.channel)+'</td><td class="num">'+fmt(r.committed)+'</td><td class="num">'+fmt(r.actual)+'</td><td class="num" style="'+col+'">'+(r.variance>=0?'+':'')+fmt(r.variance)+'</td></tr>'; }
+  h+='</tbody></table>';
+  const corr=y.ytdPct>1.05?'over':(y.ytdPct<0.95?'under':'on');
+  const banner=corr==='over'?'<span style="color:var(--dang-tx)">Over for the year &mdash; correction mode: ease off to protect the pool.</span>'
+    :corr==='under'?'<span style="color:var(--warn-tx)">Under for the year &mdash; correction mode: pool to redeploy across remaining months.</span>'
+    :'<span style="color:var(--ok-tx)">On track for the year overall.</span>';
+  h+='<h3>Year context</h3><div class="yearbox"><p class="sub" style="margin-top:0">As of '+MONTHS[ASOF-1]+'</p><table style="margin-bottom:8px"><tbody>';
+  h+='<tr><td>Committed to date</td><td class="num">'+fmt(y.committedYTD)+'</td></tr>';
+  h+='<tr><td>Spent to date</td><td class="num">'+fmt(y.spentYTD)+'</td></tr>';
+  h+='<tr><td>Year-to-date variance</td><td class="num">'+(y.ytdVar>=0?'+':'')+fmt(y.ytdVar)+'</td></tr>';
+  h+='<tr><td>Full-year committed</td><td class="num">'+fmt(y.full)+'</td></tr>';
+  h+='<tr><td>Remaining pool</td><td class="num">'+fmt(y.remaining)+'</td></tr>';
+  h+='</tbody></table>'+banner+'</div>';
+  view.innerHTML=h;
+  document.getElementById('back').onclick=renderOverview;
+  document.getElementById('client-agent').onclick=()=>openAgent(client);
+}
+
+/* ---------- AI agent chat drawer ---------- */
+const overlay=document.getElementById('overlay'), drawer=document.getElementById('drawer');
+const chatEl=document.getElementById('chat'), inputEl=document.getElementById('chat-input'), sendBtn=document.getElementById('chat-send');
+const suggestEl=document.getElementById('suggest');
+let AGENT_CLIENT=null, history=[];
+
+function buildContext(client){
+  const m=monthPacing(client,ASOF), y=yearPacing(client,ASOF), chans=channelRows(client,ASOF);
+  return {
+    committed_month:Math.round(m.committed), actual_month:Math.round(m.actual),
+    variance_month:Math.round(m.variance), pacing_pct_month:+m.pct.toFixed(3),
+    channels:chans.map(r=>({channel:r.channel,committed:Math.round(r.committed),actual:Math.round(r.actual),variance:Math.round(r.variance)})),
+    year:{committed_to_date:Math.round(y.committedYTD),spent_to_date:Math.round(y.spentYTD),
+      ytd_variance:Math.round(y.ytdVar),full_year_committed:Math.round(y.full),remaining_pool:Math.round(y.remaining)}
+  };
+}
+function addMsg(text,cls){ const d=document.createElement('div'); d.className='msg '+cls; d.textContent=text; chatEl.appendChild(d); chatEl.scrollTop=chatEl.scrollHeight; return d; }
+function openAgent(client){
+  AGENT_CLIENT=client; history=[];
+  document.getElementById('drawer-title').textContent=client;
+  const m=monthPacing(client,ASOF);
+  document.getElementById('drawer-sub').textContent=MONTHS[ASOF-1]+' pacing '+pct(m.pct)+' \u00b7 variance '+(m.variance>=0?'+':'')+fmt(m.variance);
+  chatEl.innerHTML='';
+  addMsg('Ask me about '+client+'\u2019s pacing, channel mix, or what to do with the variance.','bot');
+  suggestEl.innerHTML='';
+  ['Why are we off this month?','What should we do with the variance?','Which channel is driving the gap?'].forEach(q=>{
+    const b=document.createElement('button'); b.textContent=q; b.onclick=()=>{ inputEl.value=q; send(); }; suggestEl.appendChild(b);
+  });
+  overlay.classList.add('open'); drawer.classList.add('open'); inputEl.focus();
+}
+function closeAgent(){ overlay.classList.remove('open'); drawer.classList.remove('open'); }
+overlay.onclick=closeAgent; document.getElementById('drawer-x').onclick=closeAgent;
+
+async function send(){
+  const text=inputEl.value.trim(); if(!text||!AGENT_CLIENT) return;
+  addMsg(text,'user'); history.push({role:'user',content:text});
+  inputEl.value=''; sendBtn.disabled=true;
+  const typing=addMsg('Thinking\u2026','typing');
+  if(!AGENT_WEBHOOK_URL || AGENT_WEBHOOK_URL.indexOf('PASTE_')===0){
+    typing.remove(); addMsg('Agent webhook not configured yet. Set AGENT_WEBHOOK_URL at the top of this file once your n8n workflow is live.','err'); sendBtn.disabled=false; return;
+  }
+  try{
+    const res=await fetch(AGENT_WEBHOOK_URL,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({ client:AGENT_CLIENT, message:text, month:ASOF, month_name:MONTHS[ASOF-1], history:history, context:buildContext(AGENT_CLIENT) })});
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const data=await res.json();
+    const reply=data.reply||data.text||data.output||(typeof data==='string'?data:JSON.stringify(data));
+    typing.remove(); addMsg(reply,'bot'); history.push({role:'assistant',content:reply});
+  }catch(err){ typing.remove(); addMsg('Could not reach the agent: '+err.message,'err'); }
+  sendBtn.disabled=false;
+}
+sendBtn.onclick=send;
+inputEl.addEventListener('keydown',e=>{ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); send(); } });
+
+/* boot */
+loadData();
+</script>
+</body>
+</html>
