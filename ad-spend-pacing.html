@@ -1,716 +1,503 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Ad Spend Pacing — Córtex OS</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ad Spend Pacing</title>
 <style>
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f0f2f5; color: #1a1a2e; font-size: 14px; line-height: 1.5; }
-
-/* ── Site nav (matches Nate's pattern) ── */
-.site-top { position: sticky; top: 0; z-index: 100; }
-.site-header { background: #0d1b2a; padding: 0 32px; height: 52px; display: flex; align-items: center; box-shadow: 0 1px 0 rgba(255,255,255,.06); }
-.brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
-.brand-name { font-size: 17px; font-weight: 700; color: #fff; letter-spacing: -.3px; }
-.brand-divider { color: rgba(255,255,255,.25); font-size: 14px; }
-.brand-sub { font-size: 11px; color: rgba(255,255,255,.45); font-weight: 500; }
-.site-nav { background: #0f2236; padding: 0 32px; display: flex; gap: 2px; border-bottom: 1px solid rgba(255,255,255,.07); }
-.nav-link { color: rgba(255,255,255,.5); text-decoration: none; font-size: 13px; font-weight: 500; padding: 10px 16px; border-bottom: 2px solid transparent; transition: color .15s, border-color .15s; }
-.nav-link:hover { color: rgba(255,255,255,.85); }
-.nav-link.active { color: #fff; border-bottom-color: #4285F4; }
-
-/* ── Loading & error states ── */
-#loading-state { text-align: center; padding: 80px 32px; color: #757575; font-size: 15px; }
-.spinner { width: 36px; height: 36px; border: 3px solid #e0e0e0; border-top-color: #1565c0; border-radius: 50%; animation: spin .8s linear infinite; margin: 0 auto 16px; }
-@keyframes spin { to { transform: rotate(360deg); } }
-
-#error-state { display: none; margin: 40px auto; max-width: 520px; background: #fff; border: 1px solid #ffcdd2; border-radius: 10px; padding: 28px 32px; text-align: center; }
-#error-state h2 { color: #c62828; margin-bottom: 10px; font-size: 16px; }
-#error-state code { display: block; background: #f5f5f5; border-radius: 6px; padding: 10px 14px; font-size: 13px; margin: 14px 0; text-align: left; color: #333; }
-#error-state p { color: #616161; font-size: 13px; }
-
-/* ── Info banner ── */
-.info-banner { background: #fff8e1; border-bottom: 1px solid #ffe082; padding: 7px 32px; font-size: 12px; color: #6d4c00; }
-.info-banner strong { font-weight: 700; }
-
-/* ── Filters bar ── */
-#filter-bar { display: none; background: #fff; border-bottom: 1px solid #e4e6ea; padding: 12px 32px; align-items: center; gap: 20px; flex-wrap: wrap; }
-#filter-bar label { font-size: 12px; font-weight: 600; color: #616161; text-transform: uppercase; letter-spacing: .4px; }
-select.filter-select { border: 1px solid #d0d3d8; border-radius: 6px; padding: 6px 28px 6px 10px; font-size: 13px; color: #1a1a2e; background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%23666' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E") no-repeat right 10px center; appearance: none; cursor: pointer; }
-select#account-filter { min-width: 220px; }
-select#platform-filter { min-width: 150px; }
-select#group-filter { min-width: 110px; }
-.data-as-of { margin-left: auto; font-size: 12px; color: #9e9e9e; }
-
-/* ── Main content ── */
-#dashboard { display: none; padding: 24px 32px; }
-
-/* ── Summary cards (mirror Nate's call-tracking pattern) ── */
-.cards { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; margin-bottom: 20px; }
-@media (max-width: 1100px) { .cards { grid-template-columns: repeat(3, 1fr); } }
-@media (max-width: 700px)  { .cards { grid-template-columns: repeat(2, 1fr); } }
-.card { background: #fff; border-radius: 10px; padding: 18px 20px 16px; box-shadow: 0 1px 4px rgba(0,0,0,.07); }
-.card .c-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .6px; color: #9e9e9e; margin-bottom: 8px; }
-.card .c-value { font-size: 28px; font-weight: 700; color: #0d1b2a; line-height: 1.15; }
-.card .c-sub { font-size: 12px; color: #9e9e9e; margin-top: 4px; }
-.card.accent-red    .c-value { color: #c62828; }
-.card.accent-blue   .c-value { color: #1565c0; }
-.card.accent-green  .c-value { color: #2e7d32; }
-.card.accent-orange .c-value { color: #ef6c00; }
-
-/* ── Chart grid ── */
-.chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
-@media (max-width: 900px) { .chart-grid { grid-template-columns: 1fr; } }
-.chart-grid.single { grid-template-columns: 1fr; }
-.chart-card { background: #fff; border-radius: 10px; padding: 20px 22px; box-shadow: 0 1px 4px rgba(0,0,0,.07); }
-.chart-card h3 { font-size: 13px; font-weight: 600; color: #424242; margin-bottom: 4px; }
-.chart-card .chart-note { font-size: 11px; color: #9e9e9e; margin-bottom: 14px; }
-.chart-wrap { position: relative; }
-
-/* ── Status distribution bar ── */
-.status-bar-wrap { background: #fff; border-radius: 10px; padding: 20px 22px; box-shadow: 0 1px 4px rgba(0,0,0,.07); margin-bottom: 14px; }
-.status-bar-wrap h3 { font-size: 13px; font-weight: 600; color: #424242; margin-bottom: 4px; }
-.status-bar-wrap .chart-note { font-size: 11px; color: #9e9e9e; margin-bottom: 14px; }
-.status-bar { display: flex; width: 100%; height: 32px; border-radius: 6px; overflow: hidden; gap: 1px; }
-.status-seg { display: flex; align-items: center; justify-content: center; color: #fff; font-size: 11px; font-weight: 600; min-width: 22px; transition: opacity .15s; }
-.status-seg:hover { opacity: .85; }
-.status-legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 12px; font-size: 12px; color: #616161; }
-.status-legend .dot { width: 10px; height: 10px; border-radius: 2px; display: inline-block; margin-right: 6px; vertical-align: middle; }
-
-/* ── Data table ── */
-.data-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 14px; }
-.data-table thead th { background: #f8f9fb; padding: 9px 14px; text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .4px; color: #757575; border-bottom: 2px solid #e8eaed; white-space: nowrap; }
-.data-table thead th.num { text-align: right; }
-.data-table tbody td { padding: 8px 14px; border-bottom: 1px solid #f0f2f5; color: #424242; }
-.data-table tbody td.num { text-align: right; font-variant-numeric: tabular-nums; }
-.data-table tbody tr:hover td { background: #f8f9fb; }
-.data-table .total-row td { font-weight: 700; background: #f0f4ff; border-top: 2px solid #d0daf5; }
-.no-data { color: #bdbdbd; font-style: italic; padding: 20px 0; text-align: center; }
-
-/* ── Status pills ── */
-.pill { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 4px; white-space: nowrap; }
-.pill-crit       { background: #ffebee; color: #c62828; }
-.pill-warn       { background: #fff3e0; color: #ef6c00; }
-.pill-ok         { background: #e8f5e9; color: #2e7d32; }
-.pill-info       { background: #e3f2fd; color: #1565c0; }
-.pill-neutral    { background: #eceff1; color: #546e7a; }
-
-/* ── Account name truncate ── */
-.acct-name { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-/* ── Freshness footer ── */
-.freshness-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-top: 14px; }
-@media (max-width: 900px) { .freshness-grid { grid-template-columns: repeat(2, 1fr); } }
-.freshness-item { background: #fafbfc; border: 1px solid #ebedf0; border-radius: 6px; padding: 10px 12px; font-size: 11px; }
-.freshness-item .fr-platform { color: #757575; font-weight: 600; text-transform: uppercase; letter-spacing: .4px; font-size: 10px; margin-bottom: 4px; }
-.freshness-item .fr-date { color: #1a1a2e; font-weight: 600; font-size: 12px; }
-.freshness-item .fr-lag { margin-top: 4px; display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: #757575; }
-.freshness-item .fr-lag .dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+  :root{
+    --bg:#ffffff; --bg2:#f6f5f1; --bg3:#efeee8; --text:#1f1e1c; --muted:#6b6a64; --hint:#9a9890;
+    --border:#e4e2da; --border2:#cfccc2;
+    --ok-bg:#e1f5ee; --ok-tx:#0f6e56; --ok-bd:#9cd9c4;
+    --warn-bg:#faeeda; --warn-tx:#854f0b; --warn-bd:#e9c98f;
+    --dang-bg:#fcebeb; --dang-tx:#a32d2d; --dang-bd:#e7a9a9;
+    --idle-bg:#f0efea; --idle-tx:#9a9890; --idle-bd:#e0ded6;
+    --info:#185fa5;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color:var(--text);background:var(--bg);font-size:15px;line-height:1.5;}
+  .page{max-width:1200px;margin:0 auto;padding:24px 20px 80px;}
+  h1{font-size:22px;font-weight:600;margin:0 0 4px;}
+  h2{font-size:18px;font-weight:600;margin:0 0 4px;}
+  h3{font-size:14px;font-weight:600;margin:22px 0 8px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);}
+  .sub{font-size:13px;color:var(--hint);margin:0;}
+  .bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:16px 0;}
+  .bar label{font-size:13px;color:var(--muted);}
+  select{font:inherit;padding:6px 10px;border:1px solid var(--border2);border-radius:8px;background:var(--bg);}
+  .filters{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;margin:16px 0;padding:14px 16px;background:var(--bg2);border-radius:10px;}
+  .filters .fg{display:flex;flex-direction:column;gap:4px;}
+  .filters .fg span{font-size:12px;color:var(--muted);}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:16px 0;}
+  .card{background:var(--bg2);border-radius:8px;padding:14px 16px;}
+  .card .lbl{font-size:13px;color:var(--muted);margin:0 0 4px;}
+  .card .val{font-size:23px;font-weight:600;margin:0;}
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--border);vertical-align:middle;}
+  th{color:var(--muted);font-weight:600;}
+  td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;}
+  tr.clk:hover{background:var(--bg2);cursor:pointer;}
+  .pill{font-size:12px;padding:3px 9px;border-radius:8px;font-weight:600;display:inline-block;white-space:nowrap;}
+  .p-ok{background:var(--ok-bg);color:var(--ok-tx);} .p-warn{background:var(--warn-bg);color:var(--warn-tx);} .p-dang{background:var(--dang-bg);color:var(--dang-tx);}
+  /* channel chips */
+  .chips{display:flex;gap:5px;flex-wrap:wrap;}
+  .chip{font-size:11px;font-weight:600;padding:2px 7px;border-radius:6px;border:1px solid;white-space:nowrap;}
+  .c-ok{background:var(--ok-bg);color:var(--ok-tx);border-color:var(--ok-bd);}
+  .c-warn{background:var(--warn-bg);color:var(--warn-tx);border-color:var(--warn-bd);}
+  .c-dang{background:var(--dang-bg);color:var(--dang-tx);border-color:var(--dang-bd);}
+  .c-idle{background:var(--idle-bg);color:var(--idle-tx);border-color:var(--idle-bd);}
+  .back{font-size:13px;color:var(--info);cursor:pointer;display:inline-block;margin-bottom:8px;}
+  .tablewrap{border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-top:6px;}
+  .tablewrap table th,.tablewrap table td{padding:9px 12px;}
+  .tablewrap table tr:last-child td{border-bottom:none;}
+  .agentbtn{font:inherit;font-size:12px;padding:5px 10px;border:1px solid var(--border2);border-radius:8px;background:var(--bg);cursor:pointer;white-space:nowrap;}
+  .agentbtn:hover{background:var(--bg2);}
+  .state{padding:40px 16px;text-align:center;color:var(--muted);}
+  .state .big{font-size:16px;color:var(--text);margin-bottom:6px;}
+  .state code{background:var(--bg3);padding:2px 6px;border-radius:4px;font-size:12px;}
+  .retry{margin-top:14px;font:inherit;padding:8px 16px;border:1px solid var(--border2);border-radius:8px;background:var(--bg);cursor:pointer;}
+  .spinner{width:22px;height:22px;border:3px solid var(--border);border-top-color:var(--info);border-radius:50%;
+    animation:spin .8s linear infinite;margin:0 auto 14px;}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .muted-row td{color:var(--hint);}
+  .note{font-size:12px;color:var(--hint);margin:6px 0 0;}
+  .legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin:10px 0 0;}
+  .legend .chip{cursor:default;}
+  /* chat drawer */
+  .drawer-overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);display:none;z-index:50;}
+  .drawer-overlay.open{display:block;}
+  .drawer{position:fixed;top:0;right:0;height:100%;width:min(440px,100%);background:var(--bg);
+    border-left:1px solid var(--border2);display:flex;flex-direction:column;transform:translateX(100%);
+    transition:transform .18s ease;z-index:51;}
+  .drawer.open{transform:translateX(0);}
+  .drawer-head{padding:16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:8px;}
+  .drawer-head .x{cursor:pointer;color:var(--muted);font-size:20px;line-height:1;border:none;background:none;}
+  .chat{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:10px;}
+  .msg{padding:9px 12px;border-radius:12px;max-width:85%;font-size:14px;white-space:pre-wrap;word-wrap:break-word;}
+  .msg.user{align-self:flex-end;background:var(--info);color:#fff;border-bottom-right-radius:4px;}
+  .msg.bot{align-self:flex-start;background:var(--bg2);border-bottom-left-radius:4px;}
+  .msg.err{align-self:flex-start;background:var(--dang-bg);color:var(--dang-tx);}
+  .typing{align-self:flex-start;color:var(--hint);font-size:13px;font-style:italic;}
+  .chat-in{padding:12px;border-top:1px solid var(--border);display:flex;gap:8px;}
+  .chat-in textarea{flex:1;font:inherit;font-size:14px;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;resize:none;height:40px;max-height:120px;}
+  .chat-in button{font:inherit;padding:0 14px;border:none;border-radius:8px;background:var(--info);color:#fff;cursor:pointer;}
+  .chat-in button:disabled{opacity:.5;cursor:default;}
+  .suggest{display:flex;flex-wrap:wrap;gap:6px;padding:0 16px 12px;}
+  .suggest button{font:inherit;font-size:12px;padding:5px 9px;border:1px solid var(--border2);border-radius:14px;background:var(--bg);cursor:pointer;}
+  .suggest button:hover{background:var(--bg2);}
 </style>
 </head>
 <body>
+<div class="page">
+  <h1>Ad Spend Pacing</h1>
+  <p class="sub">Monthly pacing by client and channel. Click a client for detail, or open the agent for analysis.</p>
 
-<div class="site-top">
-  <header class="site-header">
-    <a href="index.html" class="brand">
-      <span class="brand-name">Córtex OS</span>
-      <span class="brand-divider">|</span>
-      <span class="brand-sub">Right Idea Media & Creative</span>
-    </a>
-  </header>
-  <nav class="site-nav">
-    <a href="index.html" class="nav-link">Home</a>
-    <a href="call-tracking.html" class="nav-link">Call Tracking</a>
-    <a href="ad-spend-pacing.html" class="nav-link active">Ad Spend Pacing</a>
-    <a href="tickets.html" class="nav-link">Tickets</a>
-  </nav>
+  <div class="bar">
+    <label>Current month</label>
+    <select id="asof"></select>
+  </div>
+
+  <div id="view"><div class="state"><div class="spinner"></div>Loading live data&hellip;</div></div>
 </div>
 
-<div class="info-banner">
-  💡 Budget pacing & captura BQ vs Planner — datos derivados de <strong>pacing_dashboard_view</strong>. Refresh diario 8 AM CT desde BigQuery. Ventana rolling de 7 meses.
-</div>
-
-<div id="loading-state"><div class="spinner"></div>Loading pacing data…</div>
-
-<div id="error-state">
-  <h2>pacing-data.json not found</h2>
-  <p>Run the export script to generate the data file:</p>
-  <code>python export_pacing_data.py</code>
-  <p>Then reload this page. Requires <code>google-cloud-bigquery</code> and Application Default Credentials.</p>
-</div>
-
-<div id="filter-bar">
-  <label for="group-filter">Group</label>
-  <select id="group-filter" class="filter-select">
-    <option value="all">All</option>
-    <option value="ODC">ODC</option>
-    <option value="Other">Other</option>
-  </select>
-  <label for="platform-filter">Platform</label>
-  <select id="platform-filter" class="filter-select">
-    <option value="all">All Platforms</option>
-  </select>
-  <label for="account-filter">Account</label>
-  <select id="account-filter" class="filter-select">
-    <option value="all">All Accounts</option>
-  </select>
-  <span class="data-as-of" id="data-as-of"></span>
-</div>
-
-<div id="dashboard">
-
-  <!-- Summary cards (current month) -->
-  <div class="cards">
-    <div class="card accent-blue">
-      <div class="c-label">Spend MTD</div>
-      <div class="c-value" id="c-spend">—</div>
-      <div class="c-sub" id="c-spend-sub">current month</div>
-    </div>
-    <div class="card">
-      <div class="c-label">Budget</div>
-      <div class="c-value" id="c-budget">—</div>
-      <div class="c-sub">current month</div>
-    </div>
-    <div class="card accent-green">
-      <div class="c-label">Pacing</div>
-      <div class="c-value" id="c-pacing">—</div>
-      <div class="c-sub" id="c-pacing-sub">vs day-of-month</div>
-    </div>
-    <div class="card accent-red">
-      <div class="c-label">Critical Alerts</div>
-      <div class="c-value" id="c-critical">—</div>
-      <div class="c-sub" id="c-critical-sub">need attention</div>
-    </div>
-    <div class="card accent-orange">
-      <div class="c-label">Review</div>
-      <div class="c-value" id="c-review">—</div>
-      <div class="c-sub">underpacing / no spend</div>
-    </div>
+<div class="drawer-overlay" id="overlay"></div>
+<aside class="drawer" id="drawer" aria-label="Client agent chat">
+  <div class="drawer-head">
+    <div><strong id="drawer-title">Agent</strong><div class="sub" id="drawer-sub"></div></div>
+    <button class="x" id="drawer-x" aria-label="Close">&times;</button>
   </div>
-
-  <!-- Status distribution -->
-  <div class="status-bar-wrap">
-    <h3>Status Distribution — Current Month</h3>
-    <div class="chart-note" id="status-note">Distribución de cuentas por estado de pacing</div>
-    <div class="status-bar" id="status-bar"></div>
-    <div class="status-legend" id="status-legend"></div>
+  <div class="chat" id="chat"></div>
+  <div class="suggest" id="suggest"></div>
+  <div class="chat-in">
+    <textarea id="chat-input" placeholder="Ask about this client&hellip;"></textarea>
+    <button id="chat-send">Send</button>
   </div>
-
-  <!-- Trend + Status by platform -->
-  <div class="chart-grid">
-    <div class="chart-card">
-      <h3>Trend — Spend vs Budget (7-Month Window)</h3>
-      <div class="chart-note">Aggregated by month. Bars = budget, line = actual spend.</div>
-      <div class="chart-wrap" style="height:280px"><canvas id="chart-trend"></canvas></div>
-    </div>
-    <div class="chart-card">
-      <h3>Spend by Platform — Current Month</h3>
-      <div class="chart-note">Share of MTD spend across platforms</div>
-      <div class="chart-wrap" style="height:280px"><canvas id="chart-platform"></canvas></div>
-    </div>
-  </div>
-
-  <!-- Attention required table -->
-  <div class="chart-grid single">
-    <div class="chart-card">
-      <h3>Attention Required — Critical & Review</h3>
-      <div class="chart-note">Accounts with Critical or Review severity in the current month, ordered by urgency.</div>
-      <div style="overflow-x:auto">
-        <table class="data-table" id="attention-table">
-          <thead>
-            <tr>
-              <th>Account</th>
-              <th>Group</th>
-              <th>Platform</th>
-              <th class="num">Budget</th>
-              <th class="num">Spend MTD</th>
-              <th class="num">Pacing</th>
-              <th class="num">Forecast EOM</th>
-              <th>Status</th>
-              <th>Annual</th>
-            </tr>
-          </thead>
-          <tbody id="attention-tbody"></tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-
-  <!-- Capture (historical BQ vs Planner) -->
-  <div class="chart-grid single">
-    <div class="chart-card">
-      <h3>Captura Histórica — BQ vs Planner</h3>
-      <div class="chart-note">Discrepancias entre lo reportado por el AM en el Planner y lo registrado en BigQuery (meses pasados).</div>
-      <div style="overflow-x:auto">
-        <table class="data-table" id="capture-table">
-          <thead>
-            <tr>
-              <th>Account</th>
-              <th>Platform</th>
-              <th>Mes</th>
-              <th class="num">Reportado AM</th>
-              <th class="num">Real BQ</th>
-              <th class="num">Diferencia</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody id="capture-tbody"></tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-
-  <!-- All accounts (full window) -->
-  <div class="chart-grid single">
-    <div class="chart-card">
-      <h3>All Accounts — Full Rolling Window</h3>
-      <div class="chart-note" id="all-note">Todas las rows del view filtradas por los selectores arriba.</div>
-      <div style="overflow-x:auto">
-        <table class="data-table" id="all-table">
-          <thead>
-            <tr>
-              <th>Account</th>
-              <th>Group</th>
-              <th>Platform</th>
-              <th>Mes</th>
-              <th>Position</th>
-              <th class="num">Budget</th>
-              <th class="num">Spend</th>
-              <th class="num">Pacing</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody id="all-tbody"></tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-
-  <!-- Data freshness footer -->
-  <div class="chart-card" style="margin-top: 14px;">
-    <h3>Data Freshness por Plataforma</h3>
-    <div class="chart-note">Última fecha con spend registrado. Google Ads vía transfer diario; otras plataformas vía Sheet refrescado manualmente.</div>
-    <div class="freshness-grid" id="freshness-grid"></div>
-  </div>
-
-</div>
+</aside>
 
 <script>
-const PLATFORM_COLORS = {
-  'Google Ads': '#4285F4',
-  'Bing':       '#00897B',
-  'Bing Ads':   '#00897B',
-  'Nextdoor':   '#00B246',
-  'Meta Ads':   '#1877F2',
-  'Meta':       '#1877F2',
-  'LSA':        '#FF6F00',
-  'Other':      '#9E9E9E',
-};
+/* =====================================================================
+   N8N WIRING — the two webhook URLs the page calls.
+   ---------------------------------------------------------------------
+   DATA_WEBHOOK_URL : n8n Webhook that runs `SELECT * FROM pacing_api`.
+     Returns rows (bare array or {rows|data:[...]}). Each row now carries:
+       client, channel, year, month, committed, actual,
+       account_manager, source_group, spent_mtd,
+       days_in_month, days_elapsed, days_remaining, current_month
+     Channels expected: google_ads, lsa, bing, meta, nextdoor, yelp
+     GET, CORS enabled.
+   AGENT_WEBHOOK_URL : POST endpoint for the per-client AI chat (unchanged contract).
+   ===================================================================== */
+const DATA_WEBHOOK_URL  = "https://naterimc.app.n8n.cloud/webhook/odc-pacing-data";
+const AGENT_WEBHOOK_URL = "https://naterimc.app.n8n.cloud/webhook/odc-pacing-agent";
 
-const STATUS_COLORS = {
-  'On Track':                              { bg: '#43a047', cls: 'pill-ok' },
-  'Underpacing':                           { bg: '#ef6c00', cls: 'pill-warn' },
-  'Overpacing':                            { bg: '#e53935', cls: 'pill-crit' },
-  'No Spend':                              { bg: '#ffa726', cls: 'pill-warn' },
-  'No Budget':                             { bg: '#90a4ae', cls: 'pill-neutral' },
-  'Spending Without Budget':               { bg: '#c62828', cls: 'pill-crit' },
-  'Paused':                                { bg: '#78909c', cls: 'pill-neutral' },
-  'Upcoming':                              { bg: '#42a5f5', cls: 'pill-info' },
-  'Historical Match':                      { bg: '#66bb6a', cls: 'pill-ok' },
-  'Captured Mismatch (>10% diff)':         { bg: '#ffa726', cls: 'pill-warn' },
-  'Captured Mismatch (AM Over-reported)':  { bg: '#ff7043', cls: 'pill-warn' },
-  'Captured Mismatch (AM Under-reported)': { bg: '#c62828', cls: 'pill-crit' },
-  'Paused (Historical)':                   { bg: '#90a4ae', cls: 'pill-neutral' },
-  'BQ Data Gap':                           { bg: '#5c6bc0', cls: 'pill-info' },
-};
+/* Status band: on track within +/-8%. Year-correction trigger at +/-5%. */
+const OK_LOW = 0.92, OK_HIGH = 1.08;
+const YEAR_TRIGGER = 0.05;
 
-const STATUS_FALLBACK = { bg: '#9e9e9e', cls: 'pill-neutral' };
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const CH_ORDER = ["google_ads","lsa","bing","meta","nextdoor","yelp"];
+const CH_LABEL = {google_ads:"Google Ads", lsa:"LSA", bing:"Bing", meta:"Meta", nextdoor:"Nextdoor", yelp:"Yelp"};
+const fmt = n => (n<0?"-$":"$") + Math.abs(Math.round(n)).toLocaleString();
+const fmt2 = n => (n<0?"-$":"$") + Math.abs(n).toLocaleString(undefined,{minimumFractionDigits:0,maximumFractionDigits:0});
+const pct = n => (n*100).toFixed(0) + "%";
 
-let DATA = null;
-let filters = { group: 'all', platform: 'all', account: 'all' };
-let charts = {};
+let ROWS = [];
+let ASOF = (new Date()).getMonth() + 1;
+let DIMS = { days_in_month:30, days_elapsed:1, days_remaining:29, current_month:ASOF };
+let FILTERS = { source:"all", status:"all", am:"all" };
 
-// ── Init ──
-(async function init() {
-  try {
-    const res = await fetch('pacing-data.json');
-    if (!res.ok) throw new Error('not-ok');
-    DATA = await res.json();
-  } catch {
-    document.getElementById('loading-state').style.display = 'none';
-    document.getElementById('error-state').style.display = 'block';
+const view = document.getElementById('view');
+const asofSel = document.getElementById('asof');
+
+function buildMonthSelect(){
+  asofSel.innerHTML='';
+  MONTHS.forEach((m,i)=>{ const o=document.createElement('option'); o.value=i+1; o.textContent=m; if(i+1===ASOF)o.selected=true; asofSel.appendChild(o); });
+  asofSel.onchange=()=>{ ASOF=+asofSel.value; renderOverview(); };
+}
+
+/* ---------- live data load ---------- */
+function showState(html){ view.innerHTML='<div class="state">'+html+'</div>'; }
+
+async function loadData(){
+  showState('<div class="spinner"></div>Loading live data&hellip;');
+  if(!DATA_WEBHOOK_URL || DATA_WEBHOOK_URL.indexOf('PASTE_')===0){
+    showState('<div class="big">Data source not configured</div>Set <code>DATA_WEBHOOK_URL</code> at the top of this file to your n8n endpoint that returns <code>SELECT * FROM pacing_api</code>.');
     return;
   }
-
-  document.getElementById('loading-state').style.display = 'none';
-  document.getElementById('data-as-of').textContent = `Generated ${DATA.generated_at}`;
-
-  // Populate filter selects
-  const acctSel = document.getElementById('account-filter');
-  for (const a of DATA.accounts) {
-    const opt = document.createElement('option');
-    opt.value = a; opt.textContent = a;
-    acctSel.appendChild(opt);
+  try{
+    const res = await fetch(DATA_WEBHOOK_URL, {method:'GET'});
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const data = await res.json();
+    const rows = Array.isArray(data) ? data : (data.rows || data.data || []);
+    if(!Array.isArray(rows) || rows.length===0) throw new Error('endpoint returned no rows');
+    ROWS = rows.map(r=>({
+      client:String(r.client), channel:String(r.channel),
+      year:+r.year, month:+r.month,
+      committed:+r.committed||0, actual:+r.actual||0,
+      account_manager:r.account_manager?String(r.account_manager):'(Unassigned)',
+      source_group:r.source_group?String(r.source_group):'Other',
+      spent_mtd:+r.spent_mtd||0,
+      days_in_month:+r.days_in_month||30,
+      days_elapsed:+r.days_elapsed||1,
+      days_remaining:+r.days_remaining||29,
+      current_month:+r.current_month||ASOF
+    }));
+    const any = ROWS[0];
+    DIMS = { days_in_month:any.days_in_month, days_elapsed:any.days_elapsed, days_remaining:any.days_remaining, current_month:any.current_month };
+    buildMonthSelect();
+    renderOverview();
+  }catch(err){
+    showState('<div class="big">Could not load data</div>'+err.message+
+      '<br><button class="retry" onclick="loadData()">Retry</button>');
   }
-  const platSel = document.getElementById('platform-filter');
-  for (const p of DATA.platforms) {
-    const opt = document.createElement('option');
-    opt.value = p; opt.textContent = p;
-    platSel.appendChild(opt);
+}
+
+/* ---------- derivations ---------- */
+function clients(){ return [...new Set(ROWS.map(r=>r.client))].sort(); }
+function rowsFor(client){ return ROWS.filter(r=>r.client===client); }
+function amFor(client){ const r=rowsFor(client)[0]; return r?r.account_manager:'(Unassigned)'; }
+function sourceFor(client){ const r=rowsFor(client)[0]; return r?r.source_group:'Other'; }
+
+function statusOf(pacingPct, committed, actual){
+  if(committed<=0 && actual<=0) return 'idle';
+  if(committed<=0 && actual>0) return 'dang';        // spending with no budget
+  if(pacingPct>OK_HIGH) return 'dang';
+  if(pacingPct<OK_LOW) return 'warn';
+  return 'ok';
+}
+function statusLabel(s){ return s==='ok'?'On track':s==='warn'?'Underspending':s==='dang'?'Overspending':'No activity'; }
+function pillClass(s){ return s==='ok'?'p-ok':s==='warn'?'p-warn':'p-dang'; }
+
+function monthPacing(client,m){
+  let c=0,a=0; for(const r of rowsFor(client)) if(r.month===m){ c+=r.committed; a+=r.actual; }
+  return { committed:c, actual:a, variance:a-c, pct:c?a/c:0 };
+}
+function channelRows(client,m){
+  const map={};
+  for(const ch of CH_ORDER) map[ch]={channel:ch,committed:0,actual:0,spent_mtd:0};
+  for(const r of rowsFor(client)) if(r.month===m){
+    if(!map[r.channel]) map[r.channel]={channel:r.channel,committed:0,actual:0,spent_mtd:0};
+    map[r.channel].committed+=r.committed; map[r.channel].actual+=r.actual; map[r.channel].spent_mtd+=r.spent_mtd;
   }
-
-  document.getElementById('filter-bar').style.display = 'flex';
-  document.getElementById('dashboard').style.display = 'block';
-
-  bindEvents();
-  renderFreshness();
-  renderAll();
-})();
-
-function bindEvents() {
-  document.getElementById('group-filter').addEventListener('change', e => {
-    filters.group = e.target.value; renderAll();
-  });
-  document.getElementById('platform-filter').addEventListener('change', e => {
-    filters.platform = e.target.value; renderAll();
-  });
-  document.getElementById('account-filter').addEventListener('change', e => {
-    filters.account = e.target.value; renderAll();
+  return CH_ORDER.filter(ch=>map[ch]).map(ch=>{
+    const o=map[ch]; o.variance=o.actual-o.committed; o.pct=o.committed?o.actual/o.committed:0;
+    o.status=statusOf(o.pct,o.committed,o.actual); return o;
   });
 }
-
-// ── Helpers ──
-function rows() {
-  return DATA.rows.filter(r => {
-    if (filters.group !== 'all' && r.source_group !== filters.group) return false;
-    if (filters.platform !== 'all' && r.platform !== filters.platform) return false;
-    if (filters.account !== 'all' && r.account_display_name !== filters.account) return false;
-    return true;
-  });
-}
-
-function curr(rs)   { return rs.filter(r => r.month_position === 'current'); }
-function past(rs)   { return rs.filter(r => r.month_position === 'past'); }
-function num(v)     { return Number(v) || 0; }
-function sum(rs, k) { return rs.reduce((s, r) => s + num(r[k]), 0); }
-
-function fmtMoney(v, decimals = 0) {
-  if (v === null || v === undefined || v === '') return '—';
-  v = Number(v);
-  if (!isFinite(v)) return '—';
-  const abs = Math.abs(v);
-  if (abs >= 1000000) return '$' + (v/1000000).toFixed(1) + 'M';
-  if (abs >= 1000)    return '$' + (v/1000).toFixed(decimals > 0 ? decimals : 1) + 'k';
-  return '$' + v.toLocaleString('en-US', { maximumFractionDigits: 0 });
-}
-
-function fmtMoneyFull(v) {
-  if (v === null || v === undefined || v === '') return '—';
-  v = Number(v);
-  if (!isFinite(v)) return '—';
-  return '$' + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-function fmtPct(v) {
-  if (v === null || v === undefined || v === '') return '—';
-  v = Number(v);
-  if (!isFinite(v)) return '—';
-  return Math.round(v * 100) + '%';
-}
-
-function statusPill(status, severity) {
-  const cfg = STATUS_COLORS[status] || STATUS_FALLBACK;
-  return `<span class="pill ${cfg.cls}">${status || '—'}</span>`;
-}
-
-function annualPill(annual) {
-  if (!annual) return '<span class="pill pill-neutral">—</span>';
-  let cls = 'pill-neutral';
-  if (annual.includes('Critical')) cls = 'pill-crit';
-  else if (annual.includes('Warning')) cls = 'pill-warn';
-  else if (annual.includes('On Track')) cls = 'pill-ok';
-  return `<span class="pill ${cls}">${annual}</span>`;
-}
-
-function esc(s) {
-  return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-
-function destroyChart(k) { if (charts[k]) { charts[k].destroy(); charts[k] = null; } }
-
-// ── Render orchestrator ──
-function renderAll() {
-  const r = rows();
-  renderCards(r);
-  renderStatusBar(r);
-  renderTrendChart(r);
-  renderPlatformChart(r);
-  renderAttentionTable(r);
-  renderCaptureTable(r);
-  renderAllTable(r);
-}
-
-function renderCards(r) {
-  const c = curr(r);
-  const spend = sum(c, 'bq_spend');
-  const budget = sum(c, 'budget');
-  const pacing = budget > 0 ? (spend / budget) : 0;
-
-  const today = new Date();
-  const dim = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
-  const dayOfMonth = today.getDate();
-  const expected = dayOfMonth / dim;
-  const pacingVsExpected = budget > 0 ? (spend / budget) / expected : 0;
-
-  const critical = c.filter(x => x.severity === 'Critical').length;
-  const review   = c.filter(x => x.severity === 'Review').length;
-
-  document.getElementById('c-spend').textContent = fmtMoney(spend);
-  document.getElementById('c-spend-sub').textContent = `${c.length} combos`;
-  document.getElementById('c-budget').textContent = fmtMoney(budget);
-  document.getElementById('c-pacing').textContent = fmtPct(pacing);
-
-  // Pacing comparison
-  const ratio = pacingVsExpected;
-  let pacingSub = '';
-  if (budget === 0) pacingSub = 'no budget';
-  else if (ratio > 1.10) pacingSub = `${Math.round((ratio-1)*100)}% above pace`;
-  else if (ratio < 0.85) pacingSub = `${Math.round((1-ratio)*100)}% below pace`;
-  else pacingSub = 'on pace';
-  document.getElementById('c-pacing-sub').textContent = pacingSub;
-
-  document.getElementById('c-critical').textContent = critical;
-  document.getElementById('c-review').textContent = review;
-}
-
-function renderStatusBar(r) {
-  const c = curr(r);
-  const dist = {};
-  for (const row of c) {
-    const s = row.status || 'Unknown';
-    dist[s] = (dist[s] || 0) + 1;
+function yearPacing(client,asof){
+  let full=0,cytd=0,sytd=0,monthsLeft=0;
+  for(const r of rowsFor(client)){
+    full+=r.committed;
+    if(r.month<=asof){ cytd+=r.committed; sytd+=r.actual; }
   }
-  const total = c.length;
-  const sorted = Object.entries(dist).sort((a, b) => b[1] - a[1]);
-
-  const bar = document.getElementById('status-bar');
-  const legend = document.getElementById('status-legend');
-
-  if (total === 0) {
-    bar.innerHTML = '<div style="flex:1;background:#eee;display:flex;align-items:center;justify-content:center;color:#9e9e9e;font-size:12px;">No data for current selection</div>';
-    legend.innerHTML = '';
-    return;
-  }
-
-  bar.innerHTML = sorted.map(([s, n]) => {
-    const color = (STATUS_COLORS[s] || STATUS_FALLBACK).bg;
-    const showNum = (n / total * 100) > 4;
-    return `<div class="status-seg" style="flex:${n};background:${color}" title="${esc(s)}: ${n}">${showNum ? n : ''}</div>`;
-  }).join('');
-
-  legend.innerHTML = sorted.map(([s, n]) => {
-    const color = (STATUS_COLORS[s] || STATUS_FALLBACK).bg;
-    return `<span><span class="dot" style="background:${color}"></span>${esc(s)} <strong>${n}</strong></span>`;
-  }).join('');
+  monthsLeft = Math.max(0, 12 - asof);
+  const ytdVar = sytd - cytd;            // +over, -under for the year so far
+  const ytdPct = cytd? sytd/cytd : 0;
+  return { full, committedYTD:cytd, spentYTD:sytd, ytdVar, ytdPct, remaining:full-sytd, monthsLeft };
+}
+/* Catch-up: spread the YTD gap across remaining months (incl. current).
+   Negative ytdVar (under) -> positive catch-up (add this month).
+   Positive ytdVar (over)  -> negative catch-up (pull back this month). */
+function catchupForMonth(client,asof){
+  const y=yearPacing(client,asof);
+  const spread = (y.monthsLeft+1)>0 ? (-y.ytdVar)/(y.monthsLeft+1) : 0;
+  return spread; // dollars to add(+)/subtract(-) on top of this month's original allocation
+}
+/* Recommended daily budget for the CURRENT month only (catch-up aware):
+   (correctionTarget - spent_mtd) / days_remaining  */
+function dailyRec(committed, spentMtd, catchup){
+  const target = committed + catchup;
+  const left = Math.max(0, target - spentMtd);
+  const dr = Math.max(1, DIMS.days_remaining);
+  return left / dr;
 }
 
-function renderTrendChart(r) {
-  // Aggregate by month_date
-  const byMonth = {};
-  for (const row of r) {
-    if (!row.month_date) continue;
-    if (!byMonth[row.month_date]) byMonth[row.month_date] = { spend: 0, budget: 0 };
-    byMonth[row.month_date].spend  += num(row.bq_spend);
-    byMonth[row.month_date].budget += num(row.budget);
+/* ---------- filters ---------- */
+function passesFilter(client){
+  if(FILTERS.source!=='all'){
+    const sg=sourceFor(client);
+    if(FILTERS.source==='odc' && sg!=='ODC') return false;
+    if(FILTERS.source==='other' && sg==='ODC') return false;
   }
-  const months = Object.keys(byMonth).sort();
-  const labels = months.map(m => {
-    const d = new Date(m + 'T00:00:00');
-    return d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
-  });
-  const budgetData = months.map(m => +byMonth[m].budget.toFixed(2));
-  const spendData  = months.map(m => +byMonth[m].spend.toFixed(2));
+  if(FILTERS.am!=='all' && amFor(client)!==FILTERS.am) return false;
+  if(FILTERS.status!=='all'){
+    const m=monthPacing(client,ASOF); const s=statusOf(m.pct,m.committed,m.actual);
+    if(FILTERS.status==='over' && s!=='dang') return false;
+    if(FILTERS.status==='under' && s!=='warn') return false;
+    if(FILTERS.status==='ontrack' && s!=='ok') return false;
+  }
+  return true;
+}
+function allAMs(){ return [...new Set(ROWS.map(r=>r.account_manager))].sort(); }
 
-  destroyChart('trend');
-  charts.trend = new Chart(document.getElementById('chart-trend'), {
-    data: {
-      labels,
-      datasets: [
-        { type: 'bar', label: 'Budget', data: budgetData, backgroundColor: 'rgba(66,133,244,.25)', borderColor: '#4285F4', borderWidth: 1 },
-        { type: 'line', label: 'Spend', data: spendData, borderColor: '#0d1b2a', backgroundColor: 'rgba(13,27,42,.08)', borderWidth: 2, pointRadius: 4, tension: .3, fill: false },
-      ]
-    },
-    options: {
-      maintainAspectRatio: false,
-      interaction: { mode: 'index' },
-      plugins: {
-        legend: { position: 'top', labels: { font: { size: 12 } } },
-        tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${fmtMoneyFull(ctx.parsed.y)}` } }
-      },
-      scales: {
-        x: { grid: { display: false }, ticks: { font: { size: 11 } } },
-        y: { beginAtZero: true, ticks: { callback: v => fmtMoney(v), font: { size: 11 } } }
-      }
+function card(l,v,sub){ return '<div class="card"><p class="lbl">'+l+'</p><p class="val">'+v+'</p>'+(sub?'<p class="sub">'+sub+'</p>':'')+'</div>'; }
+function chip(ch){
+  const cls = ch.status==='idle'?'c-idle':ch.status==='ok'?'c-ok':ch.status==='warn'?'c-warn':'c-dang';
+  return '<span class="chip '+cls+'">'+(CH_LABEL[ch.channel]||ch.channel)+'</span>';
+}
+
+/* ---------- overview ---------- */
+function renderFiltersBar(){
+  const ams=allAMs().map(a=>'<option value="'+a.replace(/"/g,'&quot;')+'"'+(FILTERS.am===a?' selected':'')+'>'+a+'</option>').join('');
+  return '<div class="filters">'
+    + '<div class="fg"><span>Client type</span><select id="f-source">'
+      + '<option value="all"'+(FILTERS.source==='all'?' selected':'')+'>All</option>'
+      + '<option value="odc"'+(FILTERS.source==='odc'?' selected':'')+'>ODC</option>'
+      + '<option value="other"'+(FILTERS.source==='other'?' selected':'')+'>Non-ODC</option>'
+    + '</select></div>'
+    + '<div class="fg"><span>Pacing</span><select id="f-status">'
+      + '<option value="all"'+(FILTERS.status==='all'?' selected':'')+'>All</option>'
+      + '<option value="over"'+(FILTERS.status==='over'?' selected':'')+'>Overspending</option>'
+      + '<option value="ontrack"'+(FILTERS.status==='ontrack'?' selected':'')+'>On track</option>'
+      + '<option value="under"'+(FILTERS.status==='under'?' selected':'')+'>Underspending</option>'
+    + '</select></div>'
+    + '<div class="fg"><span>Account manager</span><select id="f-am">'
+      + '<option value="all"'+(FILTERS.am==='all'?' selected':'')+'>All</option>'+ams
+    + '</select></div>'
+    + '</div>';
+}
+function wireFilters(){
+  const s=document.getElementById('f-source'), st=document.getElementById('f-status'), am=document.getElementById('f-am');
+  if(s) s.onchange=()=>{FILTERS.source=s.value;renderOverview();};
+  if(st) st.onchange=()=>{FILTERS.status=st.value;renderOverview();};
+  if(am) am.onchange=()=>{FILTERS.am=am.value;renderOverview();};
+}
+
+function renderOverview(){
+  const cs=clients().filter(passesFilter);
+  let tc=0,ta=0; const rows=cs.map(c=>{ const m=monthPacing(c,ASOF); tc+=m.committed; ta+=m.actual; return {c,m}; });
+  const onTrack=rows.filter(r=>{const s=statusOf(r.m.pct,r.m.committed,r.m.actual);return s==='ok';}).length;
+
+  let h=renderFiltersBar();
+  h+='<div class="cards">';
+  h+=card(MONTHS[ASOF-1]+" committed", fmt(tc));
+  h+=card(MONTHS[ASOF-1]+" actual", fmt(ta));
+  h+=card("On track this month", onTrack+" / "+cs.length);
+  h+=card("Month variance", (ta-tc>=0?'+':'')+fmt(ta-tc));
+  h+='</div>';
+
+  h+='<div class="tablewrap"><table><thead><tr>'
+    +'<th>Client</th><th>Channels</th><th class="num">Committed</th><th class="num">Actual</th>'
+    +'<th class="num">Variance</th><th class="num">Pacing</th><th class="num">Rec. $/day</th><th>Status</th><th></th>'
+    +'</tr></thead><tbody>';
+  for(const {c,m} of rows){
+    const chans=channelRows(c,ASOF);
+    const chips=chans.map(chip).join(' ');
+    const s=statusOf(m.pct,m.committed,m.actual);
+    const col=Math.abs(m.variance)<1?'':(m.variance>0?'color:var(--dang-tx)':'color:var(--warn-tx)');
+    // client-level recommended daily (only meaningful for current month)
+    let rec='&mdash;';
+    if(ASOF===DIMS.current_month){
+      const cu=catchupForMonth(c,ASOF);
+      let smtd=0; for(const r of rowsFor(c)) if(r.month===ASOF) smtd+=r.spent_mtd;
+      rec=fmt(dailyRec(m.committed, smtd, cu));
     }
+    h+='<tr class="clk" data-c="'+encodeURIComponent(c)+'">'
+      +'<td><strong>'+c+'</strong><div class="sub">'+amFor(c)+'</div></td>'
+      +'<td><div class="chips">'+chips+'</div></td>'
+      +'<td class="num">'+fmt(m.committed)+'</td>'
+      +'<td class="num">'+fmt(m.actual)+'</td>'
+      +'<td class="num" style="'+col+'">'+(m.variance>=0?'+':'')+fmt(m.variance)+'</td>'
+      +'<td class="num">'+(m.committed?pct(m.pct):'&mdash;')+'</td>'
+      +'<td class="num">'+rec+'</td>'
+      +'<td><span class="pill '+pillClass(s)+'">'+statusLabel(s)+'</span></td>'
+      +'<td><button class="agentbtn" data-agent="'+encodeURIComponent(c)+'">Agent</button></td></tr>';
+  }
+  h+='</tbody></table></div>';
+  h+='<div class="legend"><span class="chip c-ok">On track</span><span class="chip c-warn">Underspending</span>'
+    +'<span class="chip c-dang">Overspending / spend w/ no budget</span><span class="chip c-idle">No budget &amp; no spend</span></div>';
+  h+='<p class="note">Channel chips are colored by that channel\u2019s own pacing; the Status column is the whole client. '
+    +'Rec. $/day is catch-up aware (uses month-to-date spend, days remaining, and the year correction).</p>';
+
+  view.innerHTML=h;
+  wireFilters();
+  view.querySelectorAll('tr.clk').forEach(tr=> tr.onclick=(e)=>{ if(e.target.classList.contains('agentbtn'))return; renderClient(decodeURIComponent(tr.dataset.c)); });
+  view.querySelectorAll('button[data-agent]').forEach(b=> b.onclick=(e)=>{ e.stopPropagation(); openAgent(decodeURIComponent(b.dataset.agent)); });
+}
+
+/* ---------- client detail ---------- */
+function renderClient(client){
+  const m=monthPacing(client,ASOF), y=yearPacing(client,ASOF), chans=channelRows(client,ASOF);
+  const isCur = (ASOF===DIMS.current_month);
+  const cu = catchupForMonth(client,ASOF);
+  const s=statusOf(m.pct,m.committed,m.actual);
+
+  let h='<span class="back" id="back">&larr; All clients</span>';
+  h+='<h2>'+client+' &mdash; '+MONTHS[ASOF-1]+' <span class="pill '+pillClass(s)+'">'+statusLabel(s)+'</span> '
+    +'<button class="agentbtn" id="client-agent">Agent</button></h2>';
+  h+='<p class="sub">'+sourceFor(client)+' &middot; AM: '+amFor(client)+'</p>';
+
+  /* TABLE 1 — This month, clean: are we pacing OK this month? */
+  h+='<h3>This month &mdash; pacing by channel</h3>';
+  h+='<div class="tablewrap"><table><thead><tr>'
+    +'<th>Channel</th><th class="num">Committed</th><th class="num">Actual</th>'
+    +'<th class="num">Variance</th><th class="num">Pacing</th>'
+    + (isCur?'<th class="num">Spent MTD</th><th class="num">Rec. $/day</th>':'')
+    +'<th>Status</th></tr></thead><tbody>';
+  for(const r of chans){
+    const idle=(r.committed<=0&&r.actual<=0);
+    const col=Math.abs(r.variance)<1?'':(r.variance>0?'color:var(--dang-tx)':'color:var(--warn-tx)');
+    let rec='&mdash;';
+    if(isCur && !idle){ rec=fmt(dailyRec(r.committed, r.spent_mtd, /*channel share of catchup*/ shareCatchup(cu, chans, r))); }
+    h+='<tr'+(idle?' class="muted-row"':'')+'>'
+      +'<td><strong>'+(CH_LABEL[r.channel]||r.channel)+'</strong></td>'
+      +'<td class="num">'+fmt(r.committed)+'</td>'
+      +'<td class="num">'+fmt(r.actual)+'</td>'
+      +'<td class="num" style="'+col+'">'+(idle?'&mdash;':(r.variance>=0?'+':'')+fmt(r.variance))+'</td>'
+      +'<td class="num">'+(r.committed?pct(r.pct):(idle?'&mdash;':'no budget'))+'</td>'
+      + (isCur?('<td class="num">'+(idle?'&mdash;':fmt(r.spent_mtd))+'</td><td class="num">'+rec+'</td>'):'')
+      +'<td>'+(idle?'<span class="chip c-idle">No activity</span>':'<span class="chip '+chipCls(r.status)+'">'+statusLabel(r.status)+'</span>')+'</td>'
+      +'</tr>';
+  }
+  // totals row
+  const totalRec = isCur? fmt(dailyRec(m.committed, sumMtd(client), cu)) : '&mdash;';
+  h+='<tr><td><strong>Total</strong></td><td class="num"><strong>'+fmt(m.committed)+'</strong></td>'
+    +'<td class="num"><strong>'+fmt(m.actual)+'</strong></td>'
+    +'<td class="num"><strong>'+(m.variance>=0?'+':'')+fmt(m.variance)+'</strong></td>'
+    +'<td class="num"><strong>'+(m.committed?pct(m.pct):'&mdash;')+'</strong></td>'
+    + (isCur?('<td class="num"><strong>'+fmt(sumMtd(client))+'</strong></td><td class="num"><strong>'+totalRec+'</strong></td>'):'')
+    +'<td></td></tr>';
+  h+='</tbody></table></div>';
+
+  /* TABLE 2 — Correction breakout: original vs catch-up portion of this month's target */
+  if(isCur){
+    const adjusted = m.committed + cu;
+    h+='<h3>This month\u2019s budget: original vs catch-up</h3>';
+    h+='<div class="tablewrap"><table><tbody>';
+    h+='<tr><td>Originally allocated (this month)</td><td class="num">'+fmt(m.committed)+'</td></tr>';
+    h+='<tr><td>Catch-up adjustment '+(cu>=0?'(add, year is behind)':'(pull back, year is ahead)')+'</td>'
+      +'<td class="num" style="'+(Math.abs(cu)<1?'':(cu>0?'color:var(--warn-tx)':'color:var(--dang-tx)'))+'">'+(cu>=0?'+':'')+fmt(cu)+'</td></tr>';
+    h+='<tr><td><strong>Correction-adjusted target</strong></td><td class="num"><strong>'+fmt(adjusted)+'</strong></td></tr>';
+    h+='<tr><td>Spent so far this month (MTD)</td><td class="num">'+fmt(sumMtd(client))+'</td></tr>';
+    h+='</tbody></table></div>';
+    h+='<p class="note">Commitment is never edited \u2014 the catch-up figure is derived from where the year sits, spread across the remaining months. AMs will be able to override corrections on a separate tool.</p>';
+  }
+
+  /* TABLE 3 — Year context: full year, to-date, how we're pacing for the year, remaining pool */
+  const corr = y.ytdPct>(1+YEAR_TRIGGER)?'over':(y.ytdPct<(1-YEAR_TRIGGER)?'under':'on');
+  const banner = corr==='over'?'<span class="pill p-dang">Over for the year &mdash; correction mode</span>'
+    :corr==='under'?'<span class="pill p-warn">Under for the year &mdash; pool to redeploy</span>'
+    :'<span class="pill p-ok">On track for the year</span>';
+  h+='<h3>Year context (as of '+MONTHS[ASOF-1]+')</h3>';
+  h+='<div class="tablewrap"><table><tbody>';
+  h+='<tr><td>Full-year committed</td><td class="num">'+fmt(y.full)+'</td></tr>';
+  h+='<tr><td>Committed to date</td><td class="num">'+fmt(y.committedYTD)+'</td></tr>';
+  h+='<tr><td>Spent to date</td><td class="num">'+fmt(y.spentYTD)+'</td></tr>';
+  h+='<tr><td>Year-to-date pacing</td><td class="num">'+(y.committedYTD?pct(y.ytdPct):'&mdash;')+'</td></tr>';
+  h+='<tr><td>Year-to-date variance</td><td class="num" style="'+(Math.abs(y.ytdVar)<1?'':(y.ytdVar>0?'color:var(--dang-tx)':'color:var(--warn-tx)'))+'">'+(y.ytdVar>=0?'+':'')+fmt(y.ytdVar)+'</td></tr>';
+  h+='<tr><td><strong>Remaining pool</strong></td><td class="num"><strong>'+fmt(y.remaining)+'</strong></td></tr>';
+  h+='</tbody></table></div>';
+  h+='<p class="note">'+banner+'</p>';
+
+  view.innerHTML=h;
+  document.getElementById('back').onclick=renderOverview;
+  document.getElementById('client-agent').onclick=()=>openAgent(client);
+}
+function chipCls(s){ return s==='ok'?'c-ok':s==='warn'?'c-warn':s==='dang'?'c-dang':'c-idle'; }
+function sumMtd(client){ let s=0; for(const r of rowsFor(client)) if(r.month===ASOF) s+=r.spent_mtd; return s; }
+/* split the client-level catch-up across channels proportional to committed (so per-channel rec sums sensibly) */
+function shareCatchup(totalCatchup, chans, row){
+  const totCommit = chans.reduce((a,c)=>a+(c.committed>0?c.committed:0),0);
+  if(totCommit<=0) return 0;
+  return totalCatchup * ((row.committed>0?row.committed:0)/totCommit);
+}
+
+/* ---------- AI agent chat drawer ---------- */
+const overlay=document.getElementById('overlay'), drawer=document.getElementById('drawer');
+const chatEl=document.getElementById('chat'), inputEl=document.getElementById('chat-input'), sendBtn=document.getElementById('chat-send');
+const suggestEl=document.getElementById('suggest');
+let AGENT_CLIENT=null, history=[];
+
+function buildContext(client){
+  const m=monthPacing(client,ASOF), y=yearPacing(client,ASOF), chans=channelRows(client,ASOF);
+  return {
+    committed_month:Math.round(m.committed), actual_month:Math.round(m.actual),
+    variance_month:Math.round(m.variance), pacing_pct_month:+m.pct.toFixed(3),
+    channels:chans.map(r=>({channel:r.channel,committed:Math.round(r.committed),actual:Math.round(r.actual),variance:Math.round(r.variance)})),
+    year:{committed_to_date:Math.round(y.committedYTD),spent_to_date:Math.round(y.spentYTD),
+      ytd_variance:Math.round(y.ytdVar),full_year_committed:Math.round(y.full),remaining_pool:Math.round(y.remaining)}
+  };
+}
+function addMsg(text,cls){ const d=document.createElement('div'); d.className='msg '+cls; d.textContent=text; chatEl.appendChild(d); chatEl.scrollTop=chatEl.scrollHeight; return d; }
+function openAgent(client){
+  AGENT_CLIENT=client; history=[];
+  document.getElementById('drawer-title').textContent=client;
+  const m=monthPacing(client,ASOF);
+  document.getElementById('drawer-sub').textContent=MONTHS[ASOF-1]+' pacing '+(m.committed?pct(m.pct):'\u2014')+' \u00b7 variance '+(m.variance>=0?'+':'')+fmt(m.variance);
+  chatEl.innerHTML='';
+  addMsg('Ask me about '+client+'\u2019s pacing, channel mix, or what to do with the variance.','bot');
+  suggestEl.innerHTML='';
+  ['Why are we off this month?','What should we do with the variance?','Which channel is driving the gap?'].forEach(q=>{
+    const b=document.createElement('button'); b.textContent=q; b.onclick=()=>{ inputEl.value=q; send(); }; suggestEl.appendChild(b);
   });
+  overlay.classList.add('open'); drawer.classList.add('open'); inputEl.focus();
 }
+function closeAgent(){ overlay.classList.remove('open'); drawer.classList.remove('open'); }
+overlay.onclick=closeAgent; document.getElementById('drawer-x').onclick=closeAgent;
 
-function renderPlatformChart(r) {
-  const c = curr(r);
-  const byPlat = {};
-  for (const row of c) {
-    const p = row.platform || 'Unknown';
-    byPlat[p] = (byPlat[p] || 0) + num(row.bq_spend);
+async function send(){
+  const text=inputEl.value.trim(); if(!text||!AGENT_CLIENT) return;
+  addMsg(text,'user'); history.push({role:'user',content:text});
+  inputEl.value=''; sendBtn.disabled=true;
+  const typing=addMsg('Thinking\u2026','typing');
+  if(!AGENT_WEBHOOK_URL || AGENT_WEBHOOK_URL.indexOf('PASTE_')===0){
+    typing.remove(); addMsg('Agent webhook not configured yet.','err'); sendBtn.disabled=false; return;
   }
-  const entries = Object.entries(byPlat).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
-  const labels = entries.map(e => e[0]);
-  const data   = entries.map(e => +e[1].toFixed(2));
-  const colors = labels.map(l => PLATFORM_COLORS[l] || '#9e9e9e');
-
-  destroyChart('platform');
-  if (!labels.length) {
-    document.getElementById('chart-platform').getContext('2d').clearRect(0, 0, 9999, 9999);
-    return;
-  }
-  charts.platform = new Chart(document.getElementById('chart-platform'), {
-    type: 'doughnut',
-    data: { labels, datasets: [{ data, backgroundColor: colors, borderWidth: 2, borderColor: '#fff' }] },
-    options: {
-      maintainAspectRatio: false,
-      cutout: '62%',
-      plugins: {
-        legend: { position: 'right', labels: { font: { size: 12 }, padding: 14 } },
-        tooltip: { callbacks: { label: ctx => {
-          const tot = ctx.dataset.data.reduce((a, b) => a + b, 0);
-          return ` ${fmtMoneyFull(ctx.parsed)} (${(ctx.parsed/tot*100).toFixed(1)}%)`;
-        }}}
-      }
-    }
-  });
+  try{
+    const res=await fetch(AGENT_WEBHOOK_URL,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({ client:AGENT_CLIENT, message:text, month:ASOF, month_name:MONTHS[ASOF-1], history:history, context:buildContext(AGENT_CLIENT) })});
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const data=await res.json();
+    const reply=data.reply||data.text||data.output||(typeof data==='string'?data:JSON.stringify(data));
+    typing.remove(); addMsg(reply,'bot'); history.push({role:'assistant',content:reply});
+  }catch(err){ typing.remove(); addMsg('Could not reach the agent: '+err.message,'err'); }
+  sendBtn.disabled=false;
 }
+sendBtn.onclick=send;
+inputEl.addEventListener('keydown',e=>{ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); send(); } });
 
-function renderAttentionTable(r) {
-  const c = curr(r);
-  const sevOrder = { Critical: 0, Review: 1 };
-  const rows = c
-    .filter(x => x.severity === 'Critical' || x.severity === 'Review')
-    .sort((a, b) => {
-      const sa = sevOrder[a.severity] ?? 9, sb = sevOrder[b.severity] ?? 9;
-      if (sa !== sb) return sa - sb;
-      return num(b.budget) - num(a.budget);
-    });
-
-  const tbody = document.getElementById('attention-tbody');
-  if (!rows.length) {
-    tbody.innerHTML = '<tr><td colspan="9" class="no-data">No accounts requiring attention for current selection 🎉</td></tr>';
-    return;
-  }
-  tbody.innerHTML = rows.map(x => `
-    <tr>
-      <td class="acct-name" title="${esc(x.account_display_name)}">${esc(x.account_display_name)}</td>
-      <td>${esc(x.source_group || '—')}</td>
-      <td>${esc(x.platform)}</td>
-      <td class="num">${fmtMoney(x.budget)}</td>
-      <td class="num">${fmtMoney(x.bq_spend)}</td>
-      <td class="num">${fmtPct(x.pacing_ratio)}</td>
-      <td class="num">${fmtMoney(x.forecast_eom)}</td>
-      <td>${statusPill(x.status, x.severity)}</td>
-      <td>${annualPill(x.annual_status)}</td>
-    </tr>
-  `).join('');
-}
-
-function renderCaptureTable(r) {
-  const p = past(r).filter(x =>
-    x.status === 'Captured Mismatch (AM Over-reported)'  ||
-    x.status === 'Captured Mismatch (AM Under-reported)' ||
-    x.status === 'Captured Mismatch (>10% diff)'
-  );
-  p.sort((a, b) => Math.abs(num(b.capture_discrepancy)) - Math.abs(num(a.capture_discrepancy)));
-
-  const tbody = document.getElementById('capture-tbody');
-  if (!p.length) {
-    tbody.innerHTML = '<tr><td colspan="7" class="no-data">No capture discrepancies in current selection ✓</td></tr>';
-    return;
-  }
-  tbody.innerHTML = p.slice(0, 50).map(x => {
-    const diff = num(x.capture_discrepancy);
-    const diffCls = diff < 0 ? 'pill-crit' : 'pill-warn';
-    return `
-    <tr>
-      <td class="acct-name" title="${esc(x.account_display_name)}">${esc(x.account_display_name)}</td>
-      <td>${esc(x.platform)}</td>
-      <td>${esc(x.month_date)}</td>
-      <td class="num">${fmtMoney(x.planner_spend)}</td>
-      <td class="num">${fmtMoney(x.bq_spend)}</td>
-      <td class="num"><span class="pill ${diffCls}">${fmtMoney(diff)}</span></td>
-      <td>${statusPill(x.status, x.severity)}</td>
-    </tr>
-    `;
-  }).join('');
-}
-
-function renderAllTable(r) {
-  const sevOrder = { Critical: 0, Review: 1, Healthy: 2, Neutral: 3 };
-  const posOrder = { current: 0, past: 1, future: 2 };
-  const sorted = r.slice().sort((a, b) => {
-    const pa = posOrder[a.month_position] ?? 9, pb = posOrder[b.month_position] ?? 9;
-    if (pa !== pb) return pa - pb;
-    const sa = sevOrder[a.severity] ?? 9, sb = sevOrder[b.severity] ?? 9;
-    if (sa !== sb) return sa - sb;
-    return num(b.budget) - num(a.budget);
-  });
-
-  const tbody = document.getElementById('all-tbody');
-  const noteEl = document.getElementById('all-note');
-  if (!sorted.length) {
-    tbody.innerHTML = '<tr><td colspan="9" class="no-data">No rows match the current filters.</td></tr>';
-    noteEl.textContent = '';
-    return;
-  }
-  const limit = 200;
-  tbody.innerHTML = sorted.slice(0, limit).map(x => `
-    <tr>
-      <td class="acct-name" title="${esc(x.account_display_name)}">${esc(x.account_display_name)}</td>
-      <td>${esc(x.source_group || '—')}</td>
-      <td>${esc(x.platform)}</td>
-      <td>${esc(x.month_date)}</td>
-      <td>${esc(x.month_position)}</td>
-      <td class="num">${fmtMoney(x.budget)}</td>
-      <td class="num">${fmtMoney(x.bq_spend)}</td>
-      <td class="num">${fmtPct(x.pacing_ratio)}</td>
-      <td>${statusPill(x.status, x.severity)}</td>
-    </tr>
-  `).join('');
-  noteEl.textContent = `Mostrando ${Math.min(sorted.length, limit)} de ${sorted.length} filas.`;
-}
-
-function renderFreshness() {
-  const grid = document.getElementById('freshness-grid');
-  const items = Object.entries(DATA.freshness || {}).sort((a, b) => a[0].localeCompare(b[0]));
-  grid.innerHTML = items.map(([platform, info]) => {
-    const lag = info.lag_days;
-    let dotColor = '#9e9e9e', label = 'sin data';
-    if (lag === null || lag === undefined) {
-      dotColor = '#9e9e9e'; label = 'sin data';
-    } else if (lag <= 2) {
-      dotColor = '#43a047'; label = `${lag}d`;
-    } else if (lag <= 7) {
-      dotColor = '#ef6c00'; label = `${lag}d lag`;
-    } else {
-      dotColor = '#c62828'; label = `${lag}d lag`;
-    }
-    return `
-      <div class="freshness-item">
-        <div class="fr-platform">${esc(platform)}</div>
-        <div class="fr-date">${info.last_date || '—'}</div>
-        <div class="fr-lag"><span class="dot" style="background:${dotColor}"></span>${label}</div>
-      </div>
-    `;
-  }).join('');
-}
+/* boot */
+loadData();
 </script>
 </body>
 </html>
