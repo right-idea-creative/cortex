@@ -10,8 +10,17 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f0f2f5; color: #1a1a2e; font-size: 14px; line-height: 1.5; }
 
-/* ── Site nav (shared chrome) ── */
-/* Nav markup + styles now injected by /cortex-shell.js */
+/* ── Site nav ── */
+.site-top { position: sticky; top: 0; z-index: 100; }
+.site-header { background: #0d1b2a; padding: 0 32px; height: 52px; display: flex; align-items: center; box-shadow: 0 1px 0 rgba(255,255,255,.06); }
+.brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+.brand-name { font-size: 17px; font-weight: 700; color: #fff; letter-spacing: -.3px; }
+.brand-divider { color: rgba(255,255,255,.25); font-size: 14px; }
+.brand-sub { font-size: 11px; color: rgba(255,255,255,.45); font-weight: 500; }
+.site-nav { background: #0f2236; padding: 0 32px; display: flex; gap: 2px; border-bottom: 1px solid rgba(255,255,255,.07); }
+.nav-link { color: rgba(255,255,255,.5); text-decoration: none; font-size: 13px; font-weight: 500; padding: 10px 16px; border-bottom: 2px solid transparent; transition: color .15s, border-color .15s; }
+.nav-link:hover { color: rgba(255,255,255,.85); }
+.nav-link.active { color: #fff; border-bottom-color: #4285F4; }
 
 /* ── UTC banner ── */
 .utc-banner { background: #fff8e1; border-bottom: 1px solid #ffe082; padding: 7px 32px; font-size: 12px; color: #6d4c00; }
@@ -83,6 +92,22 @@ select#client-filter { border: 1px solid #d0d3d8; border-radius: 6px; padding: 6
 </head>
 <body>
 
+<div class="site-top">
+  <header class="site-header">
+    <a href="index.html" class="brand">
+      <span class="brand-name">Córtex OS</span>
+      <span class="brand-divider">|</span>
+      <span class="brand-sub">Right Idea Media & Creative</span>
+    </a>
+  </header>
+  <nav class="site-nav">
+    <a href="index.html" class="nav-link">Home</a>
+    <a href="call-tracking.html" class="nav-link active">Call Tracking</a>
+    <a href="ad-spend-pacing.html" class="nav-link">Ad Spend Pacing</a>
+    <a href="tickets.html" class="nav-link">Tickets</a>
+  </nav>
+</div>
+
 <div class="utc-banner">
   ⚠️ Time-of-day and day-of-week data is in <strong>UTC</strong>. Per-franchise local-time accuracy requires timezone data in client_mapping, which is not yet available. Use peak-hour analysis as an approximation only.
 </div>
@@ -90,10 +115,9 @@ select#client-filter { border: 1px solid #d0d3d8; border-radius: 6px; padding: 6
 <div id="loading-state"><div class="spinner"></div>Loading dashboard data…</div>
 
 <div id="error-state">
-  <h2>data.json not found</h2>
-  <p>Run the export script to generate the data file:</p>
-  <code>cd ctm-dashboard<br>python export_data.py</code>
-  <p>Then reload this page. Requires <code>google-cloud-bigquery</code> and Application Default Credentials.</p>
+  <h2>Couldn't load dashboard data</h2>
+  <p>The n8n webhook didn't return data. Check that the workflow is active and the URL is correct, then reload.</p>
+  <button class="retry" onclick="location.reload()" style="margin-top:10px;padding:8px 16px;border:1px solid #1565c0;background:#1565c0;color:#fff;border-radius:6px;cursor:pointer;">Retry</button>
 </div>
 
 <div id="filter-bar">
@@ -154,10 +178,13 @@ select#client-filter { border: 1px solid #d0d3d8; border-radius: 6px; padding: 6
 const CHANNEL_COLORS={'Google Ads':'#4285F4','Bing Ads':'#00897B','Nextdoor':'#00B246','Meta':'#1877F2','Organic / Direct':'#43A047','Other':'#9E9E9E'};
 const CHANNEL_ORDER=['Google Ads','Bing Ads','Nextdoor','Meta','Organic / Direct','Other'];
 const DAY_LABELS=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+// ── PASTE YOUR n8n WEBHOOK URL HERE (between the quotes) ──
+const WEBHOOK_URL = "https://naterimc.app.n8n.cloud/webhook/8772e93a-d4aa-48fe-b6cc-332886bcea14";
+
 let DATA=null,activeClient='all',activeDays=30,charts={};
 
 (async function init(){
-  try{const res=await fetch('data.json');if(!res.ok)throw new Error();DATA=await res.json();}
+  try{const res=await fetch(WEBHOOK_URL,{cache:'no-store'});if(!res.ok)throw new Error('HTTP '+res.status);DATA=await res.json();}
   catch{document.getElementById('loading-state').style.display='none';document.getElementById('error-state').style.display='block';return;}
   document.getElementById('loading-state').style.display='none';
   const sel=document.getElementById('client-filter');
@@ -260,6 +287,5 @@ function rTable(calls,ads){
     i18n: { en: { title: 'ODC Call Tracking Assistant', subtitle: 'Ask me about call data, missed calls, and more.', inputPlaceholder: 'Ask a question…', getStarted: 'Start Chat', footer: '' } },
   });
 </script>
-<script src="/cortex-shell.js" defer></script>
 </body>
 </html>
