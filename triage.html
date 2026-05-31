@@ -184,10 +184,6 @@ td.tcell { width:1%; white-space:nowrap; padding-right:4px; }
 .tk-foot { flex:0 0 auto; border-top:1px solid var(--c-border); padding:14px; background:var(--c-bg); }
 .tk-foot .tklab { font-size:11px; text-transform:uppercase; letter-spacing:.5px; color:var(--c-text-3);
   font-weight:600; margin-bottom:9px; }
-.tk-newbtn { font:inherit; font-size:13px; font-weight:600; color:var(--c-bg); background:var(--c-info-tx);
-  border:1px solid var(--c-info-tx); border-radius:var(--c-radius-sm); padding:9px 14px; cursor:pointer;
-  width:100%; transition:opacity .12s; }
-.tk-newbtn:hover { opacity:.88; }
 .tk-bothint { font-size:11px; color:var(--c-text-3); margin-top:7px; line-height:1.4; }
 .tk-confirm { color:var(--c-ok-tx); background:var(--c-ok-bg); border-radius:var(--c-radius-sm);
   padding:9px 12px; font-size:13px; margin-bottom:12px; }
@@ -277,8 +273,7 @@ td.tcell { width:1%; white-space:nowrap; padding-right:4px; }
   <div class="tk-body" id="tkBody"></div>
   <div class="tk-foot">
     <div class="tklab">Create a ticket</div>
-    <button class="tk-newbtn" id="tkNewBtn">＋ Open Cortex ticket bot</button>
-    <div class="tk-bothint">Opens the ticket assistant in a new window. Tell it the client and what you need.</div>
+    <div class="tk-bothint">Use the Córtex ticket bot in the bottom-left corner to open a new ticket.</div>
   </div>
 </aside>
 
@@ -299,12 +294,6 @@ const WEBHOOK_URL = "https://naterimc.app.n8n.cloud/webhook/098cd887-6614-4f2f-8
 //  "https://cortex-cmv.pages.dev/monday-proxy".
 // ==========================================================
 const MONDAY_PROXY_URL = "/monday-proxy";
-// ==========================================================
-//  Cortex ticket bot — n8n hosted chat widget. Opening this URL
-//  loads n8n's own full chat UI in a popup window, where the user
-//  describes the ticket and the bot creates it in Monday.
-// ==========================================================
-const TICKET_BOT_URL = "https://naterimc.app.n8n.cloud/webhook/80464afc-47e2-4cd9-9164-1f2a9aac272e/chat";
 // ==========================================================
 
 const STATE={data:null,filter:"flagged",type:"",q:"",sortK:null,sortDir:1};
@@ -608,16 +597,6 @@ function renderTicketsBody(row){
   body.innerHTML=html;
 }
 
-function openTicketBot(){
-  // Open n8n's hosted chat widget in its own popup window.
-  const w=Math.min(480,screen.availWidth), h=Math.min(720,screen.availHeight);
-  const left=Math.max(0,(screen.availWidth-w)/2), top=Math.max(0,(screen.availHeight-h)/2);
-  const win=window.open(TICKET_BOT_URL,"cortexTicketBot",
-    `width=${w},height=${h},left=${left},top=${top},menubar=no,toolbar=no,location=no,status=no`);
-  if(!win){ // popup blocked — fall back to a new tab
-    window.open(TICKET_BOT_URL,"_blank","noopener");
-  }
-}
 function refreshAllTicketBtns(){
   const rows=window.__triageRows||[];
   [...document.querySelectorAll(".tkbtn[data-tk]")].forEach(b=>{
@@ -632,7 +611,6 @@ function wireTickets(){
   document.addEventListener("keydown",e=>{
     if(e.key==="Escape"&&document.getElementById("tkPanel").classList.contains("open"))closeTickets();
   });
-  document.getElementById("tkNewBtn").onclick=openTicketBot;
 }
 
 /* ============ Diagnosis panel logic ============ */

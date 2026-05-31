@@ -15,6 +15,11 @@
 (function () {
   "use strict";
 
+  // ---- Ticket bot (n8n hosted chat widget) ----
+  var BOT_WEBHOOK_URL = "https://naterimc.app.n8n.cloud/webhook/80464afc-47e2-4cd9-9164-1f2a9aac272e/chat";
+  var BOT_CSS_URL     = "https://cdn.jsdelivr.net/npm/@n8n/chat/dist/style.css";
+  var BOT_JS_URL      = "https://cdn.jsdelivr.net/npm/@n8n/chat/dist/chat.bundle.es.js";
+
   // ---- Single source of truth for the nav. Add new pages here. ----
   var NAV_LINKS = [
     { label: "Home",            href: "index.html" },
@@ -35,7 +40,26 @@
     '.site-nav{background:#0f2236;padding:0 32px;display:flex;gap:2px;border-bottom:1px solid rgba(255,255,255,.07);}' +
     '.nav-link{color:rgba(255,255,255,.5);text-decoration:none;font-size:13px;font-weight:500;padding:10px 16px;border-bottom:2px solid transparent;transition:color .15s,border-color .15s;}' +
     '.nav-link:hover{color:rgba(255,255,255,.85);}' +
-    '.nav-link.active{color:#fff;border-bottom-color:#4285F4;}';
+    '.nav-link.active{color:#fff;border-bottom-color:#4285F4;}' +
+    /* ---- n8n chat widget: position bottom-LEFT + Cortex theming ---- */
+    ':root{' +
+      '--chat--color-primary:#1565c0;' +
+      '--chat--color-primary-shade-50:#125ab0;' +
+      '--chat--color-primary-shade-100:#0f4f9c;' +
+      '--chat--color-secondary:#0d1b2a;' +
+      '--chat--toggle--background:#1565c0;' +
+      '--chat--toggle--hover--background:#125ab0;' +
+      '--chat--toggle--active--background:#0f4f9c;' +
+      '--chat--toggle--color:#fff;' +
+      '--chat--header--background:#0d1b2a;' +
+      '--chat--header--color:#fff;' +
+      '--chat--window--width:380px;' +
+      '--chat--window--height:560px;' +
+    '}' +
+    /* move launcher + window to the bottom-left corner */
+    '.n8n-chat .chat-window-toggle,' +
+    '.n8n-chat .chat-window-wrapper{right:auto !important;left:20px !important;}' +
+    '.n8n-chat .chat-window{right:auto !important;left:20px !important;}';
 
   // ---- Figure out which link is the current page ----
   function currentFile() {
@@ -94,13 +118,48 @@
     }
   }
 
+  function mountBot() {
+    // Load n8n's chat stylesheet once.
+    if (!document.getElementById("cortex-bot-css")) {
+      var link = document.createElement("link");
+      link.id = "cortex-bot-css";
+      link.rel = "stylesheet";
+      link.href = BOT_CSS_URL;
+      document.head.appendChild(link);
+    }
+    // The widget bundle is an ES module — load it dynamically and init.
+    import(BOT_JS_URL)
+      .then(function (mod) {
+        if (mod && typeof mod.createChat === "function") {
+          mod.createChat({
+            webhookUrl: BOT_WEBHOOK_URL,
+            mode: "window",          // floating launcher + popup panel
+            showWelcomeScreen: false,
+            initialMessages: [
+              "Hi! 👋 I'm the Córtex ticket assistant.",
+              "Tell me the client and what you need, and I'll open a ticket in Monday."
+            ],
+            i18n: {
+              en: {
+                title: "Córtex Ticket Bot",
+                subtitle: "Create a Monday ticket from any page.",
+                footer: "",
+                getStarted: "New ticket",
+                inputPlaceholder: "Describe the ticket…"
+              }
+            }
+          });
+        }
+      })
+      .catch(function (e) {
+        if (window.console) console.warn("Córtex ticket bot failed to load:", e);
+      });
+  }
+
   function init() {
     injectStyles();
     injectNav();
-    // Corner ticket bot launcher is added in a later step (mountTicketBot()).
-    if (typeof window.__cortexMountBot === "function") {
-      try { window.__cortexMountBot(); } catch (e) { /* no-op */ }
-    }
+    mountBot();
   }
 
   if (document.readyState === "loading") {
