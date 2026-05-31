@@ -21,16 +21,7 @@ body { margin:0; background:#f0f2f5; color:var(--c-text);
   font-family:var(--font-sans); font-size:14px; line-height:1.5; -webkit-font-smoothing:antialiased; }
 
 /* ── Site nav (shared chrome) ── */
-.site-top { position: sticky; top: 0; z-index: 100; }
-.site-header { background: #0d1b2a; padding: 0 32px; height: 52px; display: flex; align-items: center; box-shadow: 0 1px 0 rgba(255,255,255,.06); }
-.brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
-.brand-name { font-size: 17px; font-weight: 700; color: #fff; letter-spacing: -.3px; }
-.brand-divider { color: rgba(255,255,255,.25); font-size: 14px; }
-.brand-sub { font-size: 11px; color: rgba(255,255,255,.45); font-weight: 500; }
-.site-nav { background: #0f2236; padding: 0 32px; display: flex; gap: 2px; border-bottom: 1px solid rgba(255,255,255,.07); }
-.nav-link { color: rgba(255,255,255,.5); text-decoration: none; font-size: 13px; font-weight: 500; padding: 10px 16px; border-bottom: 2px solid transparent; transition: color .15s, border-color .15s; }
-.nav-link:hover { color: rgba(255,255,255,.85); }
-.nav-link.active { color: #fff; border-bottom-color: #4285F4; }
+/* Nav markup + styles now injected by /cortex-shell.js */
 .wrap { max-width:1180px; margin:0 auto; padding:24px 32px 60px; }
 header.page { margin-bottom:18px; }
 header.page h1 { font-size:22px; font-weight:700; margin:0 0 4px; letter-spacing:-0.01em; color:#0d1b2a; }
@@ -90,11 +81,11 @@ td.r { text-align:right; font-variant-numeric:tabular-nums; }
 
 /* ===== Diagnosis panel ===== */
 .panel-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.28); opacity:0; pointer-events:none;
-  transition:opacity .2s ease; z-index:40; }
+  transition:opacity .2s ease; z-index:140; }
 .panel-overlay.open { opacity:1; pointer-events:auto; }
 .panel { position:fixed; top:0; right:0; height:100%; width:400px; max-width:92vw;
   background:var(--c-bg); border-left:1px solid var(--c-border); box-shadow:-8px 0 28px rgba(0,0,0,0.12);
-  transform:translateX(100%); transition:transform .24s ease; z-index:50; display:flex; flex-direction:column; }
+  transform:translateX(100%); transition:transform .24s ease; z-index:150; display:flex; flex-direction:column; }
 .panel.open { transform:translateX(0); }
 .panel-head { padding:16px 18px 14px; border-bottom:1px solid var(--c-border); flex:0 0 auto; }
 .panel-head .row { display:flex; align-items:flex-start; gap:10px; }
@@ -159,11 +150,11 @@ td.tcell { width:1%; white-space:nowrap; padding-right:4px; }
 
 /* ===== Tickets drawer (second panel) ===== */
 .tk-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.28); opacity:0; pointer-events:none;
-  transition:opacity .2s ease; z-index:60; }
+  transition:opacity .2s ease; z-index:160; }
 .tk-overlay.open { opacity:1; pointer-events:auto; }
 .tk-panel { position:fixed; top:0; right:0; height:100%; width:440px; max-width:94vw;
   background:var(--c-bg); border-left:1px solid var(--c-border); box-shadow:-8px 0 28px rgba(0,0,0,0.12);
-  transform:translateX(100%); transition:transform .24s ease; z-index:70; display:flex; flex-direction:column; }
+  transform:translateX(100%); transition:transform .24s ease; z-index:170; display:flex; flex-direction:column; }
 .tk-panel.open { transform:translateX(0); }
 .tk-head { padding:16px 18px 14px; border-bottom:1px solid var(--c-border); flex:0 0 auto; }
 .tk-head .row { display:flex; align-items:flex-start; gap:10px; }
@@ -204,23 +195,6 @@ td.tcell { width:1%; white-space:nowrap; padding-right:4px; }
 </style>
 </head>
 <body>
-
-<div class="site-top">
-  <header class="site-header">
-    <a href="index.html" class="brand">
-      <span class="brand-name">Córtex OS</span>
-      <span class="brand-divider">|</span>
-      <span class="brand-sub">Right Idea Media & Creative</span>
-    </a>
-  </header>
-  <nav class="site-nav">
-    <a href="index.html" class="nav-link">Home</a>
-    <a href="call-tracking.html" class="nav-link">Call Tracking</a>
-    <a href="ad-spend-pacing.html" class="nav-link">Ad Spend Pacing</a>
-    <a href="triage.html" class="nav-link active">Campaign Triage</a>
-    <a href="tickets.html" class="nav-link">Tickets</a>
-  </nav>
-</div>
 
 <div class="wrap">
   <header class="page">
@@ -799,5 +773,6 @@ fetch("https://naterimc.app.n8n.cloud/webhook/odc-triage-data",{cache:"no-store"
       `<div class="err">Couldn't load live triage data (${esc(e.message)}). <button class="retry" onclick="location.reload()">Retry</button></div>`);
   });
 </script>
+<script src="/cortex-shell.js" defer></script>
 </body>
 </html>
