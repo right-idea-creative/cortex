@@ -26,6 +26,7 @@
     { label: "Call Tracking",   href: "call-tracking.html" },
     { label: "Ad Spend Pacing", href: "ad-spend-pacing.html" },
     { label: "Campaign Triage", href: "triage.html" },
+    { label: "Budget Planning", href: "budget-planning.html" },
     { label: "Tickets",         href: "tickets.html" }
   ];
 
