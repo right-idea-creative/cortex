@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Budget Planning — Córtex OS</title>
+<style>
+:root {
+  --c-bg:#ffffff; --c-surface:#f0f2f5; --c-surface-2:#e9edf3;
+  --c-text:#1a1a2e; --c-text-2:#5f6470; --c-text-3:#9099a6;
+  --c-border:#e4e6ea; --c-border-2:#d0d3d8;
+  --c-danger-bg:#fdecea; --c-danger-tx:#c62828;
+  --c-warn-bg:#fff4e0; --c-warn-tx:#a35a00;
+  --c-ok-bg:#e8f5e9; --c-ok-tx:#2e7d32; --c-info-tx:#1565c0;
+  --c-radius:10px; --c-radius-sm:7px;
+  --font-sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --font-mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}
+* { box-sizing:border-box; margin:0; padding:0; }
+body { margin:0; background:#f0f2f5; color:var(--c-text);
+  font-family:var(--font-sans); font-size:14px; line-height:1.5; -webkit-font-smoothing:antialiased; }
+
+/* ── Site nav (shared chrome) ── */
+/* Nav markup + styles now injected by /cortex-shell.js */
+.wrap { max-width:1180px; margin:0 auto; padding:24px 32px 60px; }
+header.page { margin-bottom:18px; }
+header.page h1 { font-size:22px; font-weight:700; margin:0 0 4px; letter-spacing:-0.01em; color:#0d1b2a; }
+header.page .sub { color:var(--c-text-2); font-size:13px; }
+header.page .sub b { color:var(--c-text); font-weight:600; }
+.cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:14px; margin:20px 0 22px; }
+.card { background:#fff; border-radius:var(--c-radius); padding:16px 18px; box-shadow:0 1px 4px rgba(0,0,0,.07); }
+.card .lab { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.6px; color:#9e9e9e; margin-bottom:6px; }
+.card .val { font-size:28px; font-weight:700; letter-spacing:-0.01em; color:#0d1b2a; line-height:1.1; }
+.card .val.muted { color:var(--c-text-2); }
+.controls { display:flex; flex-wrap:wrap; gap:7px; align-items:center; margin-bottom:14px; }
+.controls .grp { display:flex; gap:7px; flex-wrap:wrap; }
+.controls .spacer { flex:1; }
+button.f, select.f { font:inherit; font-size:13px; color:var(--c-text); background:transparent;
+  border:1px solid var(--c-border-2); border-radius:var(--c-radius-sm); padding:5px 12px; cursor:pointer; transition:background .12s; }
+button.f:hover, select.f:hover { background:var(--c-surface); }
+button.f.on { background:var(--c-text); color:var(--c-bg); border-color:var(--c-text); }
+input.search { font:inherit; font-size:13px; color:var(--c-text); width:180px; background:var(--c-bg);
+  border:1px solid var(--c-border-2); border-radius:var(--c-radius-sm); padding:5px 11px; }
+input.search::placeholder { color:var(--c-text-3); }
+.tablecard { background:#fff; border:1px solid var(--c-border); border-radius:var(--c-radius); overflow:hidden; box-shadow:0 1px 4px rgba(0,0,0,.07); }
+.scroll { overflow-x:auto; }
+table { width:100%; border-collapse:collapse; font-size:13px; min-width:1040px; }
+thead th { text-align:left; font-weight:500; color:var(--c-text-2); padding:11px 12px;
+  border-bottom:1px solid var(--c-border); white-space:nowrap; position:sticky; top:0; background:var(--c-bg); cursor:pointer; user-select:none; }
+thead th.r { text-align:right; }
+thead th.nosort { cursor:default; }
+thead th .arr { color:var(--c-text-3); font-size:11px; }
+tbody td { padding:10px 12px; border-bottom:1px solid var(--c-border); vertical-align:middle; }
+tbody tr:last-child td { border-bottom:0; }
+tbody tr.client-total td { background:var(--c-surface); font-weight:600; }
+td.r { text-align:right; font-variant-numeric:tabular-nums; }
+td.zero { color:var(--c-text-3); }
+.acct { font-weight:500; }
+.chan { color:var(--c-text-2); font-size:12px; text-transform:capitalize; }
+.pill { display:inline-block; padding:2px 9px; border-radius:20px; font-size:12px; white-space:nowrap; }
+.pill.google_ads { background:#eaf2fd; color:var(--c-info-tx); }
+.pill.meta { background:#ede7f6; color:#5e35b1; }
+.pill.lsa { background:var(--c-ok-bg); color:var(--c-ok-tx); }
+.pill.nextdoor { background:var(--c-warn-bg); color:var(--c-warn-tx); }
+.muted { color:var(--c-text-3); }
+.foot { color:var(--c-text-3); font-size:12px; margin-top:14px; }
+.empty { padding:40px; text-align:center; color:var(--c-text-2); }
+.retry{font:inherit;font-size:13px;margin-left:8px;padding:3px 10px;border:1px solid var(--c-danger-tx);background:transparent;color:var(--c-danger-tx);border-radius:var(--c-radius-sm);cursor:pointer;}
+.retry:hover{background:var(--c-danger-bg);}
+.err { padding:30px; border:1px solid var(--c-border); border-radius:var(--c-radius); color:var(--c-danger-tx); background:var(--c-danger-bg); margin-top:16px; }
+.loading { padding:40px; text-align:center; color:var(--c-text-3); }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="page">
+    <h1>Budget planning</h1>
+    <div class="sub">ODC franchise portfolio · committed budget by client &amp; channel · year <b id="yr">—</b></div>
+  </header>
+  <div class="cards" id="cards"></div>
+  <div class="controls">
+    <div class="grp" id="channelFilters">
+      <button class="f on" data-f="all">All channels</button>
+    </div>
+    <span class="spacer"></span>
+    <select class="f" id="viewMode">
+      <option value="rows">Channel rows</option>
+      <option value="totals">Client totals only</option>
+    </select>
+    <span><input class="search" id="q" type="search" placeholder="Search client…" aria-label="Search client"></span>
+  </div>
+  <div class="tablecard">
+    <div class="scroll">
+      <table id="tbl">
+        <thead><tr>
+          <th data-k="client">Client / Channel</th>
+          <th data-k="m1"  class="r">Jan</th>
+          <th data-k="m2"  class="r">Feb</th>
+          <th data-k="m3"  class="r">Mar</th>
+          <th data-k="m4"  class="r">Apr</th>
+          <th data-k="m5"  class="r">May</th>
+          <th data-k="m6"  class="r">Jun</th>
+          <th data-k="m7"  class="r">Jul</th>
+          <th data-k="m8"  class="r">Aug</th>
+          <th data-k="m9"  class="r">Sep</th>
+          <th data-k="m10" class="r">Oct</th>
+          <th data-k="m11" class="r">Nov</th>
+          <th data-k="m12" class="r">Dec</th>
+          <th data-k="row_total" class="r">Total</th>
+        </tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+  <div class="foot" id="foot"></div>
+</div>
+
+<script>
+// ==========================================================
+//  Budget data endpoint (n8n webhook — duplicate of triage_api,
+//  query node swapped to budget.committed).
+// ==========================================================
+const DATA_URL = "https://naterimc.app.n8n.cloud/webhook/odc-budget-data";
+// ==========================================================
+
+const MONTHS = ["m1","m2","m3","m4","m5","m6","m7","m8","m9","m10","m11","m12"];
+const STATE = { data:null, channel:"all", view:"rows", q:"", sortK:null, sortDir:1 };
+const fmtMoney = n => (n==null) ? "—" : "$"+Math.round(n).toLocaleString();
+const cell = n => { const v = Math.round(n||0); return v===0
+  ? '<td class="r zero">—</td>'
+  : `<td class="r">$${v.toLocaleString()}</td>`; };
+const esc = s => String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+function channelsInData(){
+  return [...new Set(STATE.data.items.map(r=>r.channel))].sort();
+}
+function passesFilter(r){
+  if(STATE.channel!=="all" && r.channel!==STATE.channel) return false;
+  if(STATE.q && !r.client.toLowerCase().includes(STATE.q.toLowerCase())) return false;
+  return true;
+}
+function sortItems(rows){
+  if(!STATE.sortK){
+    return rows.sort((a,b)=> a.client.localeCompare(b.client) || a.channel.localeCompare(b.channel));
+  }
+  const k=STATE.sortK, dir=STATE.sortDir;
+  return rows.sort((a,b)=>{
+    let av=a[k], bv=b[k];
+    if(typeof av==="string") return dir*av.localeCompare(bv);
+    return dir*((av||0)-(bv||0));
+  });
+}
+// Build client-total rows by summing each client's channel rows.
+function clientTotals(rows){
+  const map=new Map();
+  rows.forEach(r=>{
+    let t=map.get(r.client);
+    if(!t){ t={client:r.client,channel:"__total__",row_total:0};
+      MONTHS.forEach(m=>t[m]=0); map.set(r.client,t); }
+    MONTHS.forEach(m=>t[m]+=(r[m]||0));
+    t.row_total+=(r.row_total||0);
+  });
+  return [...map.values()].sort((a,b)=>a.client.localeCompare(b.client));
+}
+
+function render(){
+  const d=STATE.data;
+  document.getElementById("yr").textContent=d.summary.year;
+  const s=d.summary;
+  document.getElementById("cards").innerHTML=[
+    ["Clients",        s.clients, ""],
+    ["Channel lines",  s.lines,   "muted"],
+    ["Committed (yr)", fmtMoney(s.total_committed), ""],
+    ["Monthly avg",    fmtMoney(s.total_committed/12), "muted"]
+  ].map(([lab,val,cls])=>`<div class="card"><div class="lab">${lab}</div><div class="val ${cls}">${val}</div></div>`).join("");
+
+  let rows=d.items.filter(passesFilter);
+
+  const tb=document.getElementById("tbody");
+  if(!rows.length){ tb.innerHTML=`<tr><td colspan="14" class="empty">No budget lines match this view.</td></tr>`;
+    document.getElementById("foot").textContent=""; return; }
+
+  let display, isTotals=(STATE.view==="totals");
+  if(isTotals){ display=sortItems(clientTotals(rows)); }
+  else { display=sortItems(rows.slice()); }
+
+  tb.innerHTML=display.map(r=>{
+    const cls=isTotals?"client-total":"";
+    const label=isTotals
+      ? `<div class="acct">${esc(r.client)}</div>`
+      : `<div class="acct">${esc(r.client)}</div><div class="chan"><span class="pill ${esc(r.channel)}">${esc(r.channel.replace(/_/g," "))}</span></div>`;
+    return `<tr class="${cls}">
+      <td>${label}</td>
+      ${MONTHS.map(m=>cell(r[m])).join("")}
+      <td class="r"><b>${fmtMoney(r.row_total)}</b></td>
+    </tr>`;
+  }).join("");
+
+  const totalShown=display.reduce((a,r)=>a+(r.row_total||0),0);
+  document.getElementById("foot").textContent=
+    `Showing ${display.length} ${isTotals?"clients":"budget lines"} · ${fmtMoney(totalShown)} committed in view · click a column header to sort`;
+}
+
+function wire(){
+  // channel filter buttons (built dynamically once data loads)
+  const grp=document.getElementById("channelFilters");
+  channelsInData().forEach(ch=>{
+    const b=document.createElement("button");
+    b.className="f"; b.dataset.f=ch; b.textContent=ch.replace(/_/g," ");
+    grp.appendChild(b);
+  });
+  grp.querySelectorAll(".f").forEach(b=>{
+    b.onclick=()=>{ STATE.channel=b.dataset.f;
+      grp.querySelectorAll(".f").forEach(x=>x.classList.remove("on"));
+      b.classList.add("on"); render(); };
+  });
+  document.getElementById("viewMode").onchange=e=>{ STATE.view=e.target.value; render(); };
+  document.getElementById("q").oninput=e=>{ STATE.q=e.target.value; render(); };
+  document.querySelectorAll("thead th").forEach(th=>{
+    if(!th.dataset.k) return;
+    th.onclick=()=>{
+      const k=th.dataset.k;
+      if(STATE.sortK===k) STATE.sortDir*=-1; else { STATE.sortK=k; STATE.sortDir=1; }
+      document.querySelectorAll("thead th .arr").forEach(a=>a.remove());
+      const span=document.createElement("span"); span.className="arr";
+      span.textContent=STATE.sortDir>0?" ▲":" ▼"; th.appendChild(span); render();
+    };
+  });
+}
+
+function boot(d){ STATE.data=d; wire(); render(); }
+
+document.getElementById("tbody").innerHTML=`<tr><td colspan="14" class="loading">Loading committed budgets…</td></tr>`;
+fetch(DATA_URL,{cache:"no-store"})
+  .then(r=>{ if(!r.ok) throw new Error("HTTP "+r.status); return r.json(); })
+  .then(boot)
+  .catch(e=>{
+    document.getElementById("tbody").innerHTML="";
+    document.querySelector(".wrap").insertAdjacentHTML("beforeend",
+      `<div class="err">Couldn't load live budget data (${esc(e.message)}). <button class="retry" onclick="location.reload()">Retry</button></div>`);
+  });
+</script>
+<script src="/cortex-shell.js" defer></script>
+</body>
+</html>
