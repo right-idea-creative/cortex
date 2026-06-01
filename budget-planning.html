@@ -231,10 +231,29 @@ function wire(){
 
 function boot(d){ STATE.data=d; wire(); render(); }
 
+// n8n may return the payload several ways depending on the Respond node:
+//   {summary,items}                      ← already an object
+//   "{...}"                              ← a JSON string (TO_JSON_STRING)
+//   [{json:"{...}"}] / [{json:{...}}]    ← n8n item-wrapped (current flow)
+//   [{summary,items}]                    ← bare array
+// normalize() reduces any of these to the {summary,items} object.
+function normalize(raw){
+  let d = raw;
+  if (typeof d === "string") d = JSON.parse(d);
+  if (Array.isArray(d)) d = d[0];
+  if (d && d.json !== undefined) {
+    d = (typeof d.json === "string") ? JSON.parse(d.json) : d.json;
+  }
+  if (!d || !Array.isArray(d.items)) {
+    throw new Error("unexpected response shape");
+  }
+  return d;
+}
+
 document.getElementById("tbody").innerHTML=`<tr><td colspan="14" class="loading">Loading committed budgets…</td></tr>`;
 fetch(DATA_URL,{cache:"no-store"})
   .then(r=>{ if(!r.ok) throw new Error("HTTP "+r.status); return r.json(); })
-  .then(boot)
+  .then(raw=>boot(normalize(raw)))
   .catch(e=>{
     document.getElementById("tbody").innerHTML="";
     document.querySelector(".wrap").insertAdjacentHTML("beforeend",
