@@ -2,129 +2,139 @@
 
 > **Purpose:** explain *why* the system is built the way it is. This file changes rarely. Only add to it when an explicit architectural decision is made — not on every bug fix.
 
-> **For new instances:** if you're tempted to propose a different architecture, **read the relevant section here first**. Most "obvious improvements" were already considered and rejected for reasons documented below.
+> **For new instances:** if you're tempted to propose a different architecture, **read the relevant section here first**. Most "obvious improvements" were already considered and rejected for reasons documented below. Note which ADRs are marked **Superseded** — those describe how the system *used* to work.
 
 ---
 
 ## ADR-001: Static site on Cloudflare Pages, not Cloud Run
 
 **Date:** 2026-05-27
-**Decision:** Cortex OS is a static HTML site hosted on Cloudflare Pages, with data pre-generated as JSON files committed to the repo. No server runtime.
+**Status:** Active (hosting) / partially **Superseded by ADR-009** (data delivery)
 
-**Alternatives considered:**
-- Cloud Run with Python/Flask serving HTML on request (initially proposed and partially built)
-- Looker Studio (explicitly rejected by Nate in March 2026)
-- Self-hosted dashboard server
+**Decision:** Cortex OS is a static HTML site hosted on Cloudflare Pages. *Originally*, data was pre-generated as JSON files committed to the repo.
 
-**Why Cloudflare Pages won:**
-- Nate had already established this pattern for Call Tracking and Tickets modules. Coexistence > parallel infrastructure.
-- Zero server cost. Free tier covers our traffic indefinitely.
-- Refresh latency (1-2 min from data update to live) is acceptable for daily-cadence data.
-- No Docker, no container build, no service account on the request path. Simpler security surface.
-- Sebas and Nate can deploy independently by pushing to the same repo.
+**Still true:** static hosting on Cloudflare Pages, no server runtime, zero hosting cost, independent deploys.
 
-**Consequences:**
-- All data must be pre-computed and stored as static JSON. No runtime queries.
-- Refresh frequency is bounded by GitHub Actions cron + Cloudflare deploy latency, currently ~daily.
-- For sub-daily freshness, we would need to add a different pattern (live-fetch from BQ via authenticated proxy). Not needed today.
+**No longer true:** the "data pre-generated as JSON committed to the repo" part. The pacing module now fetches its data live from an n8n webhook (see ADR-009). Other modules' data delivery is unchanged.
+
+**Why Cloudflare Pages still wins for hosting:**
+- Nate established this pattern for Call Tracking and Tickets. Coexistence > parallel infrastructure.
+- Zero server cost; no Docker, no container build, no SA on the request path for static assets.
 
 ---
 
 ## ADR-002: GitHub Actions for daily refresh, not Cloud Scheduler
 
 **Date:** 2026-05-27
-**Decision:** The daily data refresh runs as a GitHub Actions workflow, not a Cloud Scheduler job hitting a Cloud Run endpoint.
+**Status:** **Superseded by ADR-008/ADR-009** for pacing. Historical.
 
-**Why GHA won:**
-- Already triggers Cloudflare's auto-deploy (single push handles both data refresh and site re-render).
-- Visible to anyone with repo access. No need to log into GCP console to debug.
-- Free under public-repo quotas.
-- Lives next to the code it runs.
+**Decision (historical):** the daily pacing data refresh ran as a GitHub Actions workflow that executed `export_pacing_data.py` and committed `pacing-data.json`.
 
-**Consequences:**
-- The SA key must be stored as a GitHub Secret (`GCP_SA_KEY`). Treat the secret as sensitive: any developer with admin access to the repo can read/exfiltrate it.
-- If GitHub is down, the refresh is delayed. Acceptable for daily cadence.
-- Workflow uses Workload Identity Federation as a future improvement (cleaner than long-lived JSON key) but is not implemented yet.
+**Why it's gone:** the pacing dashboard no longer reads a static JSON, so there's nothing for the Action to generate. Data freshness is now handled by (a) BigQuery scheduled queries refreshing native tables (ADR-008) and (b) the dashboard reading `pacing_api` live via webhook (ADR-009). The Action, the export script, and the JSON were removed 2026-06-01.
+
+**Residual:** the GitHub secret `GCP_SA_KEY` may still exist; audit whether anything uses it before removing (PENDING P-TECH-04).
 
 ---
 
 ## ADR-003: Data layer in BigQuery views, not materialized tables
 
 **Date:** 2026-05-26
-**Decision:** All pacing logic is implemented as BigQuery views that compose on top of source tables. No materialized tables, no scheduled queries to "refresh" derived data.
+**Status:** **Superseded by ADR-008**
 
-**Why views won:**
-- Source data freshness is bounded by Google Ads transfer (daily) and manual Sheet edits (weekly-ish). A materialized layer would add another lag without reducing source lag.
-- Views recompose automatically when source data updates. No orchestration of "did X refresh before Y queried it?".
-- Cost is negligible at our query volume (single daily export query).
+**Decision (historical):** all pacing logic was implemented as BigQuery views composing on source tables, with no materialized tables and no scheduled queries to refresh derived data.
 
-**Consequences:**
-- The export script's BQ query is heavier than it would be against a materialized table. Currently ~5 sec; fine.
-- Schema changes in source tables can cascade silently through views. **Mitigation:** always run `INFORMATION_SCHEMA.COLUMNS` checks before assuming a column exists (see LEARNINGS).
+**Why it was superseded:** the assumption was that views recompose automatically and add no lag. That held until a source was a Google Sheet external table whose Drive credential dropped — which fails the *entire* view, not just the Sheet-backed rows, taking the dashboard down. Materializing the Sheet-backed sources to native tables (ADR-008) isolates that failure. The analytical layer (`actual_spend_all`, `pacing_api`, `actual_spend_mtd`) is still views; only the Sheet-backed *sources* are now materialized.
 
 ---
 
 ## ADR-004: Service accounts must use explicit OAuth scopes when reading Sheet-backed BigQuery tables
 
 **Date:** 2026-05-27
-**Decision:** When authenticating with a service account JSON key to query a BigQuery view that transitively reads a Google Sheet via an external table, the client must request the Drive OAuth scope **in addition to** the default Cloud Platform / BigQuery scopes.
+**Status:** Active
 
-**Why this matters:**
-- BigQuery external tables on Google Sheets are "delegated" by default: BQ uses the *caller's* credentials to read the underlying Sheet, not the table creator's.
-- The default Python BigQuery client only requests `cloud-platform` scope when authenticating from a JSON key. The Drive token piece is not granted, so the Sheet read fails with `403 Permission denied while getting Drive credentials` even when the SA is shared as Viewer on the Sheet.
+**Decision:** When authenticating with a service account JSON key to query a BigQuery view that transitively reads a Google Sheet via an external table, the client must request the Drive OAuth scope in addition to the default BigQuery / Cloud Platform scopes.
 
-**Implementation:**
-- `export_pacing_data.py` builds credentials with `service_account.Credentials.from_service_account_file(path, scopes=[bigquery, drive, cloud-platform])` explicitly.
+**Why:** BigQuery external tables on Sheets use the *caller's* credentials to read the underlying Sheet. The default Python BigQuery client only requests `cloud-platform`, so the Sheet read fails with `403 Permission denied while getting Drive credentials` even when the SA is shared as Viewer.
 
-**Consequences:**
-- Any new script that queries pacing views (or any view backed by Sheet external tables) must do the same. Default `bigquery.Client()` will fail.
-- Sharing the Sheet with the SA is also required; the scope alone isn't enough.
+**Still relevant:** the scheduled queries that refresh `committed_budget_live` and `other_channels_live` read Sheets, so whatever identity runs them needs Drive access. This is also *why* we materialize (ADR-008) — to keep that Drive dependency off the dashboard's critical path.
 
 ---
 
 ## ADR-005: Pacing data model uses annual leftover, not synthetic monthly rollover
 
 **Date:** 2026-05-26
-**Decision:** The pacing pipeline does **not** synthesize a "monthly rollover" budget concept. Instead, the new ODC Planner provides an annual `leftover_anual` column that captures the true cumulative variance from approved annual budget.
+**Status:** Active (concept) — note the implementation moved to the `budget` dataset
 
-**Why:**
-- The previous (old planner) approach computed `effective_budget = base_budget + rolling_carry` per month. This inflated current-month budgets when prior months under-spent, making accounts look healthy when they were actually behind.
-- The new planner (`ODC Forecast - 2026 LIVE`) tracks annual capacity as a single number (`total_approved`) and reports remaining capacity as `leftover_anual`. This is the source of truth.
+**Decision:** The pacing pipeline does not synthesize a "monthly rollover" budget. Annual capacity is tracked as a single approved figure; remaining capacity is reported as an annual leftover, separate from monthly status.
 
-**Consequences:**
-- `pacing_calculations` exposes `annual_status` (`On Track Annual` / `Warning (Slight overspending)` / `Critical (Overspending annual)` / etc.) as a separate dimension from monthly status.
-- Dashboards should show annual_status alongside monthly status. The two answer different questions.
+**Why:** the old `base_budget + rolling_carry` approach inflated current-month budgets when prior months under-spent, making behind-pace accounts look healthy.
+
+**Note:** the live committed-budget model now lives in `committed_budget_long` → `committed_budget_live`, joined in `pacing_api`. The annual-vs-monthly distinction still applies conceptually.
 
 ---
 
 ## ADR-006: BQ Data Gap is a first-class status, not a missing-data error
 
 **Date:** 2026-05-27
-**Decision:** Months where BigQuery has no data for a given account×platform combo (because of pre-MCC-link history) are explicitly labeled `BQ Data Gap` with severity `Neutral`. They are not treated as "AM Over-reported" or other discrepancy types.
+**Status:** Active (concept)
 
-**Why:**
-- Without this, accounts whose CIDs were not linked to the MCC during a historical month appear as "$0 in BQ vs $X reported by AM," which is a false alarm. It's not that the AM mis-reported; we genuinely don't have the data.
-- Mixing real discrepancies with coverage gaps destroys the trustworthiness of the discrepancy bucket. Operators stop reading the alerts.
+**Decision:** Months where BigQuery has no data for an account×platform combo (pre-MCC-link history) are explicitly labeled as a data gap, not as a discrepancy / AM mis-report.
 
-**Implementation:**
-- `pacing_calculations` has a CTE `bq_coverage` that computes the earliest BQ month per CID×platform. Any row whose `month_date < first_bq_month` gets `bq_data_available = FALSE` and is labeled `BQ Data Gap`.
+**Why:** mixing genuine coverage gaps with real discrepancies destroys trust in the discrepancy alerts; operators stop reading them.
 
-**Consequences:**
-- The dashboard distinguishes between three orthogonal axes: data presence (BQ Data Gap or not), pacing health (Critical/Review/Healthy), and capture accuracy (AM Over/Under/Match). All three must be considered.
+**Principle to preserve:** keep three orthogonal axes distinct — data presence, pacing health, capture accuracy. (See LEARNINGS L-006.)
 
 ---
 
-## ADR-007: Shared brain lives in `/docs/` inside the same repo, not in Notion or a separate wiki
+## ADR-007: Shared brain lives in `/docs/` inside the same repo
 
 **Date:** 2026-05-27
-**Decision:** Cross-instance documentation lives in `right-idea-creative/cortex/docs/` as a folder of Markdown files plus a `state.json` for programmatic agents.
+**Status:** Active
+
+**Decision:** Cross-instance documentation lives in `right-idea-creative/cortex/docs/` as Markdown plus `state.json` for programmatic agents.
+
+**Why:** docs next to code drift less; multiple Claude instances and agents can read raw GitHub URLs; git gives versioning and diffs for free.
+
+**Caveat learned (session 5):** "drift less" is not "drift never." The brain still went badly stale when the system was rebuilt without a matching doc update. The folder is necessary but not sufficient — the end-of-session discipline (L-010) and verify-before-trust (L-011) are what actually keep it honest.
+
+---
+
+## ADR-008: Sheet-backed sources are materialized to native tables + daily scheduled refresh
+
+**Date:** 2026-05-31 (formalized 2026-06-01)
+**Status:** Active. Supersedes ADR-003 for Sheet-backed sources.
+
+**Decision:** Any Google Sheet feeding the pacing pipeline is materialized into a **native** BigQuery table by a daily scheduled query. Production views read the native table, never the Sheet-backed external table directly.
+
+Current instances:
+- `committed_budget_long` (Sheet) → `raw_budget.committed_budget_long` (external) → `budget.committed_budget_live` (native, `committed_budget_live_refresh`, daily 05:00 UTC).
+- other-channels Sheet → `raw_budget.other_channels_normalized` (external) → `budget.other_channels_live` (native, `other_channels_live_refresh`, daily 05:00 UTC).
+
+**Why this beats reading the Sheet directly:**
+- A Sheet external table fails the **entire** view when its Drive credential drops (`Permission denied while getting Drive credentials`). That took the whole dashboard down once (Google Ads included), and forced an emergency edit to comment out the other-channels slot. (LEARNINGS L-012.)
+- With materialization, a failed refresh leaves the last good native table in place. The dashboard stays up on slightly stale data instead of going down.
+- Sheet data only changes daily (committed) / weekly (other channels) anyway, so a daily materialized snapshot loses no meaningful freshness.
+
+**Consequences:**
+- Two scheduled queries now exist and must keep succeeding; monitor their state. They run as `CREATE OR REPLACE TABLE ... AS SELECT ...` with no destination table set (the DDL defines it).
+- The identity running each scheduled query needs Drive access to its Sheet. If a refresh starts failing, check Drive sharing first.
+- A native snapshot can silently go stale if the scheduled query breaks. Mitigation: the refresh state is checkable (`bq ls --transfer_config`), and stale data is safer than a down dashboard.
+
+---
+
+## ADR-009: The dashboard reads the n8n webhook live; no static JSON in the path
+
+**Date:** ~2026-05-30 (formalized 2026-06-01)
+**Status:** Active. Supersedes the data-delivery half of ADR-001 and all of ADR-002.
+
+**Decision:** The Ad Spend Pacing dashboard fetches its data at page load from an n8n webhook (`https://naterimc.app.n8n.cloud/webhook/odc-pacing-data`), which runs `SELECT * FROM budget.pacing_api`, enriches each row with `mondayClientId`, and returns JSON. The browser computes status / variance / pacing in JS. There is no pre-generated JSON file, no export script, and no GitHub Action in the live path.
 
 **Why:**
-- Documentation that lives in the same repo as the code is much harder to drift out of sync.
-- Multiple Claude instances and programmatic agents (n8n) need to read it. Raw GitHub URLs work for both.
-- Git provides versioning, diffs, and conflict resolution for free.
-- Notion's API has rate limits, auth complexity, and weak diff/version semantics for our use case.
+- Live read means the dashboard reflects the current state of `pacing_api` (and thus the latest scheduled-query refresh) without a separate export/commit/deploy cycle.
+- It removes the static-JSON maintenance burden and the daily zombie commit the old Action produced.
+- n8n already hosts the Tickets webhook, so the pattern and infra already existed.
 
-**Trade-offs:**
-- Non-technical readers (Cole, Dan) can't edit freely the way they could in Notion. Mitigation: they don't need to write here; they read the live dashboards. Operational data lives in Monday.com.
-- Rich embeds (videos, file uploads) aren't natively supported. Mitigation: link out to Drive / Loom when needed.
+**Consequences / risks:**
+- The dashboard now depends on Nate's n8n cloud instance (`naterimc.app.n8n.cloud`) being up and not serving cached data. This is a single point of failure outside our GCP project. (PENDING P-CARRY-01 tracks moving n8n.)
+- The webhook does a bit more than a raw `SELECT *` — it joins/enriches `mondayClientId`. That logic lives in n8n, not in BigQuery, so it's not visible in the repo. Anyone debugging "why does the dashboard show X" must check both `pacing_api` **and** the n8n flow.
+- The production HTML is uploaded by Nate outside the repo's auto-deploy, so the repo copy can (and did) go stale. Reconcile per PENDING P-TECH-02. This is the same "source not in git" hazard that caused pain on 05-01 — worth closing.

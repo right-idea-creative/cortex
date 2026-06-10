@@ -51,7 +51,6 @@ End-of-session protocol (in order):
 | --- | --- | --- | --- |
 | Sebas Guzmán | Technical Lead | Claude work account (`sebas.guzman@`) | Claude personal |
 | Nate Rutledge | Product / Stakeholder | Claude work | Claude personal |
-| Daniel Peña | Data Engineer (freelance) | — | — |
 | Dan Rutledge | CEO / Sponsor | — | — |
 
 All four Claude instances above may read/write this folder. Sessions should be tagged with who was driving (e.g. "Driver: Sebas (work)"). Agents (n8n, scripts) write to `state.json` programmatically when they need to publish status.

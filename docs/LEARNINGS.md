@@ -89,7 +89,7 @@ The pacing pipeline now expresses these as `bq_data_available`, `status`, and `c
 
 **Mistake:** Pasted instructions including `# Commented lines (in parentheses with `(reemplaza)`)` directly into zsh. Parens broke parsing.
 
-**Rule:** When providing multi-line instructions, separate the *commentary* (instructions for the human) from the *commands* (lines safe to paste). Or use heredocs / `cat > file <<EOF`.
+**Rule:** When providing multi-line instructions, separate the *commentary* (instructions for the human) from the *commands* (lines safe to paste). Or use heredocs / `cat > file <<EOF`. When delivering large/markdown content, deliver it as a file to download, not a paste block (markdown backticks and `$` corrupt on paste).
 
 ---
 
@@ -106,6 +106,8 @@ The pacing pipeline now expresses these as `bq_data_available`, `status`, and `c
 **Observation, not a single mistake:** The Monday.com doc that served as a bitácora for 3 months worked because someone wrote in it. The shared-brain folder in this repo will work only if every session commits an update. The format is secondary; the discipline is primary.
 
 **Rule:** At end of every session, **before closing**, complete the end-of-session protocol from `README.md`. If it's not committed, it didn't happen.
+
+---
 
 ## L-011: `ctm_data.ctm_calls.called_at_ts` is epoch, not TIMESTAMP
 
@@ -139,3 +141,35 @@ LIMIT 50;
 This reveals **who** writes (user_email — SA name if it's a service account), **when** (cadence visible in `start_time`), **what** (SQL preview), and **volume** (`total_bytes_processed`).
 
 Combined with `INFORMATION_SCHEMA.TABLES` to inspect table DDLs, this gives a complete picture of a pipeline's structure and cadence without ever seeing the code that runs it. Used this technique on 2026-05-30 to fully map the CTM pipeline in 10 minutes.
+
+---
+
+## L-013: Docs drift silently when someone else rebuilds the system
+
+**Mistake (session 2026-06-01):** The shared brain described an older architecture (static JSON, `pacing_dashboard_view`, GitHub Action export) as current. But the pacing data layer had since been rebuilt — new `budget` dataset, native tables, scheduled queries, and an n8n webhook replacing the static JSON. We spent a long session reverse-engineering the *running* system to discover the docs described a system that no longer existed. Multiple debugging dead-ends came from trusting the docs (e.g. querying `budget.committed`, the orphaned seed view, instead of `committed_budget_live`).
+
+**Rule:** When picking up Cortex after any gap, **verify the running system before trusting STATE.md**, and **`git pull` before doing anything** — your local copy may be days behind the remote. Cheap checks first: list the `budget` dataset objects, read the DDL of `pacing_api`, curl the webhook, confirm what the production URL fetches. Treat the brain as a hypothesis to validate, not ground truth — especially when another person (Nate, via `digital@`) edits the pipeline in parallel.
+
+---
+
+## L-014: Sheet-backed external tables take down the whole view when the Drive credential drops — materialize them
+
+**Mistake:** `actual_spend_all` read `other_channels_normalized` (an external table on a Google Sheet) directly. When the Sheet's Drive credential dropped, the **entire** view failed — not just the other-channels rows, but Google Ads too — taking the whole dashboard down. Someone had to comment out the other-channels slot just to rescue Google Ads.
+
+**Rule:** Never let a Sheet-backed external table sit directly in a production view's critical path. Materialize it to a **native** table on a scheduled query, and have the view read the native table. If a refresh fails, the native table keeps the last good copy and the dashboard stays up. This is now ADR-008. Applies to both `committed_budget_live` and `other_channels_live`.
+
+---
+
+## L-015: Never delete files from an auto-deploy repo without verifying what production serves
+
+**Near-miss (session 2026-06-01):** We were about to `git rm pacing-data.json`. Before doing it, we checked what the production URL actually fetches — it reads the n8n webhook (`DATA_WEBHOOK_URL`), not the JSON, and the repo's HTML copy is stale and not even what Cloudflare serves. So the delete was safe. Had production been reading the JSON, the delete would have broken the live dashboard. Also verified `budget-planning.html` (Nate's new page) reads a webhook, not the JSON.
+
+**Rule:** Before deleting any data/asset from a repo wired to auto-deploy, `curl` the production URL(s) and grep what they actually reference — including any *new* pages a teammate added. Confirm no live path depends on the file. The repo copy and the deployed copy can diverge (here they did).
+
+---
+
+## L-016: The recurring failure mode is a view that covers only one channel/source
+
+**Pattern (seen twice):** `actual_spend_all` originally had only the `google_ads` block (other channels commented out → actual = 0 for them). Then `actual_spend_mtd` was found with the *same* defect — only `google_ads`, so month-to-date was 0 for every other channel. Both silently produced wrong totals that looked plausible.
+
+**Rule:** Any view that aggregates spend must union **all** channels (Google Ads + other_channels_live, normalized via the channel CASE). When you touch or review a spend view, explicitly check every UNION slot is present. A view that returns only Google Ads is the default-wrong state here, not the exception.

@@ -1,7 +1,7 @@
 {
-  "schema_version": "1.0",
-  "last_updated": "2026-05-27",
-  "last_session_id": "2026-05-27-dashboard-live",
+  "schema_version": "1.1",
+  "last_updated": "2026-06-01",
+  "last_session_id": "2026-06-01-pipeline-audit",
   "platform": {
     "name": "Cortex OS",
     "host": "Cloudflare Pages",
@@ -9,7 +9,8 @@
     "repo": "https://github.com/right-idea-creative/cortex",
     "tech_stack": ["HTML", "vanilla JS", "Chart.js"],
     "build_step": false,
-    "auto_deploy_on_push": true
+    "auto_deploy_on_push": true,
+    "note": "Production pacing HTML is uploaded by Nate outside the repo auto-deploy; the repo copy of ad-spend-pacing.html is stale. See PENDING P-TECH-02."
   },
   "modules": {
     "home": {
@@ -26,15 +27,15 @@
       "status": "live",
       "owner": "nate",
       "data_source": "data.json",
-      "refresh": "manual via export_data.py"
+      "refresh": "manual"
     },
     "ad_spend_pacing": {
-      "path": "/ad-spend-pacing.html",
-      "file": "ad-spend-pacing.html",
+      "path": "/ad-spend-pacing",
+      "file": "ad-spend-pacing.html (production copy served outside repo)",
       "status": "live",
       "owner": "sebas",
-      "data_source": "pacing-data.json",
-      "refresh": "auto daily 14:00 UTC via GitHub Actions"
+      "data_source": "n8n webhook odc-pacing-data -> budget.pacing_api",
+      "refresh": "live (browser fetches webhook on load, no cache)"
     },
     "tickets": {
       "path": "/tickets.html",
@@ -53,64 +54,82 @@
         "purpose": "Daily transfer from Master MCC",
         "main_table": "p_ads_CampaignBasicStats_6118198619",
         "mcc_id": "611-819-8619",
-        "transfer_time_utc": "06:00"
+        "transfer_time_utc": "06:00",
+        "lag": "~1 day (today's spend appears tomorrow)"
       },
       "raw_budget": {
-        "purpose": "Source-of-truth budget data from Sheets",
-        "external_tables": ["planner_sheet", "other_channels_sheet"],
-        "views": ["budgets_normalized", "other_channels_normalized"]
+        "purpose": "External tables on the source Sheets",
+        "external_tables": ["committed_budget_long", "other_channels_normalized"]
+      },
+      "budget": {
+        "purpose": "LIVE pacing pipeline (native tables + views)",
+        "native_tables": ["committed_budget_live", "other_channels_live", "committed_budget_seed"],
+        "views": ["actual_spend_all", "actual_spend_mtd", "pacing_api", "committed"],
+        "tables": ["client_crosswalk"],
+        "notes": {
+          "pacing_api": "The view the webhook serves. committed_budget_live FULL OUTER JOIN actual_spend_all + enrichment + spent_mtd + day-of-month dims.",
+          "committed": "ORPHANED. Reads old committed_budget_seed (no Yelp, stale). NOT used by pacing_api. See PENDING P-TECH-01.",
+          "actual_spend_mtd": "Fixed 2026-06-01 to include all channels (was Google-only)."
+        }
       },
       "reference": {
-        "purpose": "Reference tables (some legacy)",
+        "purpose": "Reference tables synced from Monday",
         "tables": ["client_mapping"],
-        "note": "client_mapping is NOT used in pacing pipeline"
+        "note": "Source of AM mappings; pacing reads client_crosswalk, not this directly."
       },
       "transformed": {
-        "purpose": "Derived views for dashboards",
-        "views": [
-          "spend_combined",
-          "pacing_calculations",
-          "pacing_dashboard_view"
-        ]
+        "purpose": "LEGACY pacing views, superseded by budget dataset, not in live path",
+        "views": ["spend_combined", "pacing_calculations", "pacing_dashboard_view"],
+        "status": "deprecated, left in place, not maintained"
+      }
+    },
+    "scheduled_queries": {
+      "committed_budget_live_refresh": {
+        "schedule_utc": "05:00 daily",
+        "action": "CREATE OR REPLACE TABLE budget.committed_budget_live AS SELECT ... FROM raw_budget.committed_budget_long",
+        "last_state": "SUCCEEDED"
+      },
+      "other_channels_live_refresh": {
+        "schedule_utc": "05:00 daily",
+        "action": "CREATE OR REPLACE TABLE budget.other_channels_live AS SELECT ... FROM raw_budget.other_channels_normalized",
+        "last_state": "SUCCEEDED"
       }
     },
     "service_accounts": {
       "cortex-bigquery@rightidea-cortex.iam.gserviceaccount.com": {
-        "roles": ["bigquery.admin"],
-        "used_for": ["pacing export (local + GHA)"],
-        "shared_sheets": [
-          "1uk_4iYe_UaAZbxgD-Hv4I4WnJ07pIa_A4JOMOp8T2WA",
-          "1pJ8GyxepeoO_yddEvVleUaUQ8zAN7_EVckJ_zvg93G4"
-        ]
+        "used_for": ["general BigQuery", "Viewer on source Sheets"]
+      },
+      "cortex-pacing-gha@rightidea-cortex.iam.gserviceaccount.com": {
+        "used_for": ["GitHub-side automation (secret GCP_SA_KEY)", "Viewer on committed_budget_long Sheet"]
       },
       "ctm-pipeline-sa@rightidea-cortex.iam.gserviceaccount.com": {
-        "roles": ["bigquery.dataEditor", "bigquery.jobUser"],
         "used_for": ["call tracking pipeline (nate)"]
       }
     }
   },
   "google_sheets": {
-    "odc_forecast_2026_live": {
-      "id": "1uk_4iYe_UaAZbxgD-Hv4I4WnJ07pIa_A4JOMOp8T2WA",
-      "name": "ODC Forecast - 2026 (LIVE)",
-      "connected_via": "raw_budget.planner_sheet",
-      "used_in": "pacing budgets"
+    "committed_budget_long": {
+      "id": "15Ju5gm9q5lu8RbevwrVlbrLS3sMqcrY-_KW4tldKOR4",
+      "name": "committed_budget_long",
+      "connected_via": "raw_budget.committed_budget_long",
+      "materialized_to": "budget.committed_budget_live",
+      "used_in": "committed budget (live source of truth)"
     },
-    "other_channel_spend_official": {
+    "other_channel_spend": {
       "id": "1pJ8GyxepeoO_yddEvVleUaUQ8zAN7_EVckJ_zvg93G4",
-      "name": "Other Channel Spend [OFFICIAL]",
-      "connected_via": "raw_budget.other_channels_sheet",
-      "used_in": "pacing spend (non-Google platforms)"
+      "name": "Other Channel Spend",
+      "connected_via": "raw_budget.other_channels_normalized",
+      "materialized_to": "budget.other_channels_live",
+      "used_in": "other-channel actual spend (Bing/LSA/Meta/Nextdoor)",
+      "update_cadence": "weekly (manual)"
     }
   },
-  "github_actions": {
-    "refresh_pacing": {
-      "file": ".github/workflows/refresh-pacing.yml",
-      "cron_utc": "0 14 * * *",
-      "cron_local_dst": "08:00 America/Chicago",
-      "manual_trigger": true,
-      "uses_secrets": ["GCP_SA_KEY"]
-    }
+  "n8n": {
+    "instance": "naterimc.app.n8n.cloud",
+    "owner": "nate",
+    "pacing_data_webhook": "https://naterimc.app.n8n.cloud/webhook/odc-pacing-data",
+    "pacing_agent_webhook": "https://naterimc.app.n8n.cloud/webhook/odc-pacing-agent",
+    "note": "pacing_data_webhook runs SELECT * FROM budget.pacing_api and enriches each row with mondayClientId. This is the live data source for the pacing dashboard."
   },
   "team": {
     "sebas_guzman": {
@@ -118,12 +137,9 @@
       "claude_instances": ["work", "personal"]
     },
     "nate_rutledge": {
-      "role": "Product / Stakeholder",
-      "claude_instances": ["work", "personal"]
-    },
-    "daniel_pena": {
-      "role": "Data Engineer (freelance)",
-      "claude_instances": []
+      "role": "Product / Stakeholder / Digital Director",
+      "claude_instances": ["work", "personal"],
+      "note": "Also operates under digital@rightideacreative.net for some BigQuery work."
     },
     "dan_rutledge": {
       "role": "CEO / Sponsor",
@@ -135,6 +151,7 @@
     "bing": "weekly (manual sheet)",
     "meta_ads": "weekly (manual sheet)",
     "nextdoor": "weekly (manual sheet)",
-    "lsa": "weekly (manual sheet)"
+    "lsa": "weekly (manual sheet)",
+    "yelp": "committed only, no actual feed yet (see PENDING P-OPS-01)"
   }
 }
