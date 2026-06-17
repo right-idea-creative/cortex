@@ -138,3 +138,26 @@ Current instances:
 - The dashboard now depends on Nate's n8n cloud instance (`naterimc.app.n8n.cloud`) being up and not serving cached data. This is a single point of failure outside our GCP project. (PENDING P-CARRY-01 tracks moving n8n.)
 - The webhook does a bit more than a raw `SELECT *` — it joins/enriches `mondayClientId`. That logic lives in n8n, not in BigQuery, so it's not visible in the repo. Anyone debugging "why does the dashboard show X" must check both `pacing_api` **and** the n8n flow.
 - The production HTML is uploaded by Nate outside the repo's auto-deploy, so the repo copy can (and did) go stale. Reconcile per PENDING P-TECH-02. This is the same "source not in git" hazard that caused pain on 05-01 — worth closing.
+
+---
+
+## ADR-010: Nextdoor spend is ingested via the Nextdoor Ads API directly, not the other-channels Sheet
+
+**Date:** 2026-06-17
+**Status:** Active. Supersedes the Nextdoor slot of ADR-008 (the other-channels Sheet path) for any Nextdoor spend that reaches `actual_spend_all`.
+
+**Decision:** Nextdoor spend/performance is pulled daily from the Nextdoor Ads API (v3) by a **Cloud Run Job** (`cortex-nextdoor-ingest`) triggered by **Cloud Scheduler** (`cortex-nextdoor-daily`, 09:00 America/New_York). The job loops the advertisers returned by `/me`, calls the synchronous `/stats` endpoint per advertiser per day, parses the values, and MERGEs them into the native table `budget.nextdoor_spend_daily` keyed on `(advertiser_id, report_date)`. `actual_spend_all` reads Nextdoor from this table (joined to `client_crosswalk` on `advertiser_id = customer_id`) and **excludes** Nextdoor from the other-channels Sheet branch to avoid double counting.
+
+**Why this replaces the Sheet for Nextdoor:**
+- The Sheet was manual, weekly, and rounded; the API is daily, automated, and exact (6-decimal billable spend). Parity over Jan–May 2026 matched the Sheet to the cent (sheet $75,511.07 vs API $78,700.62; the difference is June — which the Sheet did not have — plus sub-cent rounding).
+- Removes a manual-capture step and its recurring `Date NULL` / copy-paste errors (P-OPS-04 class) for the Nextdoor slot.
+- The advertiser IDs already exist in `client_crosswalk` (multi-channel by design), so the join needed no schema change.
+
+**Why `/stats` (synchronous) and not `/reports` (async):** the async report builder is unreliable — it completes instantly for empty result sets but stalls indefinitely (`IN_PROGRESS`, no error or timeout surfaced) once there is real data or queue load. The synchronous `/stats` endpoint returned the same numbers in seconds. See LEARNINGS L-017.
+
+**Consequences / notes:**
+- **First Cloud Run Job in Cortex.** It mirrors the CTM pipeline's pattern (dedicated SA + Secret Manager + scheduled trigger), not the Cloudflare/static pattern. SA: `cortex-nextdoor@`. Token in Secret Manager: `nextdoor-ads-token`.
+- The Nextdoor API **token expires 2027-06-16** (1-year UI token; there is no client_credentials flow in v3). Rotation is a manual step — see PENDING P-TECH-10.
+- `other_channels_live` still physically contains Nextdoor rows (the Sheet was not cleaned), but `actual_spend_all` filters them out. Cleaning the Sheet is P-OPS-08.
+- Metric chosen is `billable_spend` (what the client is billed), not gross delivery spend. For pacing against committed budget this is correct; gross would be a separate pull if invoice reconciliation ever needs it.
+- The job source lives in the repo at `nextdoor-ingest/` (infra-as-code).

@@ -2,7 +2,7 @@
 
 > **Purpose:** what's open, blocked, or waiting. Only live items. **Delete resolved items** — they belong in session logs, not here.
 
-> **Last updated:** 2026-06-01 (session 5)
+> **Last updated:** 2026-06-17 (session 7)
 
 ---
 
@@ -21,6 +21,7 @@
 ### P-OPS-03: ~6 CIDs spending without any planner row at all
 - **What:** Six customer_ids (4 Google Ads, 2 Nextdoor) appear in BQ spend with no corresponding budget row. They show as `source_group = NULL`.
 - **CIDs:** `2573072690`, `6889598437`, `7867391182`, `9077355543` (Google Ads); `801934534030395109`, `801931604434879609` (Nextdoor).
+- **Note (2026-06-17):** the two Nextdoor CIDs now appear in `budget.nextdoor_spend_daily` (API feed, ADR-010). The gap is the missing **budget** row, not missing spend data.
 - **Owner:** Cole / Nate.
 - **Status:** waiting
 
@@ -45,6 +46,12 @@
 - **Decision needed:** either (a) add a Yelp actual-spend feed to the other-channels Sheet, or (b) decide Yelp is committed-only for now and suppress/annotate it in the dashboard.
 - **Owner:** Nate / whoever maintains the other-channels Sheet.
 - **Status:** waiting. (Same class of gap as LSA historically.)
+
+### P-OPS-08: Remove Nextdoor rows from the Other Channel Spend Sheet
+- **What:** Nextdoor now flows from the API (`budget.nextdoor_spend_daily`, ADR-010). `actual_spend_all` excludes Nextdoor from the Sheet branch, but the Other Channel Spend Sheet (and therefore `other_channels_live`) still physically carries ~1,689 Nextdoor rows. They are dead — ignored by the view — but waste space and will confuse whoever edits the Sheet.
+- **Fix:** stop entering Nextdoor in the Sheet going forward; optionally clear historical Nextdoor rows from it.
+- **Owner:** whoever maintains the Other Channel Spend Sheet (Cole / Nate).
+- **Status:** waiting
 
 ---
 
@@ -96,6 +103,17 @@
 - **Fix:** pull the production HTML into the repo so it's the source of truth and auto-deploy stops diverging from manual uploads.
 - **Priority:** medium. Doesn't break production, but it's the "code lives outside git, uploaded by hand" hazard that caused pain on 05-01.
 
+### P-TECH-10: Rotate the Nextdoor API token before it expires
+- **What:** Secret Manager secret `nextdoor-ads-token` holds the Nextdoor Ads API v3 bearer used by `cortex-nextdoor-ingest`. It **expires 2027-06-16** (1-year UI token; no client_credentials flow exists in v3).
+- **Fix:** ~May 2027, Refresh the token in the Nextdoor Ads UI (ads.nextdoor.com → Ads API) and `gcloud secrets versions add nextdoor-ads-token --data-file=-` with the new value. The job reads `:latest`, so **no redeploy** is needed.
+- **Owner:** Sebas. Set a calendar reminder.
+- **Priority:** low now, hard deadline 2027-06.
+
+### P-TECH-11: TEST/TRASH advertisers land in `nextdoor_spend_daily`
+- **What:** `/me` returns 26 advertisers including non-client junk (`TEST 1 [DO NOT USE]`, `TEST 2 [DO NOT USE]`, `TRASH`, `Trash`). They are written to the raw `nextdoor_spend_daily` table. They do **not** reach `actual_spend_all` (not present in `client_crosswalk`, so the join drops them), so this is cosmetic.
+- **Fix (optional):** exclude by name in the job, or filter the `/me` list against an allowlist derived from `client_crosswalk`.
+- **Priority:** low.
+
 ---
 
 ## Carry-over (long-running)
@@ -112,6 +130,7 @@
 
 ### P-CARRY-04: Extend the channel mapping with non-Google IDs natively
 - The crosswalk is built from Google Ads CIDs + a join to `client_mapping`. Non-Google channel IDs (Meta/Nextdoor/LSA/Bing/Yelp) currently need manual inserts that get wiped on rebuild. Rewrite the crosswalk build to UNPIVOT `client_mapping` so all channel IDs map natively.
+- **Note (2026-06-17):** Nextdoor IDs are already present in `client_crosswalk` and matched 1:1 in the Nextdoor backfill (ADR-010), but per this item they can be wiped on a crosswalk rebuild — the native UNPIVOT fix would make them durable. `reference.client_mapping` already has a `nextdoor_id` column to source from.
 - **Priority:** medium.
 
 ### P-CARRY-05: Delete empty remote repo `cortex-budget-pacing`
@@ -121,10 +140,9 @@
 
 ---
 
-## Resolved in session 2026-06-01 (will be deleted on next update)
+## Resolved in session 2026-06-17 (will be deleted on next update)
 
-- Verified overnight scheduled queries succeeded (`committed_budget_live_refresh`, `other_channels_live_refresh`).
-- Removed dead static-JSON pipeline (`refresh-pacing.yml`, `export_pacing_data.py`, `pacing-data.json`, `requirements.txt`) after confirming production reads the webhook.
-- Fixed `actual_spend_mtd` to include all channels (was Google-only).
-- Identified provenance of `actual_spend_mtd` (created by Nate via `digital@` on 05-30; not a security event).
-- Reconciled docs to the real architecture (this merge).
+- Built and deployed the Nextdoor Ads API → BigQuery pipeline end-to-end (ADR-010): Cloud Run Job `cortex-nextdoor-ingest` + Scheduler `cortex-nextdoor-daily` + SA `cortex-nextdoor@` + Secret `nextdoor-ads-token` + native table `budget.nextdoor_spend_daily`.
+- Backfilled Jan 1 – May 31 2026 for all 26 advertisers (1,322 active account-days); validated parity vs the Sheet to the cent.
+- Swapped `actual_spend_all` to read Nextdoor from the API table (third CTE) and excluded Nextdoor from the Sheet branch; verified no double counting.
+- Confirmed idempotency of the MERGE and a Scheduler-triggered execution running as the SA.

@@ -173,3 +173,19 @@ Combined with `INFORMATION_SCHEMA.TABLES` to inspect table DDLs, this gives a co
 **Pattern (seen twice):** `actual_spend_all` originally had only the `google_ads` block (other channels commented out → actual = 0 for them). Then `actual_spend_mtd` was found with the *same* defect — only `google_ads`, so month-to-date was 0 for every other channel. Both silently produced wrong totals that looked plausible.
 
 **Rule:** Any view that aggregates spend must union **all** channels (Google Ads + other_channels_live, normalized via the channel CASE). When you touch or review a spend view, explicitly check every UNION slot is present. A view that returns only Google Ads is the default-wrong state here, not the exception.
+
+---
+
+## L-017: Nextdoor's async report builder is unreliable — use the synchronous `/stats` endpoint
+
+**Mistake / near-miss (session 2026-06-17):** Designed the Nextdoor ingestion around the async `/reports` endpoint (one call → full daily time series as CSV). It completed instantly for an empty account-month, so it looked fine — but every report with real data stalled at `IN_PROGRESS` for 15–20+ minutes with no error, no timeout, and no diagnostic field on the report object. The synchronous `/stats` endpoint returned the identical figures for the same advertiser/window in seconds.
+
+**Rule:** For Nextdoor ingestion use `GET /api/v3/advertisers/{id}/stats?startTime=&endTime=` in a per-advertiser, per-day loop. Treat `/reports` as unreliable for unattended automation. Separately, the report builder enforces **undocumented** metric-conflict rules (e.g. `BILLABLE_SPEND` + `LEAD` → `REPORT_BUILDER_CONFLICT_PARAMETER`). General lesson: an endpoint that "succeeds" only because the result set was empty has not been validated — test against real, non-empty data before building on it.
+
+---
+
+## L-018: Ad-API money fields are currency-prefixed strings that overflow BigQuery NUMERIC scale
+
+**Mistake (session 2026-06-17):** Loaded Nextdoor `/stats` values straight into `NUMERIC` columns and the load failed. Money fields arrive as currency-prefixed strings like `"USD 9458.925231"`, and derived rates (`cpc`, `cpm`) carry up to 12 decimal places — more than BigQuery `NUMERIC`'s maximum scale of 9. Subtler second failure: quantizing zero with `Decimal` produced `0E-9` (scientific notation), which BigQuery also rejects as a NUMERIC literal.
+
+**Rule:** When loading money from any ad API into a `NUMERIC` column: (1) strip the currency-code prefix (`split()[-1]`), (2) `quantize` to ≤9 decimal places, (3) format fixed-point with `format(value, "f")` so zero serializes as `0.000000000`, not `0E-9`. Applies to any future channel API (Yelp, etc.). Note Nextdoor's CTR/CPC are already in percent units — don't multiply by 100 again downstream.

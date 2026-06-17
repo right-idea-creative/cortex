@@ -1,13 +1,17 @@
 {
   "schema_version": "1.1",
-  "last_updated": "2026-06-01",
-  "last_session_id": "2026-06-01-pipeline-audit",
+  "last_updated": "2026-06-17",
+  "last_session_id": "2026-06-17-nextdoor-api-ingestion",
   "platform": {
     "name": "Cortex OS",
     "host": "Cloudflare Pages",
     "production_url": "https://cortex-cmv.pages.dev",
     "repo": "https://github.com/right-idea-creative/cortex",
-    "tech_stack": ["HTML", "vanilla JS", "Chart.js"],
+    "tech_stack": [
+      "HTML",
+      "vanilla JS",
+      "Chart.js"
+    ],
     "build_step": false,
     "auto_deploy_on_push": true,
     "note": "Production pacing HTML is uploaded by Nate outside the repo auto-deploy; the repo copy of ad-spend-pacing.html is stale. See PENDING P-TECH-02."
@@ -59,27 +63,51 @@
       },
       "raw_budget": {
         "purpose": "External tables on the source Sheets",
-        "external_tables": ["committed_budget_long", "other_channels_normalized"]
+        "external_tables": [
+          "committed_budget_long",
+          "other_channels_normalized"
+        ]
       },
       "budget": {
         "purpose": "LIVE pacing pipeline (native tables + views)",
-        "native_tables": ["committed_budget_live", "other_channels_live", "committed_budget_seed"],
-        "views": ["actual_spend_all", "actual_spend_mtd", "pacing_api", "committed"],
-        "tables": ["client_crosswalk"],
+        "native_tables": [
+          "committed_budget_live",
+          "other_channels_live",
+          "committed_budget_seed",
+          "nextdoor_spend_daily",
+          "nextdoor_spend_daily_staging"
+        ],
+        "views": [
+          "actual_spend_all",
+          "actual_spend_mtd",
+          "pacing_api",
+          "committed"
+        ],
+        "tables": [
+          "client_crosswalk"
+        ],
         "notes": {
           "pacing_api": "The view the webhook serves. committed_budget_live FULL OUTER JOIN actual_spend_all + enrichment + spent_mtd + day-of-month dims.",
           "committed": "ORPHANED. Reads old committed_budget_seed (no Yelp, stale). NOT used by pacing_api. See PENDING P-TECH-01.",
-          "actual_spend_mtd": "Fixed 2026-06-01 to include all channels (was Google-only)."
+          "actual_spend_mtd": "Fixed 2026-06-01 to include all channels (was Google-only).",
+          "nextdoor_spend_daily": "Nextdoor spend/performance from the Ads API. Partitioned by report_date, clustered by advertiser_id. Written daily by Cloud Run Job cortex-nextdoor-ingest via MERGE on (advertiser_id, report_date). ADR-010.",
+          "actual_spend_all": "Three CTEs: google_ads UNION other_channels_live (excl Nextdoor) UNION nextdoor_spend_daily; joined to client_crosswalk on customer_id (Nextdoor matches advertiser_id=customer_id)."
         }
       },
       "reference": {
         "purpose": "Reference tables synced from Monday",
-        "tables": ["client_mapping"],
+        "tables": [
+          "client_mapping"
+        ],
         "note": "Source of AM mappings; pacing reads client_crosswalk, not this directly."
       },
       "transformed": {
         "purpose": "LEGACY pacing views, superseded by budget dataset, not in live path",
-        "views": ["spend_combined", "pacing_calculations", "pacing_dashboard_view"],
+        "views": [
+          "spend_combined",
+          "pacing_calculations",
+          "pacing_dashboard_view"
+        ],
         "status": "deprecated, left in place, not maintained"
       }
     },
@@ -95,15 +123,66 @@
         "last_state": "SUCCEEDED"
       }
     },
+    "cloud_run_jobs": {
+      "cortex-nextdoor-ingest": {
+        "type": "Cloud Run Job",
+        "region": "us-central1",
+        "trigger": "Cloud Scheduler cortex-nextdoor-daily",
+        "service_account": "cortex-nextdoor@rightidea-cortex.iam.gserviceaccount.com",
+        "secret": "nextdoor-ads-token",
+        "target_table": "budget.nextdoor_spend_daily",
+        "source_path": "nextdoor-ingest/",
+        "env": {
+          "GCP_PROJECT": "rightidea-cortex",
+          "BQ_DATASET": "budget",
+          "BQ_TABLE": "nextdoor_spend_daily",
+          "LOOKBACK_DAYS": "3"
+        },
+        "action": "Loops /me advertisers -> synchronous /stats per advertiser/day -> MERGE into budget.nextdoor_spend_daily. ADR-010."
+      },
+      "cortex-nextdoor-daily": {
+        "type": "Cloud Scheduler",
+        "region": "us-central1",
+        "schedule": "0 9 * * *",
+        "time_zone": "America/New_York",
+        "action": "POSTs to the Run Jobs API to execute cortex-nextdoor-ingest"
+      }
+    },
+    "secret_manager": {
+      "nextdoor-ads-token": {
+        "purpose": "Nextdoor Ads API v3 bearer token for cortex-nextdoor-ingest",
+        "expires": "2027-06-16",
+        "rotation": "manual; see PENDING P-TECH-10"
+      }
+    },
     "service_accounts": {
       "cortex-bigquery@rightidea-cortex.iam.gserviceaccount.com": {
-        "used_for": ["general BigQuery", "Viewer on source Sheets"]
+        "used_for": [
+          "general BigQuery",
+          "Viewer on source Sheets"
+        ]
       },
       "cortex-pacing-gha@rightidea-cortex.iam.gserviceaccount.com": {
-        "used_for": ["GitHub-side automation (secret GCP_SA_KEY)", "Viewer on committed_budget_long Sheet"]
+        "used_for": [
+          "GitHub-side automation (secret GCP_SA_KEY)",
+          "Viewer on committed_budget_long Sheet"
+        ]
       },
       "ctm-pipeline-sa@rightidea-cortex.iam.gserviceaccount.com": {
-        "used_for": ["call tracking pipeline (nate)"]
+        "used_for": [
+          "call tracking pipeline (nate)"
+        ]
+      },
+      "cortex-nextdoor@rightidea-cortex.iam.gserviceaccount.com": {
+        "used_for": [
+          "Nextdoor Ads API -> BigQuery ingestion (Cloud Run Job)"
+        ],
+        "roles": [
+          "bigquery.dataEditor",
+          "bigquery.jobUser",
+          "run.invoker",
+          "secretmanager.secretAccessor (nextdoor-ads-token)"
+        ]
       }
     }
   },
@@ -120,7 +199,7 @@
       "name": "Other Channel Spend",
       "connected_via": "raw_budget.other_channels_normalized",
       "materialized_to": "budget.other_channels_live",
-      "used_in": "other-channel actual spend (Bing/LSA/Meta/Nextdoor)",
+      "used_in": "other-channel actual spend (Bing/LSA/Meta). Nextdoor migrated to API (ADR-010); Sheet Nextdoor rows now dead (P-OPS-08).",
       "update_cadence": "weekly (manual)"
     }
   },
@@ -134,11 +213,17 @@
   "team": {
     "sebas_guzman": {
       "role": "Technical Lead",
-      "claude_instances": ["work", "personal"]
+      "claude_instances": [
+        "work",
+        "personal"
+      ]
     },
     "nate_rutledge": {
       "role": "Product / Stakeholder / Digital Director",
-      "claude_instances": ["work", "personal"],
+      "claude_instances": [
+        "work",
+        "personal"
+      ],
       "note": "Also operates under digital@rightideacreative.net for some BigQuery work."
     },
     "dan_rutledge": {
@@ -150,7 +235,7 @@
     "google_ads": "1 day (via daily transfer)",
     "bing": "weekly (manual sheet)",
     "meta_ads": "weekly (manual sheet)",
-    "nextdoor": "weekly (manual sheet)",
+    "nextdoor": "daily (Nextdoor Ads API via Cloud Run Job cortex-nextdoor-ingest)",
     "lsa": "weekly (manual sheet)",
     "yelp": "committed only, no actual feed yet (see PENDING P-OPS-01)"
   }
