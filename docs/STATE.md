@@ -17,7 +17,7 @@ Cortex OS is a static web app hosted on **Cloudflare Pages**, connected to this 
 
 - **Production URL:** https://cortex-cmv.pages.dev
 - **Pacing module path:** `/ad-spend-pacing` (the `.html` path 308-redirects to this).
-- **Auto-deploy:** push to `main` re-renders the site (~1-2 min). **Caveat:** the live pacing HTML that Cloudflare serves is newer than the repo copy — Nate uploads the production pacing page outside the repo's auto-deploy. The repo's `ad-spend-pacing.html` is a stale older copy (see PENDING P-TECH-09).
+- **Auto-deploy:** push to `main` re-renders the site (~1-2 min). **Verified 2026-06-17 (session 8):** Cloudflare Pages is connected to `right-idea-creative/cortex` with automatic deployments; the active production deployment ties to a `main` commit and the deployment history shows **no Direct Uploads**. The repo IS the source of truth — production serves what's on `main`. (This corrects the earlier claim, dated 2026-06-01, that Nate uploaded the pacing page outside the repo / that the repo copy was stale; that is not the case as of this verification — the repo's `ad-spend-pacing.html` reads the n8n webhook and includes `cortex-shell.js`.)
 - **Tech stack:** HTML + vanilla JS + Chart.js (CDN). No build step, no framework, no server runtime. A shared shell was extracted to `cortex-shell.js` (2026-05-31).
 
 ## Modules
@@ -65,7 +65,7 @@ Why native tables instead of querying the Sheets directly: an external table on 
 right-idea-creative/cortex/
 ├── index.html                 # Home (Nate)
 ├── call-tracking.html         # Call Tracking module (Nate)
-├── ad-spend-pacing.html       # STALE copy (reads old JSON). Not what prod serves. See PENDING P-TECH-09.
+├── ad-spend-pacing.html       # Pacing module. Reads the n8n webhook; uses cortex-shell.js. This IS what prod serves (verified 2026-06-17).
 ├── budget-planning.html       # Budget Planning module (Nate, new)
 ├── triage.html                # Triage module (Nate)
 ├── tickets.html               # Tickets module (Nate)
@@ -186,5 +186,5 @@ Dataset `ctm_data` contains data sourced from the CallTrackingMetrics API. Loade
 
 - **`budget.committed` (orphaned, seed) vs `committed_budget_live` (live, Sheet)** — two committed-budget objects, different data. `pacing_api` uses the live one. Anything reading `budget.committed` gets stale data. (PENDING P-TECH-07.)
 - **Repo `pacing_api_view.sql` vs live `pacing_api`** — repo file is a simplified template; the live view is more complex. (PENDING P-TECH-08.)
-- **Repo `ad-spend-pacing.html` vs production** — repo copy stale (old JSON); prod serves a newer webhook version uploaded outside the repo. (PENDING P-TECH-09.)
+- ~~Repo `ad-spend-pacing.html` vs production~~ — **RESOLVED/incorrect (2026-06-17, session 8):** verified the repo IS production's source (CF Pages auto-deploy from `main`, no Direct Uploads). The repo copy reads the webhook and uses `cortex-shell.js`. The earlier "stale copy / uploaded outside repo" claim does not hold. (P-TECH-09 closed.)
 - **`budget.other_channels_live` still carries Nextdoor rows** — the Sheet was not cleaned after Nextdoor moved to the API (ADR-010). `actual_spend_all` excludes them so there is no double count, but the Sheet and native table carry dead Nextdoor rows. (PENDING P-OPS-08.)

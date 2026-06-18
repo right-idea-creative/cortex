@@ -97,12 +97,6 @@
 - **Fix:** dump the live `pacing_api` DDL into `pacing_api_view.sql` so the repo matches production. Same for `actual_spend_all` / `actual_spend_mtd` if we want them versioned.
 - **Priority:** medium.
 
-### P-TECH-09: Replace stale repo `ad-spend-pacing.html` with the production version
-- **What:** The repo's `ad-spend-pacing.html` reads the old `pacing-data.json` (now deleted). Production serves a newer HTML that reads the n8n webhook, uploaded by Nate outside the repo's auto-deploy. The repo no longer matches what's deployed.
-- **Context:** The old static-JSON pipeline (`refresh-pacing.yml`, `export_pacing_data.py`, `pacing-data.json`, `requirements.txt`) was removed 2026-06-01 after verifying production reads the webhook, not the JSON.
-- **Fix:** pull the production HTML into the repo so it's the source of truth and auto-deploy stops diverging from manual uploads.
-- **Priority:** medium. Doesn't break production, but it's the "code lives outside git, uploaded by hand" hazard that caused pain on 05-01.
-
 ### P-TECH-10: Rotate the Nextdoor API token before it expires
 - **What:** Secret Manager secret `nextdoor-ads-token` holds the Nextdoor Ads API v3 bearer used by `cortex-nextdoor-ingest`. It **expires 2027-06-16** (1-year UI token; no client_credentials flow exists in v3).
 - **Fix:** ~May 2027, Refresh the token in the Nextdoor Ads UI (ads.nextdoor.com → Ads API) and `gcloud secrets versions add nextdoor-ads-token --data-file=-` with the new value. The job reads `:latest`, so **no redeploy** is needed.
@@ -149,6 +143,11 @@
 The webhook returns `committed = "0.0"` for some clients with real `actual` (e.g. CharterWest Bank — but that's `source_group: Other`, likely legitimately no committed budget). Confirm this is **not** happening for any **ODC** client that does have committed budget in the planner. If it is, the bug is likely in the `pacing_api` FULL OUTER JOIN with `committed_budget_live` (a client present in actuals but unmatched on the committed side yields 0). Low urgency; verify with a targeted query across ODC clients.
 
 ## Resolved in session 2026-06-17 (will be deleted on next update)
+
+**Session 8/9 (frontend audit):**
+- **P-TECH-09 — closed as incorrect/resolved.** The premise (repo `ad-spend-pacing.html` is a stale old-JSON copy; production is uploaded by Nate outside the repo) was verified false on 2026-06-17. Cloudflare Pages deploys from `right-idea-creative/cortex` on push to `main` (automatic deployments, no Direct Uploads in history). The repo's `ad-spend-pacing.html` reads the n8n webhook and includes `cortex-shell.js` — it IS what production serves. No reconciliation needed; the repo was already the source of truth. Corrected STATE.md, ARCHITECTURE.md, state.json, and the L-015 narrative clause accordingly.
+- Migrated `call-tracking.html` and `tickets.html` to `cortex-shell.js` (they carried a hardcoded 4-link nav, missing Campaign Triage + Budget Planning). Commit `6aeb20a`.
+- Removed orphaned `odc_pacing.html` template (placeholder webhooks, unreferenced). Commit `79b4eb8`.
 
 **Session 8 (post-deploy pacing fixes):**
 - Backfilled the June 1–13 Nextdoor ingestion gap in `nextdoor_spend_daily` (gap between end-of-backfill May 31 and the daily job's 3-day trailing window). Dallas ACTUAL $140 → $798.

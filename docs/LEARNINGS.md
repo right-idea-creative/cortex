@@ -164,6 +164,8 @@ Combined with `INFORMATION_SCHEMA.TABLES` to inspect table DDLs, this gives a co
 
 **Near-miss (session 2026-06-01):** We were about to `git rm pacing-data.json`. Before doing it, we checked what the production URL actually fetches — it reads the n8n webhook (`DATA_WEBHOOK_URL`), not the JSON, and the repo's HTML copy is stale and not even what Cloudflare serves. So the delete was safe. Had production been reading the JSON, the delete would have broken the live dashboard. Also verified `budget-planning.html` (Nate's new page) reads a webhook, not the JSON.
 
+> **Correction (2026-06-17, session 8):** this near-miss narrative originally implied the repo's HTML copy was stale and "not even what Cloudflare serves." That sub-claim was later verified false — Cloudflare Pages deploys from the repo on push to `main` (no Direct Uploads), so the repo *is* what production serves. The **rule below still stands** (and we used it again on 2026-06-17 to safely delete the orphaned `odc_pacing.html`): verify production before deleting. Only the "repo is stale / outside git" framing was wrong.
+
 **Rule:** Before deleting any data/asset from a repo wired to auto-deploy, `curl` the production URL(s) and grep what they actually reference — including any *new* pages a teammate added. Confirm no live path depends on the file. The repo copy and the deployed copy can diverge (here they did).
 
 ---

@@ -14,7 +14,7 @@
     ],
     "build_step": false,
     "auto_deploy_on_push": true,
-    "note": "Production pacing HTML is uploaded by Nate outside the repo auto-deploy; the repo copy of ad-spend-pacing.html is stale. See PENDING P-TECH-02."
+    "note": "Cloudflare Pages deploys from right-idea-creative/cortex on push to main (automatic deployments, no Direct Uploads in deployment history) — the repo IS the source of truth, verified 2026-06-17 (session 8). The repo's ad-spend-pacing.html reads the n8n webhook and uses cortex-shell.js. An earlier 2026-06-01 note here described the frontend as uploaded outside the repo with a stale repo copy; that was checked and does not hold (see ARCHITECTURE.md + STATE.md corrections, P-TECH-09 closed)."
   },
   "modules": {
     "home": {
