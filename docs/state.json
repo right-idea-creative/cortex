@@ -1,7 +1,7 @@
 {
   "schema_version": "1.1",
   "last_updated": "2026-06-17",
-  "last_session_id": "2026-06-17-nextdoor-api-ingestion",
+  "last_session_id": "2026-06-17b-pacing-mtd-webhook-fix",
   "platform": {
     "name": "Cortex OS",
     "host": "Cloudflare Pages",
@@ -89,7 +89,7 @@
         "notes": {
           "pacing_api": "The view the webhook serves. committed_budget_live FULL OUTER JOIN actual_spend_all + enrichment + spent_mtd + day-of-month dims.",
           "committed": "ORPHANED. Reads old committed_budget_seed (no Yelp, stale). NOT used by pacing_api. See PENDING P-TECH-01.",
-          "actual_spend_mtd": "Fixed 2026-06-01 to include all channels (was Google-only).",
+          "actual_spend_mtd": "Fixed 2026-06-01 to include all channels (was Google-only). Session 8 (2026-06-17): now 3 CTEs incl a nextdoor CTE reading nextdoor_spend_daily (Sheet branch excludes Nextdoor), mirroring actual_spend_all. Duplicated channel union with actual_spend_all is tech debt (PENDING P-TECH-12).",
           "nextdoor_spend_daily": "Nextdoor spend/performance from the Ads API. Partitioned by report_date, clustered by advertiser_id. Written daily by Cloud Run Job cortex-nextdoor-ingest via MERGE on (advertiser_id, report_date). ADR-010.",
           "actual_spend_all": "Three CTEs: google_ads UNION other_channels_live (excl Nextdoor) UNION nextdoor_spend_daily; joined to client_crosswalk on customer_id (Nextdoor matches advertiser_id=customer_id)."
         }
@@ -208,7 +208,11 @@
     "owner": "nate",
     "pacing_data_webhook": "https://naterimc.app.n8n.cloud/webhook/odc-pacing-data",
     "pacing_agent_webhook": "https://naterimc.app.n8n.cloud/webhook/odc-pacing-agent",
-    "note": "pacing_data_webhook runs SELECT * FROM budget.pacing_api and enriches each row with mondayClientId. This is the live data source for the pacing dashboard."
+    "note": "pacing_data_webhook (workflow 'ODC Pacing — Data API', id y6Y8uzQ9lntdFiLp) runs SELECT p.* FROM budget.pacing_api p LEFT JOIN reference.client_mapping m ON LOWER(TRIM(p.client))=LOWER(TRIM(m.client_name)) (alias monday_item_id AS mondayClientId). Uses p.* (not an explicit column list) so it inherits new pacing_api columns; an explicit list previously dropped spent_mtd and showed $0 on the dashboard (LEARNINGS L-019). Live data source for the pacing dashboard. To test: Publish then curl the production URL — the webhook trigger does not auto-fire on editor Execute workflow.",
+    "pacing_workflow_name": "ODC Pacing — Data API",
+    "pacing_workflow_id": "y6Y8uzQ9lntdFiLp",
+    "pacing_workflow_nodes": "Pacing Data Request (webhook GET) -> Query pacing_api (BigQuery executeQuery) -> Respond With Rows",
+    "pacing_workflow_administered_by": "cortex (Sebas) as of 2026-06-17 session 8; was previously treated as Nate's black box"
   },
   "team": {
     "sebas_guzman": {

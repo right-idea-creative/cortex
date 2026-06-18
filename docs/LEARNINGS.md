@@ -189,3 +189,19 @@ Combined with `INFORMATION_SCHEMA.TABLES` to inspect table DDLs, this gives a co
 **Mistake (session 2026-06-17):** Loaded Nextdoor `/stats` values straight into `NUMERIC` columns and the load failed. Money fields arrive as currency-prefixed strings like `"USD 9458.925231"`, and derived rates (`cpc`, `cpm`) carry up to 12 decimal places — more than BigQuery `NUMERIC`'s maximum scale of 9. Subtler second failure: quantizing zero with `Decimal` produced `0E-9` (scientific notation), which BigQuery also rejects as a NUMERIC literal.
 
 **Rule:** When loading money from any ad API into a `NUMERIC` column: (1) strip the currency-code prefix (`split()[-1]`), (2) `quantize` to ≤9 decimal places, (3) format fixed-point with `format(value, "f")` so zero serializes as `0.000000000`, not `0E-9`. Applies to any future channel API (Yelp, etc.). Note Nextdoor's CTR/CPC are already in percent units — don't multiply by 100 again downstream.
+
+---
+
+## L-019: The n8n webhook projected a stale explicit column list — use `p.*`
+
+**Mistake (session 2026-06-17b):** The pacing dashboard showed SPENT MTD = $0 for **every** channel, including Google Ads which clearly had spend. `budget.pacing_api` had the correct `spent_mtd`, but the n8n webhook's BigQuery node selected an explicit column list (`client, channel, year, month, committed, actual` + the `mondayClientId` JOIN) from an older version of the view, before `spent_mtd` and the enrichment/day columns existed. Those columns never reached the browser, so the dashboard rendered $0 silently.
+
+**Rule:** The webhook query node (`Query pacing_api` in workflow `ODC Pacing — Data API`) uses `SELECT p.*` plus the `mondayClientId` JOIN, so it inherits any column added to `pacing_api`. When you add a column to `pacing_api`, the webhook now passes it through automatically — but if anyone reverts it to an explicit list, this bug returns. Same family as L-016 (a slot that silently covers less than the whole). Note: an n8n webhook trigger does **not** auto-fire on "Execute workflow" in the editor (it waits for the Test URL); validate by Publishing and `curl`-ing the production webhook, after confirming the SQL in BigQuery directly.
+
+---
+
+## L-020: Channel spend lives in TWO parallel views — change both
+
+**Mistake (session 2026-06-17b):** After migrating Nextdoor to the API and swapping `actual_spend_all`, the dashboard showed Nextdoor ACTUAL correctly but SPENT MTD = $0. Cause: `budget.actual_spend_mtd` is a **separate** view with its own duplicated copy of the channel union, and it still read Nextdoor from the Sheet (`other_channels_live`, no June data). The session-1 swap only touched `actual_spend_all`.
+
+**Rule:** Spend is assembled in two parallel views — `actual_spend_all` (annual) and `actual_spend_mtd` (month-to-date) — each with the same channel union duplicated. Any change to a channel's source (or a new channel) must be applied to **both**, or the dashboard goes half-right (ACTUAL correct, MTD wrong). Better: refactor `actual_spend_mtd` to derive from the same base as `actual_spend_all` (PENDING P-TECH-12) so the union exists once. Until then, treat them as a pair.

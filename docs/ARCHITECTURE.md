@@ -139,6 +139,8 @@ Current instances:
 - The webhook does a bit more than a raw `SELECT *` — it joins/enriches `mondayClientId`. That logic lives in n8n, not in BigQuery, so it's not visible in the repo. Anyone debugging "why does the dashboard show X" must check both `pacing_api` **and** the n8n flow.
 - The production HTML is uploaded by Nate outside the repo's auto-deploy, so the repo copy can (and did) go stale. Reconcile per PENDING P-TECH-02. This is the same "source not in git" hazard that caused pain on 05-01 — worth closing.
 
+**Addendum (2026-06-17, session 8):** the webhook workflow is **`ODC Pacing — Data API`** (n8n id `y6Y8uzQ9lntdFiLp`), 3 nodes: `Pacing Data Request` (webhook GET) → `Query pacing_api` (BigQuery executeQuery) → `Respond With Rows`. It is now **administered by us (Cortex/Sebas)**, not treated as Nate's black box. The query node was found projecting an explicit, stale column list (missing `spent_mtd` and the enrichment/day columns added later to `pacing_api`), which made the dashboard show $0 for SPENT MTD on every channel. Fixed by switching the node to `SELECT p.*` plus the `mondayClientId` JOIN, so it inherits any new `pacing_api` column. See LEARNINGS L-019.
+
 ---
 
 ## ADR-010: Nextdoor spend is ingested via the Nextdoor Ads API directly, not the other-channels Sheet
@@ -161,3 +163,4 @@ Current instances:
 - `other_channels_live` still physically contains Nextdoor rows (the Sheet was not cleaned), but `actual_spend_all` filters them out. Cleaning the Sheet is P-OPS-08.
 - Metric chosen is `billable_spend` (what the client is billed), not gross delivery spend. For pacing against committed budget this is correct; gross would be a separate pull if invoice reconciliation ever needs it.
 - The job source lives in the repo at `nextdoor-ingest/` (infra-as-code).
+- **The Nextdoor swap applies to TWO views, not one** (added 2026-06-17, session 8): both `actual_spend_all` (annual) and `actual_spend_mtd` (month-to-date) carry the channel union and both must read Nextdoor from `nextdoor_spend_daily` and exclude it from the Sheet branch. Session 1 only swapped `actual_spend_all`; `actual_spend_mtd` was swapped in session 8. The duplicated union is itself tracked as tech debt — see PENDING P-TECH-12 and LEARNINGS L-020.

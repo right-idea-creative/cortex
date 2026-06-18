@@ -2,7 +2,7 @@
 
 > **Purpose:** what's open, blocked, or waiting. Only live items. **Delete resolved items** — they belong in session logs, not here.
 
-> **Last updated:** 2026-06-17 (session 7)
+> **Last updated:** 2026-06-17 (session 8)
 
 ---
 
@@ -140,7 +140,20 @@
 
 ---
 
+### P-TECH-12 — Refactor `actual_spend_mtd` to not duplicate the channel union
+
+`actual_spend_mtd` (month-to-date) carries its own copy of the channel union that `actual_spend_all` (annual) already has. This duplication is what caused the session-8 bug: Nextdoor was swapped in one view but not the other, so the dashboard went half-right (ACTUAL correct, MTD $0). Refactor so the MTD figure derives from the same base/source as the annual view and the union exists once. Until then, any channel-source change must be applied to **both** views (LEARNINGS L-020).
+
+### P-TECH-13 — Verify `committed = "0.0"` is not hitting ODC clients with budget
+
+The webhook returns `committed = "0.0"` for some clients with real `actual` (e.g. CharterWest Bank — but that's `source_group: Other`, likely legitimately no committed budget). Confirm this is **not** happening for any **ODC** client that does have committed budget in the planner. If it is, the bug is likely in the `pacing_api` FULL OUTER JOIN with `committed_budget_live` (a client present in actuals but unmatched on the committed side yields 0). Low urgency; verify with a targeted query across ODC clients.
+
 ## Resolved in session 2026-06-17 (will be deleted on next update)
+
+**Session 8 (post-deploy pacing fixes):**
+- Backfilled the June 1–13 Nextdoor ingestion gap in `nextdoor_spend_daily` (gap between end-of-backfill May 31 and the daily job's 3-day trailing window). Dallas ACTUAL $140 → $798.
+- Fixed SPENT MTD = $0 for all channels: pacing webhook query was a stale explicit column list, switched to `p.*`. Webhook now administered by us.
+- Swapped Nextdoor source in `actual_spend_mtd` (Sheet → `nextdoor_spend_daily`), matching `actual_spend_all`.
 
 - Built and deployed the Nextdoor Ads API → BigQuery pipeline end-to-end (ADR-010): Cloud Run Job `cortex-nextdoor-ingest` + Scheduler `cortex-nextdoor-daily` + SA `cortex-nextdoor@` + Secret `nextdoor-ads-token` + native table `budget.nextdoor_spend_daily`.
 - Backfilled Jan 1 – May 31 2026 for all 26 advertisers (1,322 active account-days); validated parity vs the Sheet to the cent.
