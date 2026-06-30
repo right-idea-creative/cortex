@@ -34,6 +34,11 @@ select:focus { outline:none; border-color:#4285F4; }
 .filters { display:flex; gap:16px; flex-wrap:wrap; align-items:flex-end; margin: 0 0 20px; }
 .filters .fg { display:flex; flex-direction:column; gap:5px; }
 .filters .fg span { font-size:11px; font-weight:700; color:#9e9e9e; text-transform:uppercase; letter-spacing:.5px; }
+.filters .fg select, .filters .fg input { height:38px; padding:0 12px; font-size:13px; color:#0d1b2a;
+  background:#fff; border:1px solid #d4d7dc; border-radius:8px; min-width:150px; box-shadow:0 1px 2px rgba(0,0,0,.04);
+  appearance:auto; outline:none; transition:border-color .15s, box-shadow .15s; }
+.filters .fg select:focus, .filters .fg input:focus { border-color:#4285F4; box-shadow:0 0 0 3px rgba(66,133,244,.15); }
+.filters .fg input::placeholder { color:#b0b3b8; }
 
 /* ── Cards ── */
 .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:14px; margin: 0 0 22px; }
@@ -212,7 +217,7 @@ const pct = n => (n*100).toFixed(0) + "%";
 let ROWS = [];
 let ASOF = (new Date()).getMonth() + 1;
 let DIMS = { days_in_month:30, days_elapsed:1, days_remaining:29, current_month:ASOF };
-let FILTERS = { source:"all", status:"all", am:"all" };
+let FILTERS = { source:"all", status:"all", am:"all", q:"" };
 
 const view = document.getElementById('view');
 const asofSel = document.getElementById('asof');
@@ -355,6 +360,7 @@ function chip(ch){ return '<span class="chip '+chipCls(ch.status)+'">'+(CH_LABEL
 function renderFiltersBar(){
   const ams=allAMs().map(a=>'<option value="'+a.replace(/"/g,'&quot;')+'"'+(FILTERS.am===a?' selected':'')+'>'+a+'</option>').join('');
   return '<div class="filters">'
+    + '<div class="fg"><span>Search</span><input id="f-q" type="text" placeholder="Client name…" value="'+FILTERS.q.replace(/"/g,'&quot;')+'" autocomplete="off"></div>'
     + '<div class="fg"><span>Client type</span><select id="f-source">'
       + '<option value="all"'+(FILTERS.source==='all'?' selected':'')+'>All</option>'
       + '<option value="odc"'+(FILTERS.source==='odc'?' selected':'')+'>ODC</option>'
@@ -376,6 +382,20 @@ function wireFilters(){
   if(s) s.onchange=()=>{FILTERS.source=s.value;renderOverview();};
   if(st) st.onchange=()=>{FILTERS.status=st.value;renderOverview();};
   if(am) am.onchange=()=>{FILTERS.am=am.value;renderOverview();};
+  const q=document.getElementById('f-q');
+  if(q){ q.oninput=()=>{ FILTERS.q=q.value; applySearch(); }; if(FILTERS.q) applySearch(); }
+}
+/* Live name search: hide non-matching rows in place so the input keeps focus
+   and row click-handlers stay wired. Also updates the visible-count card. */
+function applySearch(){
+  const term=(FILTERS.q||'').trim().toLowerCase();
+  let shown=0;
+  view.querySelectorAll('tr.clk').forEach(tr=>{
+    const name=decodeURIComponent(tr.dataset.c||'').toLowerCase();
+    const match=!term || name.includes(term);
+    tr.style.display=match?'':'none';
+    if(match) shown++;
+  });
 }
 
 /* ---------- overview ---------- */
