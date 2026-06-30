@@ -59,7 +59,8 @@ tbody tr:last-child td { border-bottom:none; }
 
 /* ── Status pills ── */
 .pill { font-size:11px; padding:3px 10px; border-radius:20px; font-weight:700; display:inline-block; white-space:nowrap; }
-.p-ok{ background:#e6f4ea; color:#137333; } .p-warn{ background:#fef7e0; color:#a15c00; } .p-dang{ background:#fce8e6; color:#c5221f; }
+.p-ok{ background:#d9ead3; color:#274e13; } .p-warn{ background:#f6b26b; color:#783f04; } .p-dang{ background:#ea4335; color:#fff; }
+.p-warn-mod{ background:#ffe599; color:#7f6000; } .p-dang-mod{ background:#d9ead3; color:#38761d; }
 
 /* ── Channel chips ── */
 .chips { display:flex; gap:5px; flex-wrap:wrap; }
@@ -67,6 +68,8 @@ tbody tr:last-child td { border-bottom:none; }
 .c-ok{ background:#e6f4ea; color:#137333; border-color:#b7e1c2; }
 .c-warn{ background:#fef7e0; color:#a15c00; border-color:#f3dca0; }
 .c-dang{ background:#fce8e6; color:#c5221f; border-color:#f2c3bf; }
+.c-warn-mod{ background:#fff7df; color:#7f6000; border-color:#ffe08a; }
+.c-dang-mod{ background:#eaf3e3; color:#38761d; border-color:#cfe3bf; }
 .c-idle{ background:#fafbfc; color:#d3d6da; border-color:#eef0f2; }   /* very very light grey */
 
 .back { font-size:13px; color:#1565c0; cursor:pointer; display:inline-block; margin-bottom:10px; font-weight:600; }
@@ -205,7 +208,9 @@ td.tcell { width:1%; white-space:nowrap; padding-right:4px; }
 const DATA_WEBHOOK_URL  = "https://naterimc.app.n8n.cloud/webhook/odc-pacing-data";
 const AGENT_WEBHOOK_URL = "https://naterimc.app.n8n.cloud/webhook/odc-pacing-agent";
 
-const OK_LOW = 0.85, OK_HIGH = 1.15;     /* on track within +/-15% of time-prorated pace */
+/* time-prorated pace thresholds (5-state model, Q3 2026):
+   >=1.10 over | 1.05-1.09 mod-over | 0.96-1.04 on track | 0.91-0.95 mod-under | <=0.90 under */
+const OK_LOW=0.96, OK_HIGH=1.04, MOD_LOW=0.91, MOD_HIGH=1.09;
 const YEAR_TRIGGER = 0.05;               /* year correction flag at +/-5% */
 
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -278,9 +283,11 @@ function statusOf(paceRatio, committed, actual){
   if(committed<=0 && actual<=0) return 'idle';
   if(committed<=0 && actual>0) return 'dang';
   if(actual<=0) return 'idle';                 /* committed but nothing spent yet (e.g. future month) */
-  if(paceRatio>OK_HIGH) return 'dang';
-  if(paceRatio<OK_LOW) return 'warn';
-  return 'ok';
+  if(paceRatio>=MOD_HIGH+0.01) return 'dang';      /* >=1.10 overspending */
+  if(paceRatio>OK_HIGH) return 'dang-mod';         /* 1.05-1.09 moderate overspending */
+  if(paceRatio>=OK_LOW) return 'ok';               /* 0.96-1.04 on track */
+  if(paceRatio>=MOD_LOW) return 'warn-mod';        /* 0.91-0.95 moderate underspending */
+  return 'warn';                                   /* <=0.90 underspending */
 }
 /* pace ratio: actual vs where you SHOULD be for the viewed month.
    current month -> prorate committed by days elapsed; past month -> full; future -> 0 */
@@ -291,9 +298,9 @@ function paceRatioOf(committed, actual, month){
   const frac = DIMS.days_in_month>0 ? DIMS.days_elapsed/DIMS.days_in_month : 1;
   return frac>0 ? actual/(committed*frac) : 0;
 }
-function statusLabel(s){ return s==='ok'?'On track':s==='warn'?'Underspending':s==='dang'?'Overspending':'No activity'; }
-function pillClass(s){ return s==='ok'?'p-ok':s==='warn'?'p-warn':'p-dang'; }
-function chipCls(s){ return s==='ok'?'c-ok':s==='warn'?'c-warn':s==='dang'?'c-dang':'c-idle'; }
+function statusLabel(s){ return s==='ok'?'On track':s==='warn'?'Underspending':s==='warn-mod'?'Moderate Underspending':s==='dang'?'Overspending':s==='dang-mod'?'Moderate Overspending':'No activity'; }
+function pillClass(s){ return s==='ok'?'p-ok':s==='warn'?'p-warn':s==='warn-mod'?'p-warn-mod':s==='dang-mod'?'p-dang-mod':'p-dang'; }
+function chipCls(s){ return s==='ok'?'c-ok':s==='warn'?'c-warn':s==='warn-mod'?'c-warn-mod':s==='dang'?'c-dang':s==='dang-mod'?'c-dang-mod':'c-idle'; }
 
 function monthPacing(client,m,channel){
   let c=0,a=0;
@@ -352,8 +359,10 @@ function passesFilter(client){
   if(FILTERS.status!=='all'){
     const m=monthPacing(client,ASOF,FILTERS.channel), s=statusOf(paceRatioOf(m.committed,m.actual,ASOF),m.committed,m.actual);
     if(FILTERS.status==='over' && s!=='dang') return false;
-    if(FILTERS.status==='under' && s!=='warn') return false;
+    if(FILTERS.status==='over-mod' && s!=='dang-mod') return false;
     if(FILTERS.status==='ontrack' && s!=='ok') return false;
+    if(FILTERS.status==='under-mod' && s!=='warn-mod') return false;
+    if(FILTERS.status==='under' && s!=='warn') return false;
   }
   return true;
 }
@@ -374,7 +383,9 @@ function renderFiltersBar(){
     + '<div class="fg"><span>Pacing</span><select id="f-status">'
       + '<option value="all"'+(FILTERS.status==='all'?' selected':'')+'>All</option>'
       + '<option value="over"'+(FILTERS.status==='over'?' selected':'')+'>Overspending</option>'
+      + '<option value="over-mod"'+(FILTERS.status==='over-mod'?' selected':'')+'>Moderate Overspending</option>'
       + '<option value="ontrack"'+(FILTERS.status==='ontrack'?' selected':'')+'>On track</option>'
+      + '<option value="under-mod"'+(FILTERS.status==='under-mod'?' selected':'')+'>Moderate Underspending</option>'
       + '<option value="under"'+(FILTERS.status==='under'?' selected':'')+'>Underspending</option>'
     + '</select></div>'
     + '<div class="fg"><span>Channel</span><select id="f-channel">'
@@ -450,7 +461,9 @@ function renderOverview(){
       +'<td><button class="agentbtn" data-agent="'+encodeURIComponent(c)+'">Agent</button></td></tr>';
   }
   h+='</tbody></table></div>';
-  h+='<div class="legend"><span class="chip c-ok">On track</span><span class="chip c-warn">Underspending</span>'
+  h+='<div class="legend"><span class="chip c-ok">On track</span>'
+    +'<span class="chip c-dang-mod">Moderate Overspending</span><span class="chip c-warn-mod">Moderate Underspending</span>'
+    +'<span class="chip c-warn">Underspending</span>'
     +'<span class="chip c-dang">Overspending / spend w/ no budget</span><span class="chip c-idle">No budget &amp; no spend</span></div>';
   h+='<p class="note">Channel chips are colored by each channel\u2019s own pacing; the Status column reflects the whole client. '
     +'Rec. $/day is catch-up aware (uses month-to-date spend, days remaining, and the year correction).</p>';
