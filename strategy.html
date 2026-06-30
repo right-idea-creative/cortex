@@ -1,365 +1,369 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Strategy · Córtex</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Strategy — Córtex OS</title>
 <style>
-  :root {
-    --bg: #0f1115;
-    --panel: #171a21;
-    --panel-2: #1d212a;
-    --border: #2a2f3a;
-    --border-strong: #3a4150;
-    --text: #e6e8ec;
-    --text-dim: #9aa1ad;
-    --text-faint: #6b7280;
-    --accent: #4f9cf9;
-    --accent-dim: #1e3a5f;
-    --green: #3ecf8e;
-    --green-bg: #15281f;
-    --amber: #e0a000;
-    --amber-bg: #2a2310;
-    --radius: 8px;
-    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0;
-    background: var(--bg);
-    color: var(--text);
-    font-family: var(--font);
-    font-size: 15px;
-    line-height: 1.5;
-  }
-  .wrap { max-width: 920px; margin: 0 auto; padding: 24px 20px 80px; }
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-  /* ---- header ---- */
-  .page-head { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 4px; }
-  h1 { font-size: 22px; font-weight: 600; margin: 0; letter-spacing: -0.01em; }
-  .subtitle { color: var(--text-dim); font-size: 14px; margin: 0 0 20px; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: #f0f2f5;
+  color: #1a1a2e;
+}
 
-  /* ---- toolbar ---- */
-  .toolbar {
-    display: flex; align-items: center; justify-content: space-between;
-    flex-wrap: wrap; gap: 12px;
-    padding: 12px 14px; margin-bottom: 22px;
-    background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
-  }
-  .toolbar-group { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-  .toolbar label { font-size: 13px; color: var(--text-dim); }
-  select, input, textarea {
-    background: var(--panel-2); color: var(--text);
-    border: 1px solid var(--border-strong); border-radius: 6px;
-    padding: 6px 9px; font-family: var(--font); font-size: 14px;
-  }
-  select:focus, input:focus, textarea:focus { outline: 2px solid var(--accent-dim); border-color: var(--accent); }
-  textarea { width: 100%; resize: vertical; line-height: 1.55; }
+.hero {
+  background: linear-gradient(145deg, #0d1b2a 0%, #0f3460 60%, #1565c0 100%);
+  color: #fff;
+  padding: 44px 32px 40px;
+  text-align: center;
+}
+.hero-eyebrow {
+  font-size: 11px; font-weight: 700; letter-spacing: 2px;
+  text-transform: uppercase; color: rgba(255,255,255,.4); margin-bottom: 10px;
+}
+.hero h1 { font-size: 34px; font-weight: 800; letter-spacing: -1px; }
+.hero p { font-size: 14px; color: rgba(255,255,255,.55); margin-top: 6px; }
 
-  button {
-    font-family: var(--font); font-size: 14px; cursor: pointer;
-    background: var(--panel-2); color: var(--text);
-    border: 1px solid var(--border-strong); border-radius: 6px;
-    padding: 7px 13px; transition: background .12s, border-color .12s;
-  }
-  button:hover { background: #262b35; border-color: #4a5263; }
-  button:active { transform: scale(.98); }
-  button.primary { background: var(--accent); border-color: var(--accent); color: #08111d; font-weight: 600; }
-  button.primary:hover { background: #6aaefb; }
-  button.ghost { background: none; border: none; color: var(--text-dim); padding: 4px 6px; }
-  button.ghost:hover { background: none; color: var(--text); }
-  button.add-btn { display: inline-flex; align-items: center; gap: 6px; }
+.page { max-width: 1060px; margin: 0 auto; padding: 32px 32px 80px; }
 
-  /* ---- pillar group ---- */
-  .pillar { margin-bottom: 26px; }
-  .pillar-head {
-    display: flex; align-items: center; gap: 9px; cursor: pointer;
-    padding: 4px 0; margin-bottom: 10px; user-select: none;
-  }
-  .pillar-head h2 { font-size: 16px; font-weight: 600; margin: 0; }
-  .pillar-head .chev { color: var(--text-dim); transition: transform .15s; font-size: 13px; width: 14px; }
-  .pillar.collapsed .chev { transform: rotate(-90deg); }
-  .pillar-head .count { font-size: 12px; color: var(--text-faint); }
-  .pillar.collapsed .cards { display: none; }
-  .cards { display: flex; flex-direction: column; gap: 10px; }
+.summary { font-size: 13px; color: #757575; margin-bottom: 20px; }
+.summary strong { color: #1a1a2e; font-weight: 700; }
+.summary .dot { color: #c5c5c5; margin: 0 8px; }
 
-  /* ---- card ---- */
-  .card {
-    background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
-    padding: 14px 16px;
-  }
-  .card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
-  .card-title { font-weight: 600; font-size: 15px; }
-  .tags { display: flex; gap: 6px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
-  .tag { font-size: 11px; padding: 2px 9px; border-radius: 20px; white-space: nowrap; }
-  .tag.confirmed { background: var(--green-bg); color: var(--green); }
-  .tag.pending { background: var(--amber-bg); color: var(--amber); }
-  .tag.scope { background: var(--panel-2); color: var(--text-dim); border: 1px solid var(--border); }
+.controls { margin-bottom: 22px; }
+.search-row { display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+.search-box { flex: 1; min-width: 220px; position: relative; }
+.search-box input {
+  width: 100%; padding: 10px 14px 10px 38px; font-size: 14px;
+  border: 1px solid #e0e3e8; border-radius: 9px; background: #fff;
+  font-family: inherit; color: #1a1a2e;
+}
+.search-box input:focus { outline: none; border-color: #1565c0; box-shadow: 0 0 0 3px rgba(21,101,192,.12); }
+.search-box svg { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: #bdbdbd; width: 16px; height: 16px; }
 
-  .card-body { font-size: 13.5px; color: var(--text-dim); line-height: 1.6; margin-top: 7px; white-space: pre-wrap; }
-  .card-body.clamped { display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; }
-  .card-body.empty { font-style: italic; color: var(--text-faint); }
-  .showmore { background: none; border: none; color: var(--accent); font-size: 12.5px; padding: 4px 0 0; }
-  .showmore:hover { background: none; text-decoration: underline; }
+select, input, textarea {
+  font-family: inherit; font-size: 14px; color: #1a1a2e;
+  background: #fff; border: 1px solid #e0e3e8; border-radius: 9px; padding: 9px 12px;
+}
+select:focus, input:focus, textarea:focus { outline: none; border-color: #1565c0; box-shadow: 0 0 0 3px rgba(21,101,192,.12); }
 
-  .card-actions { display: flex; gap: 12px; margin-top: 11px; }
-  .card-actions button { font-size: 12.5px; display: inline-flex; align-items: center; gap: 5px; }
+.pillar-pills { display: flex; gap: 8px; flex-wrap: wrap; }
+.pill {
+  font-size: 12.5px; font-weight: 600; padding: 6px 13px; border-radius: 20px;
+  border: 1px solid #d8dce3; background: #fff; color: #5a6472; cursor: pointer;
+  transition: all .12s; user-select: none;
+}
+.pill:hover { border-color: #1565c0; color: #1565c0; }
+.pill.active { background: #1565c0; border-color: #1565c0; color: #fff; }
 
-  /* ---- edit form ---- */
-  .card.editing { border: 1px solid var(--accent); }
-  .edit-banner { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--accent); margin-bottom: 12px; }
-  .field { margin-bottom: 12px; }
-  .field label { display: block; font-size: 12px; color: var(--text-dim); margin-bottom: 4px; }
-  .field input, .field textarea { width: 100%; }
-  .field-row { display: flex; gap: 12px; flex-wrap: wrap; }
-  .field-row .field { flex: 1; min-width: 130px; }
-  .edit-buttons { display: flex; gap: 8px; margin-top: 4px; }
-  .hint { color: var(--text-faint); font-weight: 400; }
+.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+@media (max-width: 880px) { .grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 600px) { .grid { grid-template-columns: 1fr; } }
 
-  /* ---- states ---- */
-  .state { text-align: center; padding: 60px 20px; color: var(--text-dim); }
-  .state.error { color: #f0907a; }
-  svg.ic { width: 15px; height: 15px; vertical-align: -2px; }
+.card {
+  background: #fff; border-radius: 12px; padding: 18px 18px 16px;
+  border: 1px solid #e8eaed; box-shadow: 0 1px 4px rgba(0,0,0,.07);
+  cursor: pointer; transition: transform .15s, box-shadow .15s, border-color .15s;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.card:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,.11); border-color: #c5d5f5; }
+.card.pending { background: #f7f8fa; border-color: #e3e6ea; box-shadow: none; }
+.card.pending:hover { box-shadow: 0 6px 18px rgba(0,0,0,.07); }
+
+.card-pillar { font-size: 10.5px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; color: #9aa0aa; }
+.card.pending .card-pillar { color: #b0b4bb; }
+.card-title { font-size: 16px; font-weight: 700; line-height: 1.3; color: #1a1a2e; }
+.card.pending .card-title { color: #6b7280; font-weight: 600; }
+.card-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 2px; }
+.tag { font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 20px; }
+.tag.confirmed { background: #e6f4ea; color: #1e7e44; }
+.tag.pending { background: #eceef1; color: #8a909a; }
+.tag.scope-odc { background: #e8f0fe; color: #1565c0; }
+.tag.scope-general { background: #f3f0fb; color: #7355b5; }
+
+.expanded {
+  grid-column: 1 / -1;
+  background: #fff; border-radius: 12px; padding: 24px 26px;
+  border: 1px solid #c5d5f5; box-shadow: 0 8px 28px rgba(0,0,0,.12);
+}
+.exp-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 4px; }
+.exp-pillar { font-size: 11px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; color: #9aa0aa; margin-bottom: 6px; }
+.exp-title { font-size: 22px; font-weight: 800; letter-spacing: -.4px; line-height: 1.2; }
+.exp-tags { display: flex; gap: 6px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
+.exp-close { background: none; border: none; cursor: pointer; color: #9aa0aa; padding: 4px; border-radius: 6px; }
+.exp-close:hover { background: #f0f2f5; color: #5a6472; }
+.exp-body { font-size: 15px; line-height: 1.65; color: #3a414d; white-space: pre-wrap; margin: 16px 0 20px; }
+.exp-body.empty { color: #aab0b8; font-style: italic; }
+.exp-actions { display: flex; gap: 10px; }
+
+button {
+  font-family: inherit; font-size: 14px; cursor: pointer; font-weight: 600;
+  background: #fff; color: #1a1a2e; border: 1px solid #d8dce3; border-radius: 9px; padding: 9px 16px;
+  transition: background .12s, border-color .12s;
+}
+button:hover { background: #f7f8fa; border-color: #c5cbd4; }
+button.primary { background: #1565c0; border-color: #1565c0; color: #fff; }
+button.primary:hover { background: #1976d2; }
+button.add-card { display: inline-flex; align-items: center; gap: 6px; background: #1565c0; border-color: #1565c0; color: #fff; }
+button.add-card:hover { background: #1976d2; }
+
+.field { margin-bottom: 14px; }
+.field label { display: block; font-size: 12.5px; font-weight: 600; color: #5a6472; margin-bottom: 5px; }
+.field .hint { color: #aab0b8; font-weight: 400; }
+.field input, .field textarea, .field select { width: 100%; }
+.field textarea { resize: vertical; min-height: 110px; line-height: 1.6; }
+.field-row { display: flex; gap: 14px; flex-wrap: wrap; }
+.field-row .field { flex: 1; min-width: 150px; }
+.edit-banner { font-size: 12.5px; font-weight: 600; color: #1565c0; margin-bottom: 16px; display: flex; align-items: center; gap: 7px; }
+
+.state { text-align: center; padding: 60px 20px; color: #9aa0aa; grid-column: 1 / -1; }
+.state.error { color: #c0392b; }
+svg.ic { width: 15px; height: 15px; vertical-align: -2px; }
 </style>
 </head>
 <body>
-<!--
-  Córtex nav: include the shared shell the same way your other pages do, e.g.
-  <script src="/cortex-shell.js"></script>
-  (left out here so this file is self-contained; drop your standard include in.)
--->
-<div class="wrap">
 
-  <div class="page-head">
-    <h1>Strategy</h1>
-  </div>
-  <p class="subtitle">Our paid-media positions. Confirmed = settled; pending = still being worked out.</p>
+<div class="hero">
+  <div class="hero-eyebrow">Paid Media</div>
+  <h1>Strategy</h1>
+  <p>Our positions — confirmed and in progress</p>
+</div>
 
-  <div class="toolbar">
-    <div class="toolbar-group">
-      <label for="editor">Editing as</label>
-      <select id="editor">
-        <option value="">— pick —</option>
+<div class="page">
+
+  <div class="summary" id="summary">Loading…</div>
+
+  <div class="controls">
+    <div class="search-row">
+      <div class="search-box">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <input type="text" id="search" placeholder="Search positions…" autocomplete="off">
+      </div>
+      <select id="editor" title="Who's editing">
+        <option value="">Editing as…</option>
         <option>Nate</option>
         <option>Juanes</option>
         <option>Martín</option>
-      </select>
-    </div>
-    <div class="toolbar-group">
-      <select id="filter-scope">
-        <option value="">All clients</option>
-        <option value="general">General</option>
-        <option value="odc">ODC</option>
       </select>
       <select id="filter-status">
         <option value="">All statuses</option>
         <option value="confirmed">Confirmed</option>
         <option value="pending">Pending</option>
       </select>
-      <button class="add-btn" id="add-card">
+      <select id="filter-scope">
+        <option value="">All clients</option>
+        <option value="general">General</option>
+        <option value="odc">ODC</option>
+      </select>
+      <button class="add-card" id="add-card">
         <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
-        New card
+        New
       </button>
     </div>
+    <div class="pillar-pills" id="pillar-pills"></div>
   </div>
 
-  <div id="content"><div class="state">Loading strategy…</div></div>
+  <div class="grid" id="grid"><div class="state">Loading strategy…</div></div>
 
 </div>
 
+<script src="/cortex-shell.js" defer></script>
 <script>
 const API = '/api/strategy';
 const STATUS = ['confirmed', 'pending'];
 const SCOPE = ['general', 'odc'];
+const PILLARS = [
+  'Keyword strategy',
+  'Ad copy',
+  'Bidding & budget',
+  'Campaign structure',
+  'Asset & extension strategy',
+  'Geo / scheduling',
+  'Landing page / conversion'
+];
 
-let cards = [];          // current cards from server
-let editingId = null;    // card_id being edited, or '__new__'
-const expanded = new Set();   // card_ids whose body is un-clamped
+let cards = [];
+let expandedId = null;
+let editing = false;
+let creating = false;
+const activePillars = new Set(PILLARS);
 
-// ---- editor name, remembered locally ----
-const editorSel = document.getElementById('editor');
+const $ = id => document.getElementById(id);
+const editorSel = $('editor');
 editorSel.value = localStorage.getItem('cortex_strategy_editor') || '';
-editorSel.addEventListener('change', () => {
-  localStorage.setItem('cortex_strategy_editor', editorSel.value);
-});
+editorSel.addEventListener('change', () => localStorage.setItem('cortex_strategy_editor', editorSel.value));
 
-// ---- filters ----
-document.getElementById('filter-scope').addEventListener('change', render);
-document.getElementById('filter-status').addEventListener('change', render);
-document.getElementById('add-card').addEventListener('click', startNewCard);
+function esc(s){ return (s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function scopeLabel(s){ return s === 'odc' ? 'ODC' : 'General'; }
 
-function esc(s) {
-  return (s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+$('search').addEventListener('input', render);
+$('filter-status').addEventListener('change', render);
+$('filter-scope').addEventListener('change', render);
+$('add-card').addEventListener('click', () => { creating = true; expandedId = null; render(); });
+
+function buildPills(){
+  const wrap = $('pillar-pills');
+  wrap.innerHTML = '';
+  PILLARS.forEach(p => {
+    const b = document.createElement('button');
+    b.className = 'pill' + (activePillars.has(p) ? ' active' : '');
+    b.textContent = p;
+    b.addEventListener('click', () => {
+      if (activePillars.has(p)) activePillars.delete(p); else activePillars.add(p);
+      if (activePillars.size === 0) activePillars.add(p);
+      render();
+    });
+    wrap.appendChild(b);
+  });
 }
 
-async function load() {
+async function load(){
   try {
     const res = await fetch(API);
     const data = await res.json();
     if (data.error) throw new Error(data.error);
     cards = data.cards || [];
+    buildPills();
     render();
   } catch (err) {
-    document.getElementById('content').innerHTML =
-      '<div class="state error">Couldn\u2019t load strategy. ' + esc(String(err)) + '</div>';
+    $('grid').innerHTML = '<div class="state error">Couldn\u2019t load strategy. ' + esc(String(err)) + '</div>';
+    $('summary').textContent = '';
   }
 }
 
-function render() {
-  const scopeF = document.getElementById('filter-scope').value;
-  const statusF = document.getElementById('filter-status').value;
-  const root = document.getElementById('content');
+function pillarRank(p){ const i = PILLARS.indexOf(p); return i === -1 ? 999 : i; }
 
-  if (editingId === '__new__') { root.innerHTML = ''; root.appendChild(newCardForm()); return; }
+function visibleCards(){
+  const q = $('search').value.trim().toLowerCase();
+  const sf = $('filter-status').value;
+  const cf = $('filter-scope').value;
+  return cards.filter(c =>
+    activePillars.has(c.pillar) &&
+    (!sf || c.status === sf) &&
+    (!cf || c.applies_to === cf) &&
+    (!q || (c.title||'').toLowerCase().includes(q) || (c.body||'').toLowerCase().includes(q))
+  ).sort((a,b) => pillarRank(a.pillar) - pillarRank(b.pillar) || a.title.localeCompare(b.title));
+}
 
-  let list = cards.filter(c =>
-    (!scopeF || c.applies_to === scopeF) && (!statusF || c.status === statusF));
+function updateSummary(){
+  const total = cards.length;
+  const pending = cards.filter(c => c.status === 'pending').length;
+  const confirmed = total - pending;
+  $('summary').innerHTML =
+    '<strong>' + total + '</strong> positions' +
+    '<span class="dot">·</span><strong>' + confirmed + '</strong> confirmed' +
+    '<span class="dot">·</span><strong>' + pending + '</strong> pending';
+}
 
-  if (!list.length) {
-    root.innerHTML = '<div class="state">No cards match these filters.</div>';
-    return;
-  }
-
-  // group by pillar, preserve server order (already sorted by pillar)
-  const groups = {};
-  for (const c of list) (groups[c.pillar] ||= []).push(c);
-
-  root.innerHTML = '';
-  for (const pillar of Object.keys(groups)) {
-    const g = document.createElement('div');
-    g.className = 'pillar';
-    const head = document.createElement('div');
-    head.className = 'pillar-head';
-    head.innerHTML =
-      '<span class="chev">\u25BC</span>' +
-      '<h2>' + esc(pillar) + '</h2>' +
-      '<span class="count">' + groups[pillar].length + ' card' + (groups[pillar].length>1?'s':'') + '</span>';
-    head.addEventListener('click', () => g.classList.toggle('collapsed'));
-    g.appendChild(head);
-
-    const cardsWrap = document.createElement('div');
-    cardsWrap.className = 'cards';
-    for (const c of groups[pillar]) {
-      cardsWrap.appendChild(c.card_id === editingId ? editForm(c) : cardView(c));
+function render(){
+  updateSummary();
+  const grid = $('grid');
+  grid.innerHTML = '';
+  if (creating){ grid.appendChild(editPanel(null)); return; }
+  const list = visibleCards();
+  if (!list.length){ grid.innerHTML = '<div class="state">No positions match.</div>'; return; }
+  for (const c of list){
+    if (c.card_id === expandedId){
+      grid.appendChild(editing ? editPanel(c) : expandedPanel(c));
+    } else {
+      grid.appendChild(cardFace(c));
     }
-    g.appendChild(cardsWrap);
-    root.appendChild(g);
   }
 }
 
-function cardView(c) {
+function cardFace(c){
   const el = document.createElement('div');
-  el.className = 'card';
-  const isExpanded = expanded.has(c.card_id);
-  const hasBody = c.body && c.body.trim().length;
-
+  el.className = 'card ' + c.status;
   el.innerHTML =
-    '<div class="card-top">' +
-      '<div class="card-title">' + esc(c.title) + '</div>' +
-      '<div class="tags">' +
-        '<span class="tag ' + c.status + '">' + esc(c.status) + '</span>' +
-        '<span class="tag scope">' + esc(c.applies_to) + '</span>' +
+    '<div class="card-pillar">' + esc(c.pillar) + '</div>' +
+    '<div class="card-title">' + esc(c.title) + '</div>' +
+    '<div class="card-tags">' +
+      '<span class="tag ' + c.status + '">' + (c.status==='confirmed'?'Confirmed':'Pending') + '</span>' +
+      '<span class="tag scope-' + c.applies_to + '">' + scopeLabel(c.applies_to) + '</span>' +
+    '</div>';
+  el.addEventListener('click', () => { expandedId = c.card_id; editing = false; creating = false; render(); });
+  return el;
+}
+
+function expandedPanel(c){
+  const el = document.createElement('div');
+  el.className = 'expanded';
+  const hasBody = c.body && c.body.trim().length;
+  el.innerHTML =
+    '<div class="exp-head">' +
+      '<div>' +
+        '<div class="exp-pillar">' + esc(c.pillar) + '</div>' +
+        '<div class="exp-title">' + esc(c.title) + '</div>' +
+      '</div>' +
+      '<div style="display:flex;align-items:center;gap:10px;">' +
+        '<div class="exp-tags">' +
+          '<span class="tag ' + c.status + '">' + (c.status==='confirmed'?'Confirmed':'Pending') + '</span>' +
+          '<span class="tag scope-' + c.applies_to + '">' + scopeLabel(c.applies_to) + '</span>' +
+        '</div>' +
+        '<button class="exp-close" title="Close"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button>' +
       '</div>' +
     '</div>' +
     (hasBody
-      ? '<div class="card-body' + (isExpanded ? '' : ' clamped') + '">' + esc(c.body) + '</div>'
-      : '<div class="card-body empty">No position written yet.</div>');
-
-  // show more / less (only if body might overflow 5 lines — we offer it whenever there's body)
-  if (hasBody) {
-    const body = el.querySelector('.card-body');
-    // defer overflow check until in DOM
-    setTimeout(() => {
-      if (isExpanded || body.scrollHeight > body.clientHeight + 2) {
-        const more = document.createElement('button');
-        more.className = 'showmore';
-        more.textContent = isExpanded ? 'Show less' : 'Show more';
-        more.addEventListener('click', () => {
-          if (expanded.has(c.card_id)) expanded.delete(c.card_id); else expanded.add(c.card_id);
-          render();
-        });
-        body.after(more);
-      }
-    }, 0);
-  }
-
-  const actions = document.createElement('div');
-  actions.className = 'card-actions';
-  const editBtn = document.createElement('button');
-  editBtn.className = 'ghost';
-  editBtn.innerHTML = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4v16h16v-7M18.5 2.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg> Edit';
-  editBtn.addEventListener('click', () => { editingId = c.card_id; render(); });
-  actions.appendChild(editBtn);
-  el.appendChild(actions);
+      ? '<div class="exp-body">' + esc(c.body) + '</div>'
+      : '<div class="exp-body empty">No position written yet — click edit to add one.</div>') +
+    '<div class="exp-actions">' +
+      '<button class="primary act-edit"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg> Edit</button>' +
+    '</div>';
+  el.querySelector('.exp-close').addEventListener('click', () => { expandedId = null; render(); });
+  el.querySelector('.act-edit').addEventListener('click', () => { editing = true; render(); });
   return el;
 }
 
-function editForm(c) {
+function editPanel(c){
+  const isNew = !c;
+  const data = c || { card_id:'', pillar:PILLARS[0], topic:null, title:'', body:'', status:'pending', applies_to:'odc' };
   const el = document.createElement('div');
-  el.className = 'card editing';
-  el.innerHTML = formInner(c, false);
-  wireForm(el, c, false);
-  return el;
-}
+  el.className = 'expanded';
 
-function newCardForm() {
-  const blank = { card_id: '', pillar: '', topic: '', title: '', body: '', status: 'pending', applies_to: 'odc' };
-  const el = document.createElement('div');
-  el.className = 'card editing';
-  el.style.marginTop = '4px';
-  el.innerHTML = formInner(blank, true);
-  wireForm(el, blank, true);
-  return el;
-}
+  const pillarOpts = PILLARS.map(p => '<option' + (p===data.pillar?' selected':'') + '>' + esc(p) + '</option>').join('');
+  const statusOpts = STATUS.map(s => '<option value="'+s+'"' + (s===data.status?' selected':'') + '>' + (s==='confirmed'?'Confirmed':'Pending') + '</option>').join('');
+  const scopeOpts = SCOPE.map(s => '<option value="'+s+'"' + (s===data.applies_to?' selected':'') + '>' + scopeLabel(s) + '</option>').join('');
 
-function formInner(c, isNew) {
-  const statusOpts = STATUS.map(s => '<option' + (s===c.status?' selected':'') + '>' + s + '</option>').join('');
-  const scopeOpts = SCOPE.map(s => '<option' + (s===c.applies_to?' selected':'') + '>' + s + '</option>').join('');
-  return (
+  el.innerHTML =
     '<div class="edit-banner">' +
       '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>' +
-      (isNew ? 'New card — saving adds it to the strategy' : 'Editing — saving creates a new version') +
+      (isNew ? 'New position — saving adds it to the strategy' : 'Editing — saving creates a new version') +
     '</div>' +
-    (isNew
-      ? '<div class="field"><label>Pillar</label><input class="f-pillar" placeholder="e.g. Keyword strategy" value="' + esc(c.pillar) + '"></div>'
-      : '') +
-    '<div class="field"><label>Title</label><input class="f-title" value="' + esc(c.title) + '"></div>' +
+    '<div class="field-row">' +
+      '<div class="field"><label>Pillar</label><select class="f-pillar">' + pillarOpts + '</select></div>' +
+      '<div class="field"><label>Title</label><input class="f-title" value="' + esc(data.title) + '" placeholder="e.g. Pinning headlines"></div>' +
+    '</div>' +
     '<div class="field"><label>Position <span class="hint">(the body)</span></label>' +
-      '<textarea class="f-body" rows="5">' + esc(c.body) + '</textarea></div>' +
+      '<textarea class="f-body" placeholder="What\u2019s our position?">' + esc(data.body) + '</textarea></div>' +
     '<div class="field-row">' +
       '<div class="field"><label>Status</label><select class="f-status">' + statusOpts + '</select></div>' +
       '<div class="field"><label>Applies to</label><select class="f-scope">' + scopeOpts + '</select></div>' +
     '</div>' +
     '<div class="field"><label>Why this change <span class="hint">(optional)</span></label>' +
       '<input class="f-note" placeholder="e.g. documented the anchor set"></div>' +
-    '<div class="edit-buttons">' +
-      '<button class="primary f-save">' + (isNew ? 'Add card' : 'Save new version') + '</button>' +
+    '<div class="exp-actions">' +
+      '<button class="primary f-save">' + (isNew?'Add position':'Save new version') + '</button>' +
       '<button class="f-cancel">Cancel</button>' +
-    '</div>'
-  );
-}
+    '</div>';
 
-function slugify(pillar, title) {
-  const p = (pillar.split(/\s+/)[0] || 'card').toLowerCase().replace(/[^a-z0-9]/g, '');
-  const t = title.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
-  return (p || 'card') + '.' + (t || Date.now());
-}
+  el.querySelector('.f-cancel').addEventListener('click', () => {
+    if (isNew) creating = false; else editing = false;
+    render();
+  });
 
-function wireForm(el, c, isNew) {
-  el.querySelector('.f-cancel').addEventListener('click', () => { editingId = null; render(); });
   el.querySelector('.f-save').addEventListener('click', async () => {
     const editor = editorSel.value;
-    if (!editor) { editorSel.focus(); alert('Pick who you are (top left) before saving.'); return; }
-
+    if (!editor){ editorSel.focus(); alert('Pick who you are (top bar) before saving.'); return; }
     const title = el.querySelector('.f-title').value.trim();
-    const pillar = isNew ? el.querySelector('.f-pillar').value.trim() : c.pillar;
-    if (!title) { alert('Title is required.'); return; }
-    if (isNew && !pillar) { alert('Pillar is required for a new card.'); return; }
+    const pillar = el.querySelector('.f-pillar').value;
+    if (!title){ alert('Title is required.'); return; }
 
     const payload = {
-      card_id: isNew ? slugify(pillar, title) : c.card_id,
+      card_id: isNew ? slugify(pillar, title) : data.card_id,
       pillar,
-      topic: c.topic ?? null,
+      topic: data.topic ?? null,
       title,
       body: el.querySelector('.f-body').value,
       status: el.querySelector('.f-status').value,
@@ -369,28 +373,28 @@ function wireForm(el, c, isNew) {
       edited_by: editor
     };
 
-    const saveBtn = el.querySelector('.f-save');
-    saveBtn.disabled = true; saveBtn.textContent = 'Saving…';
+    const btn = el.querySelector('.f-save');
+    btn.disabled = true; btn.textContent = 'Saving…';
     try {
-      const res = await fetch(API, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-      editingId = null;
-      await load();   // refresh from server so the new version shows
-    } catch (err) {
-      saveBtn.disabled = false; saveBtn.textContent = isNew ? 'Add card' : 'Save new version';
+      const res = await fetch(API, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+      const out = await res.json();
+      if (out.error) throw new Error(out.error);
+      creating = false; editing = false;
+      expandedId = payload.card_id;
+      await load();
+    } catch (err){
+      btn.disabled = false; btn.textContent = isNew?'Add position':'Save new version';
       alert('Save failed: ' + err);
     }
   });
+
+  return el;
 }
 
-function startNewCard() {
-  editingId = '__new__';
-  render();
+function slugify(pillar, title){
+  const p = (pillar.split(/\s+/)[0] || 'card').toLowerCase().replace(/[^a-z0-9]/g,'');
+  const t = title.toLowerCase().trim().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,40);
+  return (p||'card') + '.' + (t||Date.now());
 }
 
 load();
