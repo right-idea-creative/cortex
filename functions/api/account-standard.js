@@ -9,9 +9,9 @@
 //   GET  /api/account-standard?item_id=X   -> full version history for one item
 //   POST /api/account-standard             -> save a new version of an item (JSON body)
 //
-// Env: set DATABASE_URL in Cloudflare Pages -> Settings -> Environment variables
-//      (the Neon connection string for the NEW account-standard project).
-//      Same pattern as strategy / project-hq.
+// Env: set ACCOUNT_STANDARD_DATABASE_URL in Cloudflare Pages -> Settings ->
+//      Environment variables (the Neon connection string for the NEW
+//      account-standard project — kept separate from strategy's DATABASE_URL).
 
 import { neon } from '@neondatabase/serverless';
 
@@ -23,7 +23,7 @@ const json = (data, status = 200) =>
 
 export async function onRequestGet(context) {
   try {
-    const sql = neon(context.env.DATABASE_URL);
+    const sql = neon(context.env.ACCOUNT_STANDARD_DATABASE_URL);
     const url = new URL(context.request.url);
     const itemId = url.searchParams.get('item_id');
 
@@ -50,7 +50,7 @@ export async function onRequestGet(context) {
 
 export async function onRequestPost(context) {
   try {
-    const sql = neon(context.env.DATABASE_URL);
+    const sql = neon(context.env.ACCOUNT_STANDARD_DATABASE_URL);
     const b = await context.request.json();
 
     // Required
