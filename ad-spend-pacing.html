@@ -217,7 +217,7 @@ const pct = n => (n*100).toFixed(0) + "%";
 let ROWS = [];
 let ASOF = (new Date()).getMonth() + 1;
 let DIMS = { days_in_month:30, days_elapsed:1, days_remaining:29, current_month:ASOF };
-let FILTERS = { source:"all", status:"all", am:"all", q:"" };
+let FILTERS = { source:"all", status:"all", am:"all", q:"", channel:"all" };
 
 const view = document.getElementById('view');
 const asofSel = document.getElementById('asof');
@@ -295,8 +295,9 @@ function statusLabel(s){ return s==='ok'?'On track':s==='warn'?'Underspending':s
 function pillClass(s){ return s==='ok'?'p-ok':s==='warn'?'p-warn':'p-dang'; }
 function chipCls(s){ return s==='ok'?'c-ok':s==='warn'?'c-warn':s==='dang'?'c-dang':'c-idle'; }
 
-function monthPacing(client,m){
-  let c=0,a=0; for(const r of rowsFor(client)) if(r.month===m){ c+=r.committed; a+=r.actual; }
+function monthPacing(client,m,channel){
+  let c=0,a=0;
+  for(const r of rowsFor(client)) if(r.month===m && (!channel || channel==='all' || r.channel===channel)){ c+=r.committed; a+=r.actual; }
   return { committed:c, actual:a, variance:a-c, pct:c?a/c:0 };
 }
 function channelRows(client,m){
@@ -344,8 +345,12 @@ function passesFilter(client){
     if(FILTERS.source==='other' && isODC(client)) return false;
   }
   if(FILTERS.am!=='all' && amFor(client)!==FILTERS.am) return false;
+  if(FILTERS.channel!=='all'){
+    const mc=monthPacing(client,ASOF,FILTERS.channel);
+    if(mc.committed<=0 && mc.actual<=0) return false;   // no spend/budget in this channel -> hide
+  }
   if(FILTERS.status!=='all'){
-    const m=monthPacing(client,ASOF), s=statusOf(paceRatioOf(m.committed,m.actual,ASOF),m.committed,m.actual);
+    const m=monthPacing(client,ASOF,FILTERS.channel), s=statusOf(paceRatioOf(m.committed,m.actual,ASOF),m.committed,m.actual);
     if(FILTERS.status==='over' && s!=='dang') return false;
     if(FILTERS.status==='under' && s!=='warn') return false;
     if(FILTERS.status==='ontrack' && s!=='ok') return false;
@@ -372,6 +377,10 @@ function renderFiltersBar(){
       + '<option value="ontrack"'+(FILTERS.status==='ontrack'?' selected':'')+'>On track</option>'
       + '<option value="under"'+(FILTERS.status==='under'?' selected':'')+'>Underspending</option>'
     + '</select></div>'
+    + '<div class="fg"><span>Channel</span><select id="f-channel">'
+      + '<option value="all"'+(FILTERS.channel==='all'?' selected':'')+'>All</option>'
+      + CH_ORDER.map(ch=>'<option value="'+ch+'"'+(FILTERS.channel===ch?' selected':'')+'>'+(CH_LABEL[ch]||ch)+'</option>').join('')
+    + '</select></div>'
     + '<div class="fg"><span>Account manager</span><select id="f-am">'
       + '<option value="all"'+(FILTERS.am==='all'?' selected':'')+'>All</option>'+ams
     + '</select></div>'
@@ -382,6 +391,8 @@ function wireFilters(){
   if(s) s.onchange=()=>{FILTERS.source=s.value;renderOverview();};
   if(st) st.onchange=()=>{FILTERS.status=st.value;renderOverview();};
   if(am) am.onchange=()=>{FILTERS.am=am.value;renderOverview();};
+  const ch=document.getElementById('f-channel');
+  if(ch) ch.onchange=()=>{FILTERS.channel=ch.value;renderOverview();};
   const q=document.getElementById('f-q');
   if(q){ q.oninput=()=>{ FILTERS.q=q.value; applySearch(); }; if(FILTERS.q) applySearch(); }
 }
@@ -401,7 +412,7 @@ function applySearch(){
 /* ---------- overview ---------- */
 function renderOverview(){
   const cs=clients().filter(passesFilter);
-  let tc=0,ta=0; const rows=cs.map(c=>{ const m=monthPacing(c,ASOF); tc+=m.committed; ta+=m.actual; return {c,m}; });
+  let tc=0,ta=0; const rows=cs.map(c=>{ const m=monthPacing(c,ASOF,FILTERS.channel); tc+=m.committed; ta+=m.actual; return {c,m}; });
   const onTrack=rows.filter(r=>statusOf(paceRatioOf(r.m.committed,r.m.actual,ASOF),r.m.committed,r.m.actual)==='ok').length;
 
   let h=renderFiltersBar();
@@ -422,7 +433,7 @@ function renderOverview(){
     const s=statusOf(paceRatioOf(m.committed,m.actual,ASOF),m.committed,m.actual);
     const col=Math.abs(m.variance)<1?'':(m.variance>0?'color:#c5221f':'color:#a15c00');
     let rec='&mdash;';
-    if(ASOF===DIMS.current_month){
+    if(ASOF===DIMS.current_month && FILTERS.channel==='all'){
       const cu=catchupForMonth(c,ASOF);
       rec=fmt(dailyRec(m.committed, sumMtd(c), cu));
     }
