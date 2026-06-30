@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Performance Criteria — Córtex OS</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: #f0f2f5;
+  color: #1a1a2e;
+}
+
+.hero {
+  background: linear-gradient(145deg, #0d1b2a 0%, #0f3460 60%, #1565c0 100%);
+  color: #fff;
+  padding: 44px 32px 40px;
+  text-align: center;
+}
+.hero-eyebrow {
+  font-size: 11px; font-weight: 700; letter-spacing: 2px;
+  text-transform: uppercase; color: rgba(255,255,255,.4); margin-bottom: 10px;
+}
+.hero h1 { font-size: 34px; font-weight: 800; letter-spacing: -1px; }
+.hero p { font-size: 14px; color: rgba(255,255,255,.55); margin-top: 6px; }
+
+.page { max-width: 1060px; margin: 0 auto; padding: 32px 32px 80px; }
+
+.summary { font-size: 13px; color: #757575; margin-bottom: 20px; }
+.summary strong { color: #1a1a2e; font-weight: 700; }
+.summary .dot { color: #c5c5c5; margin: 0 8px; }
+
+.controls { margin-bottom: 22px; }
+.search-row { display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+.search-box { flex: 1; min-width: 220px; position: relative; }
+.search-box input {
+  width: 100%; padding: 10px 14px 10px 38px; font-size: 14px;
+  border: 1px solid #e0e3e8; border-radius: 9px; background: #fff;
+  font-family: inherit; color: #1a1a2e;
+}
+.search-box input:focus { outline: none; border-color: #1565c0; box-shadow: 0 0 0 3px rgba(21,101,192,.12); }
+.search-box svg { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: #bdbdbd; width: 16px; height: 16px; }
+
+select, input, textarea {
+  font-family: inherit; font-size: 14px; color: #1a1a2e;
+  background: #fff; border: 1px solid #e0e3e8; border-radius: 9px; padding: 9px 12px;
+}
+select:focus, input:focus, textarea:focus { outline: none; border-color: #1565c0; box-shadow: 0 0 0 3px rgba(21,101,192,.12); }
+
+.level-pills { display: flex; gap: 8px; flex-wrap: wrap; }
+.pill {
+  font-size: 12.5px; font-weight: 600; padding: 6px 13px; border-radius: 20px;
+  border: 1px solid #d8dce3; background: #fff; color: #5a6472; cursor: pointer;
+  transition: all .12s; user-select: none;
+}
+.pill:hover { border-color: #1565c0; color: #1565c0; }
+.pill.active { background: #1565c0; border-color: #1565c0; color: #fff; }
+
+.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+@media (max-width: 880px) { .grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 600px) { .grid { grid-template-columns: 1fr; } }
+
+.card {
+  background: #fff; border-radius: 12px; padding: 18px 18px 16px;
+  border: 1px solid #e8eaed; box-shadow: 0 1px 4px rgba(0,0,0,.07);
+  cursor: pointer; transition: transform .15s, box-shadow .15s, border-color .15s;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.card:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,.11); border-color: #c5d5f5; }
+
+.card-level { font-size: 10.5px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; color: #9aa0aa; }
+.card-condition { font-size: 15px; font-weight: 600; line-height: 1.4; color: #1a1a2e; }
+.card-except { font-size: 12.5px; color: #8a909a; line-height: 1.4; }
+.card-except b { color: #c0392b; font-weight: 700; letter-spacing: .3px; }
+.card-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 2px; align-items: center; }
+.tag { font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 20px; }
+.tag.status { color: #fff; }
+.tag.ctype { background: #e8f0fe; color: #1565c0; }
+.tag.cond-count {
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 10.5px;
+  background: #eef0f3; color: #5a6472; padding: 3px 8px; border-radius: 6px; font-weight: 600;
+}
+.tag.english-only {
+  font-size: 10.5px; background: #f3f0fb; color: #7355b5; padding: 3px 9px; border-radius: 6px; font-weight: 600;
+}
+
+.expanded {
+  grid-column: 1 / -1;
+  background: #fff; border-radius: 12px; padding: 24px 26px;
+  border: 1px solid #c5d5f5; box-shadow: 0 8px 28px rgba(0,0,0,.12);
+}
+.exp-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 4px; }
+.exp-level { font-size: 11px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; color: #9aa0aa; margin-bottom: 6px; }
+.exp-condition { font-size: 21px; font-weight: 800; letter-spacing: -.3px; line-height: 1.25; }
+.exp-tags { display: flex; gap: 6px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
+.exp-close { background: none; border: none; cursor: pointer; color: #9aa0aa; padding: 4px; border-radius: 6px; }
+.exp-close:hover { background: #f0f2f5; color: #5a6472; }
+.exp-except { font-size: 14px; line-height: 1.6; color: #3a414d; margin: 14px 0 4px; }
+.exp-except .lbl { font-weight: 700; color: #c0392b; text-transform: uppercase; font-size: 11px; letter-spacing: .5px; }
+
+.cond-block { margin: 18px 0 4px; }
+.cond-block-head { font-size: 11px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; color: #9aa0aa; margin-bottom: 10px; display:flex; align-items:center; gap:8px; }
+.cond-block-head .match-note { font-weight: 600; color: #1565c0; letter-spacing: 0; text-transform: none; font-size: 12px; }
+.cond-rows { display: flex; flex-direction: column; gap: 8px; }
+.cond-pill {
+  display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  background: #f7f8fa; border: 1px solid #e8eaed; border-radius: 9px; padding: 8px 12px;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 13px; color: #3a414d;
+}
+.cond-pill .metric { font-weight: 700; color: #1a1a2e; }
+.cond-pill .op { color: #1565c0; font-weight: 700; }
+.cond-empty { font-size: 13.5px; color: #7355b5; font-style: italic; }
+
+.exp-meta { font-size: 12px; color: #aab0b8; margin-top: 16px; }
+.exp-actions { display: flex; gap: 10px; margin-top: 18px; }
+
+button {
+  font-family: inherit; font-size: 14px; cursor: pointer; font-weight: 600;
+  background: #fff; color: #1a1a2e; border: 1px solid #d8dce3; border-radius: 9px; padding: 9px 16px;
+  transition: background .12s, border-color .12s;
+}
+button:hover { background: #f7f8fa; border-color: #c5cbd4; }
+button.primary { background: #1565c0; border-color: #1565c0; color: #fff; }
+button.primary:hover { background: #1976d2; }
+button.danger { color: #c0392b; border-color: #ecc5c0; }
+button.danger:hover { background: #fcf3f2; border-color: #e0a9a2; }
+button.add-card { display: inline-flex; align-items: center; gap: 6px; background: #1565c0; border-color: #1565c0; color: #fff; }
+button.add-card:hover { background: #1976d2; }
+button.small { padding: 6px 11px; font-size: 12.5px; }
+button.link { background: none; border: none; color: #1565c0; padding: 4px 2px; }
+button.link:hover { background: none; text-decoration: underline; }
+
+.field { margin-bottom: 14px; }
+.field label { display: block; font-size: 12.5px; font-weight: 600; color: #5a6472; margin-bottom: 5px; }
+.field .hint { color: #aab0b8; font-weight: 400; }
+.field input, .field textarea, .field select { width: 100%; }
+.field textarea { resize: vertical; min-height: 80px; line-height: 1.6; }
+.field-row { display: flex; gap: 14px; flex-wrap: wrap; }
+.field-row .field { flex: 1; min-width: 150px; }
+.edit-banner { font-size: 12.5px; font-weight: 600; color: #1565c0; margin-bottom: 16px; display: flex; align-items: center; gap: 7px; }
+
+.cond-editor { border: 1px solid #e8eaed; border-radius: 11px; padding: 16px; background: #fafbfc; margin-bottom: 14px; }
+.cond-editor-head { display:flex; align-items:center; justify-content:space-between; margin-bottom: 10px; }
+.cond-editor-head .title { font-size: 12.5px; font-weight: 700; color: #5a6472; }
+.cond-editor-head .sub { font-size: 12px; color: #aab0b8; font-weight: 400; }
+.cond-edit-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
+.cond-edit-row select, .cond-edit-row input { padding: 7px 9px; font-size: 13px; }
+.cond-edit-row .c-metric { flex: 2; min-width: 120px; }
+.cond-edit-row .c-op { flex: 1.2; min-width: 90px; }
+.cond-edit-row .c-val { flex: 1; min-width: 70px; }
+.cond-edit-row .c-win { flex: 1; min-width: 80px; }
+.cond-edit-row .c-del { color: #c0392b; border-color: #ecc5c0; padding: 6px 10px; }
+.match-row { display: flex; align-items: center; gap: 10px; margin: 4px 0 2px; font-size: 13px; color: #5a6472; }
+.match-row select { width: auto; padding: 6px 10px; font-size: 13px; }
+
+.state { text-align: center; padding: 60px 20px; color: #9aa0aa; grid-column: 1 / -1; }
+.state.error { color: #c0392b; }
+svg.ic { width: 15px; height: 15px; vertical-align: -2px; }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <div class="hero-eyebrow">Paid Media</div>
+  <h1>Performance Criteria</h1>
+  <p>How we judge whether an account, campaign, or ad group is healthy</p>
+</div>
+
+<div class="page">
+
+  <div class="summary" id="summary">Loading…</div>
+
+  <div class="controls">
+    <div class="search-row">
+      <div class="search-box">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <input type="text" id="search" placeholder="Search criteria…" autocomplete="off">
+      </div>
+      <select id="editor" title="Who's editing">
+        <option value="">Editing as…</option>
+        <option>Nate</option>
+        <option>Juanes</option>
+        <option>Martín</option>
+      </select>
+      <select id="filter-status"><option value="">All statuses</option></select>
+      <select id="filter-ctype"><option value="">All campaign types</option></select>
+      <button class="add-card" id="add-card">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+        New
+      </button>
+    </div>
+    <div class="level-pills" id="level-pills"></div>
+  </div>
+
+  <div class="grid" id="grid"><div class="state">Loading criteria…</div></div>
+
+</div>
+
+<script src="/cortex-shell.js" defer></script>
+<script>
+const API = '/api/kpi';
+const LEVELS = [
+  { key: 'account',  label: 'Account' },
+  { key: 'campaign', label: 'Campaign' },
+  { key: 'ad_group', label: 'Ad group' }
+];
+const OPS = [
+  { v:'gt', t:'>' }, { v:'gte', t:'≥' }, { v:'lt', t:'<' }, { v:'lte', t:'≤' },
+  { v:'eq', t:'=' }, { v:'neq', t:'≠' }, { v:'between', t:'between' }
+];
+const UNITS = ['', 'count', 'usd', 'pct', 'ratio'];
+
+let rules = [];
+let statuses = [];
+let expandedId = null;
+let editing = false;
+let creating = false;
+const activeLevels = new Set(LEVELS.map(l => l.key));
+
+const $ = id => document.getElementById(id);
+const editorSel = $('editor');
+editorSel.value = localStorage.getItem('cortex_kpi_editor') || '';
+editorSel.addEventListener('change', () => localStorage.setItem('cortex_kpi_editor', editorSel.value));
+
+function esc(s){ return (s ?? '').toString().replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function levelLabel(k){ const l = LEVELS.find(x=>x.key===k); return l ? l.label : k; }
+function statusById(id){ return statuses.find(s => s.id === id); }
+function opText(v){ const o = OPS.find(x=>x.v===v); return o ? o.t : v; }
+
+$('search').addEventListener('input', render);
+$('filter-status').addEventListener('change', render);
+$('filter-ctype').addEventListener('change', render);
+$('add-card').addEventListener('click', () => { creating = true; expandedId = null; editing = false; render(); });
+
+async function load(){
+  try {
+    const res = await fetch(API);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    rules = data.rules || [];
+    statuses = (data.statuses || []).sort((a,b)=>a.rank-b.rank);
+    buildLevelPills();
+    buildStatusFilter();
+    buildCtypeFilter();
+    render();
+  } catch (err) {
+    $('grid').innerHTML = '<div class="state error">Couldn\u2019t load criteria. ' + esc(String(err)) + '</div>';
+    $('summary').textContent = '';
+  }
+}
+
+function buildLevelPills(){
+  const wrap = $('level-pills');
+  wrap.innerHTML = '';
+  LEVELS.forEach(l => {
+    const b = document.createElement('button');
+    b.className = 'pill' + (activeLevels.has(l.key) ? ' active' : '');
+    b.textContent = l.label;
+    b.addEventListener('click', () => {
+      if (activeLevels.has(l.key)) activeLevels.delete(l.key); else activeLevels.add(l.key);
+      if (activeLevels.size === 0) activeLevels.add(l.key);
+      buildLevelPills(); render();
+    });
+    wrap.appendChild(b);
+  });
+}
+
+function buildStatusFilter(){
+  const sel = $('filter-status');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">All statuses</option>' +
+    statuses.map(s => '<option value="'+s.id+'">'+esc(s.label)+'</option>').join('');
+  sel.value = cur;
+}
+
+function buildCtypeFilter(){
+  const sel = $('filter-ctype');
+  const cur = sel.value;
+  const types = [...new Set(rules.map(r => r.campaign_type).filter(Boolean))].sort();
+  sel.innerHTML = '<option value="">All campaign types</option>' +
+    types.map(t => '<option value="'+esc(t)+'">'+esc(t)+'</option>').join('');
+  sel.value = cur;
+}
+
+function levelRank(k){ const i = LEVELS.findIndex(l=>l.key===k); return i===-1?999:i; }
+
+function visibleRules(){
+  const q = $('search').value.trim().toLowerCase();
+  const sf = $('filter-status').value;
+  const cf = $('filter-ctype').value;
+  return rules.filter(r =>
+    activeLevels.has(r.level) &&
+    (!sf || String(r.status_id) === sf) &&
+    (!cf || r.campaign_type === cf) &&
+    (!q || (r.condition_text||'').toLowerCase().includes(q) ||
+           (r.exception_text||'').toLowerCase().includes(q) ||
+           (r.conditions||[]).some(c => (c.metric||'').toLowerCase().includes(q)))
+  ).sort((a,b) => levelRank(a.level)-levelRank(b.level) ||
+                  (a.status_rank-b.status_rank) ||
+                  a.condition_text.localeCompare(b.condition_text));
+}
+
+function updateSummary(){
+  const total = rules.length;
+  const computable = rules.filter(r => (r.conditions||[]).length > 0).length;
+  const english = total - computable;
+  $('summary').innerHTML =
+    '<strong>' + total + '</strong> criteria' +
+    '<span class="dot">·</span><strong>' + computable + '</strong> computable' +
+    '<span class="dot">·</span><strong>' + english + '</strong> plain-English only';
+}
+
+function render(){
+  updateSummary();
+  const grid = $('grid');
+  grid.innerHTML = '';
+  if (!statuses.length){
+    grid.innerHTML = '<div class="state">No statuses defined yet. Seed kpi_statuses, then add criteria.</div>';
+    return;
+  }
+  if (creating){ grid.appendChild(editPanel(null)); return; }
+  const list = visibleRules();
+  if (!list.length){ grid.innerHTML = '<div class="state">No criteria match.</div>'; return; }
+  for (const r of list){
+    if (r.id === expandedId){
+      grid.appendChild(editing ? editPanel(r) : expandedPanel(r));
+    } else {
+      grid.appendChild(cardFace(r));
+    }
+  }
+}
+
+function statusTag(r){
+  const color = r.status_color || '#5a6472';
+  return '<span class="tag status" style="background:' + esc(color) + '">' + esc(r.status_label) + '</span>';
+}
+
+function cardFace(r){
+  const el = document.createElement('div');
+  el.className = 'card';
+  const n = (r.conditions||[]).length;
+  const condBadge = n > 0
+    ? '<span class="tag cond-count">' + n + (n===1?' condition':' conditions') + '</span>'
+    : '<span class="tag english-only">English only</span>';
+  el.innerHTML =
+    '<div class="card-level">' + esc(levelLabel(r.level)) + '</div>' +
+    '<div class="card-condition">' + esc(r.condition_text) + '</div>' +
+    (r.exception_text ? '<div class="card-except"><b>except</b> ' + esc(r.exception_text) + '</div>' : '') +
+    '<div class="card-tags">' +
+      statusTag(r) +
+      (r.campaign_type ? '<span class="tag ctype">' + esc(r.campaign_type) + '</span>' : '') +
+      condBadge +
+    '</div>';
+  el.addEventListener('click', () => { expandedId = r.id; editing = false; creating = false; render(); });
+  return el;
+}
+
+function condRowsHTML(r){
+  const conds = r.conditions || [];
+  if (!conds.length){
+    return '<div class="cond-empty">No structured conditions — an agent evaluates the statement above. Add conditions to make this rule computable by dashboards.</div>';
+  }
+  const rows = conds.map(c => {
+    const val = c.operator === 'between'
+      ? esc(c.threshold) + ' – ' + esc(c.threshold_high)
+      : esc(c.threshold);
+    return '<div class="cond-pill">' +
+      '<span class="metric">' + esc(c.metric) + '</span>' +
+      '<span class="op">' + esc(opText(c.operator)) + '</span>' +
+      '<span>' + val + (c.unit ? ' ' + esc(c.unit) : '') + '</span>' +
+      (c.window_days != null ? '<span>· ' + esc(c.window_days) + 'd window</span>' : '') +
+    '</div>';
+  }).join('');
+  return '<div class="cond-rows">' + rows + '</div>';
+}
+
+function expandedPanel(r){
+  const el = document.createElement('div');
+  el.className = 'expanded';
+  const conds = r.conditions || [];
+  const matchNote = conds.length > 1
+    ? '<span class="match-note">' + (r.match==='any'?'any condition triggers it':'all conditions must hold') + '</span>'
+    : '';
+  const when = r.updated_at ? new Date(r.updated_at).toLocaleDateString() : '';
+  el.innerHTML =
+    '<div class="exp-head">' +
+      '<div>' +
+        '<div class="exp-level">' + esc(levelLabel(r.level)) + '</div>' +
+        '<div class="exp-condition">' + esc(r.condition_text) + '</div>' +
+      '</div>' +
+      '<div style="display:flex;align-items:center;gap:10px;">' +
+        '<div class="exp-tags">' + statusTag(r) +
+          (r.campaign_type ? '<span class="tag ctype">' + esc(r.campaign_type) + '</span>' : '') +
+        '</div>' +
+        '<button class="exp-close" title="Close"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button>' +
+      '</div>' +
+    '</div>' +
+    (r.exception_text
+      ? '<div class="exp-except"><span class="lbl">Except</span> &nbsp;' + esc(r.exception_text) +
+        '<div style="font-size:12px;color:#aab0b8;margin-top:3px;">When the exception holds, the verdict does not apply.</div></div>'
+      : '') +
+    '<div class="cond-block">' +
+      '<div class="cond-block-head">Structured conditions ' + matchNote + '</div>' +
+      condRowsHTML(r) +
+    '</div>' +
+    (r.notes ? '<div class="exp-meta">Notes: ' + esc(r.notes) + '</div>' : '') +
+    '<div class="exp-meta">' + (r.updated_by ? 'Last edited by ' + esc(r.updated_by) : '') + (when ? ' · ' + when : '') + '</div>' +
+    '<div class="exp-actions">' +
+      '<button class="primary act-edit"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg> Edit</button>' +
+      '<button class="danger act-del">Delete</button>' +
+    '</div>';
+  el.querySelector('.exp-close').addEventListener('click', () => { expandedId = null; render(); });
+  el.querySelector('.act-edit').addEventListener('click', () => { editing = true; render(); });
+  el.querySelector('.act-del').addEventListener('click', () => del(r));
+  return el;
+}
+
+// ---- edit / create ----
+function editPanel(r){
+  const isNew = !r;
+  const data = r || {
+    id:'', level:'account', status_id:(statuses[0]&&statuses[0].id),
+    condition_text:'', exception_text:'', match:'all', campaign_type:'', notes:'',
+    conditions:[]
+  };
+  // working copy of conditions for the editor
+  let workConds = (data.conditions || []).map(c => ({
+    metric:c.metric||'', operator:c.operator||'gt', threshold:c.threshold??'',
+    threshold_high:c.threshold_high??'', unit:c.unit||'', window_days:c.window_days??''
+  }));
+
+  const el = document.createElement('div');
+  el.className = 'expanded';
+
+  const levelOpts = LEVELS.map(l => '<option value="'+l.key+'"'+(l.key===data.level?' selected':'')+'>'+esc(l.label)+'</option>').join('');
+  const statusOpts = statuses.map(s => '<option value="'+s.id+'"'+(s.id===data.status_id?' selected':'')+'>'+esc(s.label)+'</option>').join('');
+
+  function condEditorHTML(){
+    const rowsHTML = workConds.map((c, i) => {
+      const opOpts = OPS.map(o => '<option value="'+o.v+'"'+(o.v===c.operator?' selected':'')+'>'+o.t+'</option>').join('');
+      const unitOpts = UNITS.map(u => '<option value="'+u+'"'+(u===c.unit?' selected':'')+'>'+(u||'unit')+'</option>').join('');
+      const isBetween = c.operator === 'between';
+      return '<div class="cond-edit-row" data-i="'+i+'">' +
+        '<input class="c-metric" placeholder="metric (e.g. conversions)" value="'+esc(c.metric)+'">' +
+        '<select class="c-op">'+opOpts+'</select>' +
+        '<input class="c-val" placeholder="value" value="'+esc(c.threshold)+'">' +
+        (isBetween ? '<input class="c-val c-valhigh" placeholder="and" value="'+esc(c.threshold_high)+'">' : '') +
+        '<select class="c-unit">'+unitOpts+'</select>' +
+        '<input class="c-win" placeholder="window (d)" value="'+esc(c.window_days)+'">' +
+        '<button class="c-del" data-i="'+i+'">✕</button>' +
+      '</div>';
+    }).join('');
+    const matchHTML = workConds.length > 1
+      ? '<div class="match-row">Combine with <select class="f-match">' +
+          '<option value="all"'+(data.match==='all'?' selected':'')+'>all (AND)</option>' +
+          '<option value="any"'+(data.match==='any'?' selected':'')+'>any (OR)</option>' +
+        '</select></div>'
+      : '';
+    return rowsHTML + matchHTML +
+      '<button class="link c-add" type="button">+ Add condition</button>';
+  }
+
+  function syncWorkFromDOM(){
+    el.querySelectorAll('.cond-edit-row').forEach(row => {
+      const i = +row.dataset.i;
+      const prev = workConds[i] || {};
+      const highEl = row.querySelector('.c-valhigh');
+      workConds[i] = {
+        metric: row.querySelector('.c-metric').value.trim(),
+        operator: row.querySelector('.c-op').value,
+        threshold: row.querySelector('.c-val') ? row.querySelector('.c-val').value.trim() : '',
+        // keep the stored high value when the field isn't currently rendered
+        threshold_high: highEl ? highEl.value.trim() : (prev.threshold_high ?? ''),
+        unit: row.querySelector('.c-unit').value,
+        window_days: row.querySelector('.c-win').value.trim()
+      };
+    });
+    const m = el.querySelector('.f-match');
+    if (m) data.match = m.value;
+  }
+
+  function rerenderConds(){
+    syncWorkFromDOM();
+    el.querySelector('.cond-editor-body').innerHTML = condEditorHTML();
+    wireCondEditor();
+  }
+
+  function wireCondEditor(){
+    el.querySelectorAll('.c-del').forEach(b => b.addEventListener('click', () => {
+      syncWorkFromDOM(); workConds.splice(+b.dataset.i, 1); rerenderConds();
+    }));
+    const add = el.querySelector('.c-add');
+    if (add) add.addEventListener('click', () => {
+      syncWorkFromDOM();
+      workConds.push({ metric:'', operator:'gt', threshold:'', threshold_high:'', unit:'', window_days:'' });
+      rerenderConds();
+    });
+    el.querySelectorAll('.c-op').forEach(s => s.addEventListener('change', rerenderConds));
+  }
+
+  el.innerHTML =
+    '<div class="edit-banner">' +
+      '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>' +
+      (isNew ? 'New criterion' : 'Editing criterion') +
+    '</div>' +
+    '<div class="field-row">' +
+      '<div class="field"><label>Level</label><select class="f-level">' + levelOpts + '</select></div>' +
+      '<div class="field"><label>Status / verdict</label><select class="f-status">' + statusOpts + '</select></div>' +
+    '</div>' +
+    '<div class="field"><label>Condition <span class="hint">(plain English — the source of truth)</span></label>' +
+      '<textarea class="f-condition" placeholder="e.g. No conversions in the trailing 7 days">' + esc(data.condition_text) + '</textarea></div>' +
+    '<div class="field"><label>Exception <span class="hint">(optional — when true, the verdict does not apply)</span></label>' +
+      '<input class="f-except" value="' + esc(data.exception_text) + '" placeholder="e.g. unless spend is under $200"></div>' +
+    '<div class="cond-editor">' +
+      '<div class="cond-editor-head"><span class="title">Structured conditions</span>' +
+        '<span class="sub">optional · leave empty for English-only</span></div>' +
+      '<div class="cond-editor-body">' + condEditorHTML() + '</div>' +
+    '</div>' +
+    '<div class="field-row">' +
+      '<div class="field"><label>Campaign type <span class="hint">(blank = all)</span></label>' +
+        '<input class="f-ctype" value="' + esc(data.campaign_type) + '" placeholder="e.g. Repair, Install, LSA"></div>' +
+    '</div>' +
+    '<div class="field"><label>Notes <span class="hint">(optional)</span></label>' +
+      '<input class="f-notes" value="' + esc(data.notes) + '" placeholder="context for the team"></div>' +
+    '<div class="exp-actions">' +
+      '<button class="primary f-save">' + (isNew?'Add criterion':'Save changes') + '</button>' +
+      '<button class="f-cancel">Cancel</button>' +
+    '</div>';
+
+  wireCondEditor();
+
+  el.querySelector('.f-cancel').addEventListener('click', () => {
+    if (isNew) creating = false; else editing = false;
+    render();
+  });
+
+  el.querySelector('.f-save').addEventListener('click', async () => {
+    const editor = editorSel.value;
+    if (!editor){ editorSel.focus(); alert('Pick who you are (top bar) before saving.'); return; }
+    syncWorkFromDOM();
+    const condition_text = el.querySelector('.f-condition').value.trim();
+    if (!condition_text){ alert('Condition (plain English) is required.'); return; }
+
+    // build clean conditions; drop blank rows
+    const conditions = [];
+    for (const c of workConds){
+      if (!c.metric) continue;
+      const row = {
+        metric: c.metric, operator: c.operator,
+        threshold: c.threshold === '' ? null : Number(c.threshold),
+        threshold_high: c.threshold_high === '' ? null : Number(c.threshold_high),
+        unit: c.unit || null,
+        window_days: c.window_days === '' ? null : Number(c.window_days)
+      };
+      if (c.operator === 'between' && (row.threshold == null || row.threshold_high == null)){
+        alert('A "between" condition needs both values.'); return;
+      }
+      conditions.push(row);
+    }
+
+    const payload = {
+      id: isNew ? undefined : data.id,
+      level: el.querySelector('.f-level').value,
+      status_id: Number(el.querySelector('.f-status').value),
+      condition_text,
+      exception_text: el.querySelector('.f-except').value.trim() || null,
+      match: data.match || 'all',
+      campaign_type: el.querySelector('.f-ctype').value.trim() || null,
+      notes: el.querySelector('.f-notes').value.trim() || null,
+      updated_by: editor,
+      conditions
+    };
+
+    const btn = el.querySelector('.f-save');
+    btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      const res = await fetch(API, { method: isNew?'POST':'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+      const out = await res.json();
+      if (out.error) throw new Error(out.error);
+      creating = false; editing = false;
+      expandedId = out.id || data.id;
+      await load();
+    } catch (err){
+      btn.disabled = false; btn.textContent = isNew?'Add criterion':'Save changes';
+      alert('Save failed: ' + err);
+    }
+  });
+
+  return el;
+}
+
+async function del(r){
+  if (!confirm('Delete this criterion?\n\n' + r.condition_text)) return;
+  try {
+    const res = await fetch(API + '?id=' + r.id, { method:'DELETE' });
+    const out = await res.json();
+    if (out.error) throw new Error(out.error);
+    expandedId = null; editing = false;
+    await load();
+  } catch (err){ alert('Delete failed: ' + err); }
+}
+
+load();
+</script>
+</body>
+</html>
