@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Account Standard — Córtex OS</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: #f0f2f5;
+  color: #1a1a2e;
+}
+
+.hero {
+  background: linear-gradient(145deg, #0d1b2a 0%, #0f3460 60%, #1565c0 100%);
+  color: #fff;
+  padding: 44px 32px 40px;
+  text-align: center;
+}
+.hero-eyebrow {
+  font-size: 11px; font-weight: 700; letter-spacing: 2px;
+  text-transform: uppercase; color: rgba(255,255,255,.4); margin-bottom: 10px;
+}
+.hero h1 { font-size: 34px; font-weight: 800; letter-spacing: -1px; }
+.hero p { font-size: 14px; color: rgba(255,255,255,.55); margin-top: 6px; }
+
+.page { max-width: 1060px; margin: 0 auto; padding: 32px 32px 80px; }
+
+.summary { font-size: 13px; color: #757575; margin-bottom: 20px; }
+.summary strong { color: #1a1a2e; font-weight: 700; }
+.summary .dot { color: #c5c5c5; margin: 0 8px; }
+
+.controls { margin-bottom: 22px; }
+.search-row { display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; align-items: center; }
+.search-box { flex: 1; min-width: 220px; position: relative; }
+.search-box input {
+  width: 100%; padding: 10px 14px 10px 38px; font-size: 14px;
+  border: 1px solid #e0e3e8; border-radius: 9px; background: #fff;
+  font-family: inherit; color: #1a1a2e;
+}
+.search-box input:focus { outline: none; border-color: #1565c0; box-shadow: 0 0 0 3px rgba(21,101,192,.12); }
+.search-box svg { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: #bdbdbd; width: 16px; height: 16px; }
+
+select, input, textarea {
+  font-family: inherit; font-size: 14px; color: #1a1a2e;
+  background: #fff; border: 1px solid #e0e3e8; border-radius: 9px; padding: 9px 12px;
+}
+select:focus, input:focus, textarea:focus { outline: none; border-color: #1565c0; box-shadow: 0 0 0 3px rgba(21,101,192,.12); }
+
+.cat-pills { display: flex; gap: 8px; flex-wrap: wrap; }
+.pill {
+  font-size: 12.5px; font-weight: 600; padding: 6px 13px; border-radius: 20px;
+  border: 1px solid #d8dce3; background: #fff; color: #5a6472; cursor: pointer;
+  transition: all .12s; user-select: none;
+}
+.pill:hover { border-color: #1565c0; color: #1565c0; }
+.pill.active { background: #1565c0; border-color: #1565c0; color: #fff; }
+
+.cat-header {
+  font-size: 11px; font-weight: 700; letter-spacing: .8px; text-transform: uppercase;
+  color: #9aa0aa; margin: 6px 0 11px 2px;
+}
+.cat-header:first-of-type { margin-top: 0; }
+.cat-block { margin-bottom: 24px; }
+
+.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+@media (max-width: 880px) { .grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 600px) { .grid { grid-template-columns: 1fr; } }
+
+.card {
+  background: #fff; border-radius: 12px; padding: 16px 16px 14px;
+  border: 1px solid #e8eaed; box-shadow: 0 1px 4px rgba(0,0,0,.07);
+  cursor: pointer; transition: transform .15s, box-shadow .15s, border-color .15s;
+  display: flex; flex-direction: column; gap: 9px;
+}
+.card:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,.11); border-color: #c5d5f5; }
+.card.pending { background: #f7f8fa; border-color: #e3e6ea; box-shadow: none; }
+.card.pending:hover { box-shadow: 0 6px 18px rgba(0,0,0,.07); }
+
+.level-chip {
+  font-size: 10px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase;
+  color: #1565c0; background: #e8f0fe; padding: 2px 8px; border-radius: 5px; align-self: flex-start;
+}
+.card-item { font-size: 15px; font-weight: 700; line-height: 1.3; color: #1a1a2e; }
+.card.pending .card-item { color: #6b7280; font-weight: 600; }
+.card-position { font-size: 13px; line-height: 1.5; color: #5a6472; }
+.card-position.empty { color: #aab0b8; font-style: italic; }
+
+.exc-block { background: #fff8e6; border: 1px solid #f5e3b3; border-radius: 7px; padding: 7px 9px; }
+.exc-label { font-size: 9.5px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; color: #a87b1a; }
+.exc-text { font-size: 12px; color: #7a5a12; margin-top: 2px; line-height: 1.4; }
+
+.card-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 2px; }
+.tag { font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 20px; }
+.tag.confirmed { background: #e6f4ea; color: #1e7e44; }
+.tag.pending { background: #eceef1; color: #8a909a; }
+
+.expanded {
+  grid-column: 1 / -1;
+  background: #fff; border-radius: 12px; padding: 24px 26px;
+  border: 1px solid #c5d5f5; box-shadow: 0 8px 28px rgba(0,0,0,.12);
+}
+.exp-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 4px; }
+.exp-level { font-size: 11px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; color: #9aa0aa; margin-bottom: 6px; }
+.exp-title { font-size: 22px; font-weight: 800; letter-spacing: -.4px; line-height: 1.2; }
+.exp-tags { display: flex; gap: 6px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
+.exp-close { background: none; border: none; cursor: pointer; color: #9aa0aa; padding: 4px; border-radius: 6px; }
+.exp-close:hover { background: #f0f2f5; color: #5a6472; }
+.exp-body { font-size: 15px; line-height: 1.65; color: #3a414d; white-space: pre-wrap; margin: 16px 0 12px; }
+.exp-body.empty { color: #aab0b8; font-style: italic; }
+.exp-exc { background: #fff8e6; border: 1px solid #f5e3b3; border-radius: 9px; padding: 12px 14px; margin: 0 0 20px; }
+.exp-exc .exc-label { font-size: 10.5px; }
+.exp-exc .exp-exc-text { font-size: 14px; color: #7a5a12; margin-top: 4px; line-height: 1.5; }
+.exp-actions { display: flex; gap: 10px; }
+
+button {
+  font-family: inherit; font-size: 14px; cursor: pointer; font-weight: 600;
+  background: #fff; color: #1a1a2e; border: 1px solid #d8dce3; border-radius: 9px; padding: 9px 16px;
+  transition: background .12s, border-color .12s;
+}
+button:hover { background: #f7f8fa; border-color: #c5cbd4; }
+button.primary { background: #1565c0; border-color: #1565c0; color: #fff; }
+button.primary:hover { background: #1976d2; }
+button.add-card { display: inline-flex; align-items: center; gap: 6px; background: #1565c0; border-color: #1565c0; color: #fff; }
+button.add-card:hover { background: #1976d2; }
+
+.field { margin-bottom: 14px; }
+.field label { display: block; font-size: 12.5px; font-weight: 600; color: #5a6472; margin-bottom: 5px; }
+.field .hint { color: #aab0b8; font-weight: 400; }
+.field input, .field textarea, .field select { width: 100%; }
+.field textarea { resize: vertical; min-height: 90px; line-height: 1.6; }
+.field textarea.exc { min-height: 60px; }
+.field-row { display: flex; gap: 14px; flex-wrap: wrap; }
+.field-row .field { flex: 1; min-width: 140px; }
+.edit-banner { font-size: 12.5px; font-weight: 600; color: #1565c0; margin-bottom: 16px; display: flex; align-items: center; gap: 7px; }
+
+.state { text-align: center; padding: 60px 20px; color: #9aa0aa; }
+.state.error { color: #c0392b; }
+svg.ic { width: 15px; height: 15px; vertical-align: -2px; }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <div class="hero-eyebrow">Paid Media</div>
+  <h1>Account Standard</h1>
+  <p>What an ODC account must look like — structurally</p>
+</div>
+
+<div class="page">
+
+  <div class="summary" id="summary">Loading…</div>
+
+  <div class="controls">
+    <div class="search-row">
+      <div class="search-box">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <input type="text" id="search" placeholder="Search standards…" autocomplete="off">
+      </div>
+      <select id="editor" title="Who's editing">
+        <option value="">Editing as…</option>
+        <option>Nate</option>
+        <option>Juanes</option>
+        <option>Martín</option>
+      </select>
+      <select id="filter-status">
+        <option value="">All statuses</option>
+        <option value="confirmed">Confirmed</option>
+        <option value="pending">Pending</option>
+      </select>
+      <select id="filter-level">
+        <option value="">All levels</option>
+        <option>Account</option>
+        <option>Campaign</option>
+        <option>Ad Group</option>
+        <option>Ad</option>
+      </select>
+      <button class="add-card" id="add-card">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+        New
+      </button>
+    </div>
+    <div class="cat-pills" id="cat-pills"></div>
+  </div>
+
+  <div id="content"><div class="state">Loading standards…</div></div>
+
+</div>
+
+<script src="/cortex-shell.js" defer></script>
+<script>
+const API = '/api/account-standard';
+const STATUS = ['confirmed', 'pending'];
+const LEVELS = ['Account', 'Campaign', 'Ad Group', 'Ad'];
+const CATEGORIES = [
+  'Data Connections',
+  'Conversion Configuration',
+  'Ad Assets',
+  'Campaign Structure',
+  'Keywords & Match Types',
+  'Targeting',
+  'Ad Copy',
+  'Landing Pages',
+  'Ad Schedules',
+  'Compliance'
+];
+
+let rows = [];
+let expandedId = null;
+let editing = false;
+let creating = false;
+const activeCats = new Set(CATEGORIES);
+
+const $ = id => document.getElementById(id);
+const editorSel = $('editor');
+editorSel.value = localStorage.getItem('cortex_standard_editor') || '';
+editorSel.addEventListener('change', () => localStorage.setItem('cortex_standard_editor', editorSel.value));
+
+function esc(s){ return (s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+$('search').addEventListener('input', render);
+$('filter-status').addEventListener('change', render);
+$('filter-level').addEventListener('change', render);
+$('add-card').addEventListener('click', () => { creating = true; expandedId = null; editing = false; render(); });
+
+function catRank(c){ const i = CATEGORIES.indexOf(c); return i === -1 ? 999 : i; }
+
+async function load(){
+  try {
+    const res = await fetch(API);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    rows = data.rows || [];
+    buildPills();
+    render();
+  } catch (err) {
+    $('content').innerHTML = '<div class="state error">Couldn\u2019t load standards. ' + esc(String(err)) + '</div>';
+    $('summary').textContent = '';
+  }
+}
+
+function buildPills(){
+  const wrap = $('cat-pills');
+  wrap.innerHTML = '';
+  CATEGORIES.forEach(c => {
+    const b = document.createElement('button');
+    b.className = 'pill' + (activeCats.has(c) ? ' active' : '');
+    b.textContent = c;
+    b.addEventListener('click', () => {
+      if (activeCats.has(c)) activeCats.delete(c); else activeCats.add(c);
+      if (activeCats.size === 0) activeCats.add(c);
+      buildPills();
+      render();
+    });
+    wrap.appendChild(b);
+  });
+}
+
+function visibleRows(){
+  const q = $('search').value.trim().toLowerCase();
+  const sf = $('filter-status').value;
+  const lf = $('filter-level').value;
+  return rows.filter(r =>
+    activeCats.has(r.category) &&
+    (!sf || r.status === sf) &&
+    (!lf || r.level === lf) &&
+    (!q ||
+      (r.item||'').toLowerCase().includes(q) ||
+      (r.position||'').toLowerCase().includes(q) ||
+      (r.exception||'').toLowerCase().includes(q))
+  );
+}
+
+function updateSummary(){
+  const total = rows.length;
+  const pending = rows.filter(r => r.status === 'pending').length;
+  const confirmed = total - pending;
+  $('summary').innerHTML =
+    '<strong>' + total + '</strong> standards' +
+    '<span class="dot">·</span><strong>' + confirmed + '</strong> confirmed' +
+    '<span class="dot">·</span><strong>' + pending + '</strong> pending';
+}
+
+function render(){
+  updateSummary();
+  const root = $('content');
+  root.innerHTML = '';
+
+  if (creating){
+    const block = document.createElement('div');
+    block.className = 'cat-block';
+    const grid = document.createElement('div');
+    grid.className = 'grid';
+    grid.appendChild(editPanel(null));
+    block.appendChild(grid);
+    root.appendChild(block);
+    return;
+  }
+
+  const list = visibleRows();
+  if (!list.length){ root.innerHTML = '<div class="state">No standards match.</div>'; return; }
+
+  // Group by category, in canonical order, each as its own block.
+  const byCat = {};
+  for (const r of list){ (byCat[r.category] ??= []).push(r); }
+  const cats = Object.keys(byCat).sort((a,b) => catRank(a) - catRank(b));
+
+  for (const cat of cats){
+    const block = document.createElement('div');
+    block.className = 'cat-block';
+    const h = document.createElement('div');
+    h.className = 'cat-header';
+    h.textContent = cat;
+    block.appendChild(h);
+
+    const grid = document.createElement('div');
+    grid.className = 'grid';
+    const items = byCat[cat].sort((a,b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.item.localeCompare(b.item));
+    for (const r of items){
+      if (r.item_id === expandedId){
+        grid.appendChild(editing ? editPanel(r) : expandedPanel(r));
+      } else {
+        grid.appendChild(cardFace(r));
+      }
+    }
+    block.appendChild(grid);
+    root.appendChild(block);
+  }
+}
+
+function statusLabel(s){ return s === 'confirmed' ? 'Confirmed' : 'Pending'; }
+
+function cardFace(r){
+  const el = document.createElement('div');
+  el.className = 'card ' + r.status;
+  const hasPos = r.position && r.position.trim().length;
+  const hasExc = r.exception && r.exception.trim().length;
+  el.innerHTML =
+    '<span class="level-chip">' + esc(r.level) + '</span>' +
+    '<div class="card-item">' + esc(r.item) + '</div>' +
+    (hasPos
+      ? '<div class="card-position">' + esc(r.position) + '</div>'
+      : '<div class="card-position empty">No standard written yet.</div>') +
+    (hasExc
+      ? '<div class="exc-block"><span class="exc-label">Exception</span><div class="exc-text">' + esc(r.exception) + '</div></div>'
+      : '') +
+    '<div class="card-tags">' +
+      '<span class="tag ' + r.status + '">' + statusLabel(r.status) + '</span>' +
+    '</div>';
+  el.addEventListener('click', () => { expandedId = r.item_id; editing = false; creating = false; render(); });
+  return el;
+}
+
+function expandedPanel(r){
+  const el = document.createElement('div');
+  el.className = 'expanded';
+  const hasPos = r.position && r.position.trim().length;
+  const hasExc = r.exception && r.exception.trim().length;
+  el.innerHTML =
+    '<div class="exp-head">' +
+      '<div>' +
+        '<div class="exp-level">' + esc(r.category) + ' · ' + esc(r.level) + '</div>' +
+        '<div class="exp-title">' + esc(r.item) + '</div>' +
+      '</div>' +
+      '<div style="display:flex;align-items:center;gap:10px;">' +
+        '<div class="exp-tags">' +
+          '<span class="tag ' + r.status + '">' + statusLabel(r.status) + '</span>' +
+        '</div>' +
+        '<button class="exp-close" title="Close"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button>' +
+      '</div>' +
+    '</div>' +
+    (hasPos
+      ? '<div class="exp-body">' + esc(r.position) + '</div>'
+      : '<div class="exp-body empty">No standard written yet — click edit to add one.</div>') +
+    (hasExc
+      ? '<div class="exp-exc"><span class="exc-label">Exception</span><div class="exp-exc-text">' + esc(r.exception) + '</div></div>'
+      : '') +
+    '<div class="exp-actions">' +
+      '<button class="primary act-edit"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg> Edit</button>' +
+    '</div>';
+  el.querySelector('.exp-close').addEventListener('click', () => { expandedId = null; render(); });
+  el.querySelector('.act-edit').addEventListener('click', () => { editing = true; render(); });
+  return el;
+}
+
+function editPanel(r){
+  const isNew = !r;
+  const data = r || { item_id:'', category:CATEGORIES[0], level:'Account', item:'', position:'', exception:'', status:'pending', sort_order:0 };
+  const el = document.createElement('div');
+  el.className = 'expanded';
+
+  const catOpts = CATEGORIES.map(c => '<option' + (c===data.category?' selected':'') + '>' + esc(c) + '</option>').join('');
+  const levelOpts = LEVELS.map(l => '<option' + (l===data.level?' selected':'') + '>' + esc(l) + '</option>').join('');
+  const statusOpts = STATUS.map(s => '<option value="'+s+'"' + (s===data.status?' selected':'') + '>' + statusLabel(s) + '</option>').join('');
+
+  el.innerHTML =
+    '<div class="edit-banner">' +
+      '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>' +
+      (isNew ? 'New standard — saving adds it' : 'Editing — saving creates a new version') +
+    '</div>' +
+    '<div class="field-row">' +
+      '<div class="field"><label>Category</label><select class="f-category">' + catOpts + '</select></div>' +
+      '<div class="field"><label>Level</label><select class="f-level">' + levelOpts + '</select></div>' +
+    '</div>' +
+    '<div class="field"><label>Item</label><input class="f-item" value="' + esc(data.item) + '" placeholder="e.g. Disapproved ads"></div>' +
+    '<div class="field"><label>Position <span class="hint">(the rule — leave blank if still pending)</span></label>' +
+      '<textarea class="f-position" placeholder="What must be true?">' + esc(data.position) + '</textarea></div>' +
+    '<div class="field"><label>Exception <span class="hint">(standing, universal carve-out — optional)</span></label>' +
+      '<textarea class="f-exception exc" placeholder="e.g. unless the ad is under appeal">' + esc(data.exception) + '</textarea></div>' +
+    '<div class="field-row">' +
+      '<div class="field"><label>Status</label><select class="f-status">' + statusOpts + '</select></div>' +
+      '<div class="field"><label>Sort order <span class="hint">(within category)</span></label><input class="f-sort" type="number" value="' + (data.sort_order ?? 0) + '"></div>' +
+    '</div>' +
+    '<div class="exp-actions">' +
+      '<button class="primary f-save">' + (isNew?'Add standard':'Save new version') + '</button>' +
+      '<button class="f-cancel">Cancel</button>' +
+    '</div>';
+
+  el.querySelector('.f-cancel').addEventListener('click', () => {
+    if (isNew) creating = false; else editing = false;
+    render();
+  });
+
+  el.querySelector('.f-save').addEventListener('click', async () => {
+    const editor = editorSel.value;
+    if (!editor){ editorSel.focus(); alert('Pick who you are (top bar) before saving.'); return; }
+    const item = el.querySelector('.f-item').value.trim();
+    const category = el.querySelector('.f-category').value;
+    if (!item){ alert('Item is required.'); return; }
+
+    const sortRaw = parseInt(el.querySelector('.f-sort').value, 10);
+
+    const payload = {
+      item_id: isNew ? slugify(category, item) : data.item_id,
+      category,
+      level: el.querySelector('.f-level').value,
+      item,
+      position: el.querySelector('.f-position').value.trim() || null,
+      exception: el.querySelector('.f-exception').value.trim() || null,
+      status: el.querySelector('.f-status').value,
+      sort_order: Number.isInteger(sortRaw) ? sortRaw : 0,
+      edited_by: editor
+    };
+
+    const btn = el.querySelector('.f-save');
+    btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      const res = await fetch(API, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+      const out = await res.json();
+      if (out.error) throw new Error(out.error);
+      creating = false; editing = false;
+      expandedId = payload.item_id;
+      await load();
+    } catch (err){
+      btn.disabled = false; btn.textContent = isNew?'Add standard':'Save new version';
+      alert('Save failed: ' + err);
+    }
+  });
+
+  return el;
+}
+
+function slugify(category, item){
+  const c = (category.split(/\s+/)[0] || 'cat').toLowerCase().replace(/[^a-z0-9]/g,'');
+  const t = item.toLowerCase().trim().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,40);
+  return (c||'cat') + '.' + (t||Date.now());
+}
+
+load();
+</script>
+</body>
+</html>
