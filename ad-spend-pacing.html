@@ -200,7 +200,7 @@ td.tcell { width:1%; white-space:nowrap; padding-right:4px; }
 const DATA_WEBHOOK_URL  = "https://naterimc.app.n8n.cloud/webhook/odc-pacing-data";
 const AGENT_WEBHOOK_URL = "https://naterimc.app.n8n.cloud/webhook/odc-pacing-agent";
 
-const OK_LOW = 0.92, OK_HIGH = 1.08;     /* on track within +/-8% */
+const OK_LOW = 0.85, OK_HIGH = 1.15;     /* on track within +/-15% of time-prorated pace */
 const YEAR_TRIGGER = 0.05;               /* year correction flag at +/-5% */
 
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -269,12 +269,22 @@ function mondayIdFor(client){ const r=rowsFor(client).find(x=>x.mondayClientId);
 function isODC(client){ return /odc/i.test(client); }
 function sourceLabelFor(client){ return isODC(client)?'ODC':'Non-ODC'; }
 
-function statusOf(pacingPct, committed, actual){
+function statusOf(paceRatio, committed, actual){
   if(committed<=0 && actual<=0) return 'idle';
   if(committed<=0 && actual>0) return 'dang';
-  if(pacingPct>OK_HIGH) return 'dang';
-  if(pacingPct<OK_LOW) return 'warn';
+  if(actual<=0) return 'idle';                 /* committed but nothing spent yet (e.g. future month) */
+  if(paceRatio>OK_HIGH) return 'dang';
+  if(paceRatio<OK_LOW) return 'warn';
   return 'ok';
+}
+/* pace ratio: actual vs where you SHOULD be for the viewed month.
+   current month -> prorate committed by days elapsed; past month -> full; future -> 0 */
+function paceRatioOf(committed, actual, month){
+  if(committed<=0) return 0;
+  if(month < DIMS.current_month) return actual/committed;
+  if(month > DIMS.current_month) return 0;
+  const frac = DIMS.days_in_month>0 ? DIMS.days_elapsed/DIMS.days_in_month : 1;
+  return frac>0 ? actual/(committed*frac) : 0;
 }
 function statusLabel(s){ return s==='ok'?'On track':s==='warn'?'Underspending':s==='dang'?'Overspending':'No activity'; }
 function pillClass(s){ return s==='ok'?'p-ok':s==='warn'?'p-warn':'p-dang'; }
@@ -293,7 +303,7 @@ function channelRows(client,m){
   }
   return CH_ORDER.filter(ch=>map[ch]).map(ch=>{
     const o=map[ch]; o.variance=o.actual-o.committed; o.pct=o.committed?o.actual/o.committed:0;
-    o.status=statusOf(o.pct,o.committed,o.actual); return o;
+    o.status=statusOf(paceRatioOf(o.committed,o.actual,m),o.committed,o.actual); return o;
   });
 }
 function yearPacing(client,asof){
@@ -330,7 +340,7 @@ function passesFilter(client){
   }
   if(FILTERS.am!=='all' && amFor(client)!==FILTERS.am) return false;
   if(FILTERS.status!=='all'){
-    const m=monthPacing(client,ASOF), s=statusOf(m.pct,m.committed,m.actual);
+    const m=monthPacing(client,ASOF), s=statusOf(paceRatioOf(m.committed,m.actual,ASOF),m.committed,m.actual);
     if(FILTERS.status==='over' && s!=='dang') return false;
     if(FILTERS.status==='under' && s!=='warn') return false;
     if(FILTERS.status==='ontrack' && s!=='ok') return false;
@@ -372,7 +382,7 @@ function wireFilters(){
 function renderOverview(){
   const cs=clients().filter(passesFilter);
   let tc=0,ta=0; const rows=cs.map(c=>{ const m=monthPacing(c,ASOF); tc+=m.committed; ta+=m.actual; return {c,m}; });
-  const onTrack=rows.filter(r=>statusOf(r.m.pct,r.m.committed,r.m.actual)==='ok').length;
+  const onTrack=rows.filter(r=>statusOf(paceRatioOf(r.m.committed,r.m.actual,ASOF),r.m.committed,r.m.actual)==='ok').length;
 
   let h=renderFiltersBar();
   h+='<div class="cards">';
@@ -389,7 +399,7 @@ function renderOverview(){
   for(const {c,m} of rows){
     const chans=channelRows(c,ASOF);
     const chips=chans.map(chip).join(' ');
-    const s=statusOf(m.pct,m.committed,m.actual);
+    const s=statusOf(paceRatioOf(m.committed,m.actual,ASOF),m.committed,m.actual);
     const col=Math.abs(m.variance)<1?'':(m.variance>0?'color:#c5221f':'color:#a15c00');
     let rec='&mdash;';
     if(ASOF===DIMS.current_month){
@@ -430,7 +440,7 @@ function renderClient(client){
   const m=monthPacing(client,ASOF), y=yearPacing(client,ASOF), chans=channelRows(client,ASOF);
   const isCur=(ASOF===DIMS.current_month);
   const cu=catchupForMonth(client,ASOF);
-  const s=statusOf(m.pct,m.committed,m.actual);
+  const s=statusOf(paceRatioOf(m.committed,m.actual,ASOF),m.committed,m.actual);
 
   let h='<span class="back" id="back">&larr; All clients</span>';
   h+='<div class="detail-head"><h2>'+client+'</h2><span class="pill '+pillClass(s)+'">'+statusLabel(s)+'</span>'
