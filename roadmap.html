@@ -137,9 +137,17 @@
   .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: .7rem; font-size: 14px; color: var(--ph-faint); letter-spacing: .04em; align-items: center; }
   .legend .k { display: flex; align-items: center; gap: 6px; }
 
-  /* terminal (agent) */
-  .term { margin-top: 1.3rem; border: 1px solid var(--ph-dim); background: #030703; }
-  .term-bar { background: rgba(0,255,65,.08); border-bottom: 1px solid var(--ph-faint); padding: 4px 11px; font-size: 14px; color: var(--ph-dim); letter-spacing: .1em; display: flex; justify-content: space-between; }
+  /* terminal (agent) — sticky at bottom of viewport */
+  .term {
+    position: sticky; bottom: 0; z-index: 80;
+    margin-top: 1.3rem; border: 1px solid var(--ph-dim); background: #030703;
+    box-shadow: 0 -10px 24px rgba(0,0,0,.55);
+  }
+  .term-bar { background: rgba(0,255,65,.08); border-bottom: 1px solid var(--ph-faint); padding: 4px 11px; font-size: 14px; color: var(--ph-dim); letter-spacing: .1em; display: flex; justify-content: space-between; align-items: center; }
+  .term-bar .bar-left { display: flex; align-items: center; gap: 10px; }
+  .term-toggle { background: transparent; border: 1px solid var(--ph-faint); color: var(--ph-dim); font-family: inherit; font-size: 13px; letter-spacing: .08em; padding: 1px 8px; cursor: pointer; }
+  .term-toggle:hover { color: var(--ph); border-color: var(--ph-dim); }
+  .term.collapsed .term-scroll, .term.collapsed .quicks { display: none; }
   .term-scroll { height: 150px; overflow-y: auto; padding: 10px 13px; font-size: 16px; line-height: 1.32; }
   .term-scroll::-webkit-scrollbar { width: 6px; } .term-scroll::-webkit-scrollbar-thumb { background: var(--ph-faint); }
   .t-line { margin: 1px 0; letter-spacing: .03em; white-space: pre-wrap; word-break: break-word; }
@@ -159,6 +167,7 @@
     .alerts { grid-template-columns: 1fr; }
     .t-row { grid-template-columns: 20px 1fr 56px; }
     .t-row .dates, .t-row .flag { display: none; }
+    .term-scroll { height: 110px; }
   }
 </style>
 </head>
@@ -213,8 +222,11 @@
   </div>
 
   <!-- AGENT TERMINAL — wired to /api/roadmap-agent -->
-  <div class="term">
-    <div class="term-bar"><span>AGENT TERMINAL</span><span id="term-status">OFFLINE</span></div>
+  <div class="term" id="term">
+    <div class="term-bar">
+      <span class="bar-left"><span>AGENT TERMINAL</span><span id="term-status">OFFLINE</span></span>
+      <button class="term-toggle" id="term-toggle" aria-expanded="true">HIDE</button>
+    </div>
     <div class="term-scroll" id="term-scroll"></div>
     <div class="quicks">
       <button class="qbtn" data-cmd="/brief">/brief</button>
@@ -449,6 +461,17 @@ document.getElementById("term-input").addEventListener("keydown", function(e){
 Array.prototype.forEach.call(document.querySelectorAll(".qbtn"), function(b){
   b.addEventListener("click", function(){ askAgent(b.getAttribute("data-cmd")); });
 });
+
+// collapse / expand the sticky terminal body
+(function(){
+  var term = document.getElementById("term");
+  var btn = document.getElementById("term-toggle");
+  btn.addEventListener("click", function(){
+    var collapsed = term.classList.toggle("collapsed");
+    btn.textContent = collapsed ? "SHOW" : "HIDE";
+    btn.setAttribute("aria-expanded", String(!collapsed));
+  });
+})();
 
 // boot
 document.getElementById("term-status").textContent = "ONLINE";
