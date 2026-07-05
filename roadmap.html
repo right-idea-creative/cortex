@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="theme-color" content="#050a05" />
+<title>Roadmap — Córtex Account Intelligence</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=VT323&family=Special+Elite&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --crt-bg: #050a05;
+    --ph: #00ff41;
+    --ph-dim: rgba(0, 255, 65, .5);
+    --ph-faint: rgba(0, 255, 65, .22);
+    --ph-ghost: rgba(0, 255, 65, .1);
+    --amber: #ffb000;
+    --amber-dim: rgba(255, 176, 0, .55);
+    --red: #ff2b2b;
+    --red-dim: rgba(255, 43, 43, .6);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--crt-bg); color: var(--ph);
+    font-family: "VT323", monospace; min-height: 100vh;
+  }
+  body::after {
+    content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 90;
+    background: repeating-linear-gradient(to bottom,
+      rgba(0,0,0,0) 0px, rgba(0,0,0,0) 2px,
+      rgba(0,255,65,.03) 3px, rgba(0,0,0,.12) 4px);
+  }
+  @keyframes tick { from{transform:translateX(0);} to{transform:translateX(-50%);} }
+  @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:.3;} }
+  @keyframes barpulse { 0%,100%{opacity:1;} 50%{opacity:.5;} }
+  @keyframes blink { 0%,49%{opacity:1;} 50%,100%{opacity:0;} }
+  @media (prefers-reduced-motion: reduce) { .tick-track { animation: none !important; } }
+
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 1.1rem 1.2rem 3rem; }
+
+  .head-line {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin-bottom: .8rem; flex-wrap: wrap; gap: .4rem;
+  }
+  .head-line h1 {
+    font-family: inherit; font-weight: 400; font-size: 26px; margin: 0;
+    letter-spacing: .1em; color: var(--ph); text-shadow: 0 0 8px rgba(0,255,65,.4);
+  }
+  .head-line .sub { font-size: 16px; color: var(--ph-faint); letter-spacing: .06em; }
+
+  /* ticker */
+  .ticker {
+    overflow: hidden; white-space: nowrap;
+    border-top: 1px solid var(--ph-faint); border-bottom: 1px solid var(--ph-faint);
+    padding: 5px 0; margin-bottom: 1.1rem;
+    -webkit-mask-image: linear-gradient(90deg,transparent,#000 3%,#000 97%,transparent);
+    mask-image: linear-gradient(90deg,transparent,#000 3%,#000 97%,transparent);
+  }
+  .tick-track {
+    display: inline-block; animation: tick 40s linear infinite;
+    font-size: 16px; color: var(--ph-dim); letter-spacing: .05em;
+  }
+  .tick-track span { margin-right: 42px; }
+  .tick-track .warn { color: var(--amber); } .tick-track .bad { color: var(--red); }
+
+  /* filter strip */
+  .filter-strip { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: .9rem; }
+  .filt {
+    background: transparent; border: 1px solid var(--ph-faint); color: var(--ph-dim);
+    font-family: inherit; font-size: 15px; letter-spacing: .08em;
+    padding: 5px 12px; cursor: pointer; transition: all .12s; white-space: nowrap;
+  }
+  .filt:hover { color: var(--ph); border-color: var(--ph-dim); }
+  .filt.active {
+    background: rgba(0,255,65,.14); color: var(--ph); border-color: var(--ph);
+    text-shadow: 0 0 6px rgba(0,255,65,.5);
+  }
+  .filt .ct { margin-left: 7px; color: var(--ph-faint); }
+
+  /* hero: gantt + rail */
+  .hero { display: grid; grid-template-columns: minmax(0,1fr) 300px; gap: 1.1rem; align-items: start; }
+
+  /* gantt */
+  .gantt { border: 1px solid var(--ph-faint); padding: 10px 12px 14px; overflow: hidden; }
+  .g-head { display: grid; grid-template-columns: 220px 1fr; align-items: end; height: 30px; margin-bottom: 4px; border-bottom: 1px solid var(--ph-ghost); }
+  .g-head-track { position: relative; height: 30px; }
+  .g-wk { position: absolute; bottom: 2px; font-size: 12px; color: var(--ph-faint); transform: translateX(-50%); letter-spacing: .04em; white-space: nowrap; }
+  .g-gate-flag { position: absolute; top: 0; font-size: 12px; color: var(--amber); transform: translateX(-50%); white-space: nowrap; }
+  .rowswrap { position: relative; margin-top: 4px; }
+  .g-ovl { position: absolute; left: 220px; right: 0; top: 0; bottom: 0; pointer-events: none; }
+  .g-line { position: absolute; top: 0; bottom: 0; width: 0; border-left: 1px solid var(--ph-ghost); }
+  .g-gateline { position: absolute; top: 0; bottom: 0; width: 0; border-left: 1px dashed var(--amber-dim); }
+  .g-nowline { position: absolute; top: 0; bottom: 0; width: 0; border-left: 1px solid var(--ph); box-shadow: 0 0 6px var(--ph); }
+
+  .g-stage {
+    display: grid; grid-template-columns: 220px 1fr; align-items: center;
+    margin-top: 10px; height: 24px;
+  }
+  .g-stage .s-name { font-size: 15px; color: var(--ph); letter-spacing: .08em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 8px; }
+  .g-stage .s-meta { position: relative; height: 24px; }
+  .g-stage .s-span { position: absolute; font-size: 13px; color: var(--ph-faint); top: 4px; letter-spacing: .04em; white-space: nowrap; }
+
+  .g-row { display: grid; grid-template-columns: 220px 1fr; align-items: center; min-height: 25px; }
+  .g-label {
+    font-size: 14px; color: var(--ph-dim); white-space: nowrap; overflow: hidden;
+    text-overflow: ellipsis; padding-right: 10px; cursor: pointer; letter-spacing: .02em;
+  }
+  .g-label:hover { color: var(--ph); text-shadow: 0 0 5px rgba(0,255,65,.4); }
+  .g-label .stat { color: var(--ph-faint); margin-right: 4px; }
+  .g-label.done .stat { color: var(--ph); }
+  .g-label.late { color: rgba(255,120,120,.95); }
+  .g-label.late .stat { color: var(--red); }
+  .g-track { position: relative; height: 25px; }
+  .g-bar {
+    position: absolute; top: 6px; height: 13px; min-width: 6px; border-radius: 2px; cursor: pointer;
+  }
+  /* owner encodings */
+  .g-bar.nate  { background: var(--ph); box-shadow: 0 0 5px rgba(0,255,65,.4); }
+  .g-bar.sebas { background: transparent; border: 1.4px solid var(--ph); }
+  .g-bar.both  { background: var(--amber); box-shadow: 0 0 5px rgba(255,176,0,.4); }
+  .g-bar.gate  { border-radius: 0; transform: skewX(-16deg); }
+  .g-bar.done  { opacity: .34; }
+  .g-bar.late  { background: var(--red) !important; border-color: var(--red) !important; box-shadow: 0 0 7px rgba(255,43,43,.6); animation: barpulse 1.6s ease-in-out infinite; }
+  .g-bar.inprogress { animation: barpulse 2.2s ease-in-out infinite; }
+
+  /* right rail */
+  .rail { display: flex; flex-direction: column; gap: 1.1rem; padding-top: 2px; }
+  .panel { border: 1px solid var(--ph-faint); padding: 10px 11px 11px; }
+  .panel h3 {
+    font-family: inherit; font-weight: 400; font-size: 15px; margin: 0 0 8px;
+    letter-spacing: .16em; color: var(--ph-dim);
+    border-bottom: 1px solid var(--ph-ghost); padding-bottom: 5px;
+  }
+  .sig-row { display: flex; justify-content: space-between; align-items: center; font-size: 15px; padding: 3px 0; color: var(--ph-dim); letter-spacing: .04em; }
+  .sig-row .v { color: var(--ph); }
+  .sig-row .v.warn { color: var(--amber); } .sig-row .v.bad { color: var(--red); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+  .dot.ok { background: var(--ph); box-shadow: 0 0 5px var(--ph); }
+  .gate-row { padding: 5px 0; border-bottom: 1px solid var(--ph-ghost); cursor: pointer; }
+  .gate-row:last-child { border-bottom: none; }
+  .gate-row .g-t { font-size: 15px; color: var(--ph-dim); letter-spacing: .04em; display: flex; justify-content: space-between; }
+  .gate-row:hover .g-t { color: var(--ph); }
+  .gate-row .g-d { font-size: 13px; color: var(--ph-faint); }
+  .gate-row .when { color: var(--amber); } .gate-row .when.over { color: var(--red); }
+
+  /* alert row */
+  .alerts { display: grid; grid-template-columns: 1fr 1fr; gap: 1.1rem; margin-top: 1.3rem; }
+  .alert { border: 1px solid; padding: 11px 13px 12px; }
+  .alert h3 { font-family: inherit; font-weight: 400; font-size: 17px; margin: 0 0 8px; letter-spacing: .12em; display: flex; align-items: center; gap: 8px; }
+  .alert.late { border-color: var(--red-dim); } .alert.late h3 { color: var(--red); }
+  .alert.late h3 .lamp { width: 9px; height: 9px; border-radius: 50%; background: var(--red); animation: pulse 1.4s infinite; }
+  .alert.flight { border-color: var(--amber-dim); } .alert.flight h3 { color: var(--amber); }
+  .alert.flight h3 .lamp { width: 9px; height: 9px; border-radius: 50%; background: var(--amber); }
+  .arow { font-size: 16px; padding: 3px 0; letter-spacing: .04em; display: flex; justify-content: space-between; gap: .6rem; cursor: pointer; }
+  .alert.late .arow { color: rgba(255,120,120,.9); } .alert.late .arow .sub { color: var(--red-dim); }
+  .alert.flight .arow { color: rgba(255,206,120,.95); } .alert.flight .arow .sub { color: var(--amber-dim); }
+  .arow:hover { text-shadow: 0 0 6px currentColor; }
+  .empty { font-size: 15px; color: var(--ph-faint); letter-spacing: .04em; }
+  .alist { max-height: 120px; overflow-y: auto; padding-right: 4px; }
+  .alist::-webkit-scrollbar { width: 5px; }
+  .alist::-webkit-scrollbar-thumb { background: var(--ph-faint); }
+
+  /* legend */
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: .7rem; font-size: 14px; color: var(--ph-faint); letter-spacing: .04em; align-items: center; }
+  .legend .k { display: flex; align-items: center; gap: 6px; }
+  .legend .sw { width: 18px; height: 11px; border-radius: 2px; display: inline-block; }
+  .legend .sw.nate { background: var(--ph); }
+  .legend .sw.sebas { border: 1.4px solid var(--ph); }
+  .legend .sw.both { background: var(--amber); }
+  .legend .sw.late { background: var(--red); }
+
+  /* terminal (agent placeholder) */
+  .term { margin-top: 1.3rem; border: 1px solid var(--ph-dim); background: #030703; }
+  .term-bar { background: rgba(0,255,65,.08); border-bottom: 1px solid var(--ph-faint); padding: 4px 11px; font-size: 14px; color: var(--ph-dim); letter-spacing: .1em; display: flex; justify-content: space-between; }
+  .term-scroll { height: 150px; overflow-y: auto; padding: 10px 13px; font-size: 16px; line-height: 1.32; }
+  .term-scroll::-webkit-scrollbar { width: 6px; } .term-scroll::-webkit-scrollbar-thumb { background: var(--ph-faint); }
+  .t-line { margin: 1px 0; letter-spacing: .03em; white-space: pre-wrap; word-break: break-word; }
+  .t-user { color: var(--ph); } .t-user::before { content: "C:\\CORTEX> "; color: var(--ph-dim); }
+  .t-agent { color: var(--ph-dim); } .t-sys { color: var(--ph-faint); } .t-err { color: var(--red-dim); }
+  .quicks { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 11px; border-top: 1px solid var(--ph-ghost); }
+  .qbtn { background: transparent; border: 1px solid var(--ph-faint); color: var(--ph-dim); font-family: inherit; font-size: 14px; letter-spacing: .05em; padding: 3px 9px; cursor: pointer; }
+  .qbtn:hover { background: rgba(0,255,65,.12); color: var(--ph); }
+  .term-input-row { display: flex; align-items: center; padding: 7px 11px; border-top: 1px solid var(--ph-faint); }
+  .term-input-row .pr { color: var(--ph-dim); font-size: 16px; margin-right: 7px; white-space: nowrap; }
+  .term-input { flex: 1; background: transparent; border: none; outline: none; color: var(--ph); font-family: inherit; font-size: 16px; letter-spacing: .04em; }
+  .caret { display: inline-block; width: 9px; height: 17px; background: var(--ph); animation: blink 1.1s steps(1) infinite; vertical-align: middle; }
+
+  @media (max-width: 860px) {
+    .hero { grid-template-columns: 1fr; }
+    .rail { flex-direction: row; flex-wrap: wrap; } .rail .panel { flex: 1 1 240px; }
+    .alerts { grid-template-columns: 1fr; }
+    .g-head, .g-stage, .g-row { grid-template-columns: 150px 1fr; }
+    .g-ovl { left: 150px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="head-line">
+    <h1>CÓRTEX ACCOUNT INTELLIGENCE</h1>
+    <span class="sub" id="head-sub">build roadmap · read-only</span>
+  </div>
+
+  <div class="ticker"><div class="tick-track" id="tick"></div></div>
+
+  <div class="filter-strip" id="filters"></div>
+
+  <div class="hero">
+    <div>
+      <div class="gantt">
+        <div class="g-head">
+          <div></div>
+          <div class="g-head-track" id="g-head-track"></div>
+        </div>
+        <div class="rowswrap" id="rowswrap">
+          <div class="g-ovl" id="g-ovl"></div>
+          <div id="g-rows"></div>
+        </div>
+      </div>
+      <div class="legend">
+        <span class="k"><span class="sw nate"></span> Nate</span>
+        <span class="k"><span class="sw sebas"></span> Sebas</span>
+        <span class="k"><span class="sw both"></span> Both</span>
+        <span class="k"><span class="sw late"></span> Late</span>
+        <span class="k" style="color:var(--amber)">▚ gate</span>
+      </div>
+    </div>
+
+    <div class="rail">
+      <div class="panel">
+        <h3>SIGNAL</h3>
+        <div class="sig-row"><span><span class="dot ok"></span>NEON</span><span class="v">live</span></div>
+        <div class="sig-row"><span>TASKS</span><span class="v" id="sig-total">—</span></div>
+        <div class="sig-row"><span>DONE</span><span class="v" id="sig-done">—</span></div>
+        <div class="sig-row"><span>IN FLIGHT</span><span class="v" id="sig-flight">—</span></div>
+        <div class="sig-row"><span>LATE</span><span class="v" id="sig-late">—</span></div>
+      </div>
+      <div class="panel">
+        <h3>DEADLINE GATES</h3>
+        <div id="gates"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="alerts">
+    <div class="alert late">
+      <h3><span class="lamp"></span> LATE</h3>
+      <div class="alist" id="late-list"></div>
+    </div>
+    <div class="alert flight">
+      <h3><span class="lamp"></span> NEXT UP</h3>
+      <div class="alist" id="next-list"></div>
+    </div>
+  </div>
+
+  <!-- AGENT TERMINAL — placeholder shell. Wire /api/roadmap-agent here later. -->
+  <div class="term">
+    <div class="term-bar"><span>AGENT TERMINAL</span><span id="term-status">OFFLINE</span></div>
+    <div class="term-scroll" id="term-scroll"></div>
+    <div class="quicks">
+      <button class="qbtn" data-cmd="/brief">/brief</button>
+      <button class="qbtn" data-cmd="/late">/late</button>
+      <button class="qbtn" data-cmd="/next">/next</button>
+      <button class="qbtn" data-cmd="/gates">/gates</button>
+    </div>
+    <div class="term-input-row">
+      <span class="pr">C:\CORTEX></span>
+      <input class="term-input" id="term-input" autocomplete="off" spellcheck="false" placeholder="agent not yet connected — click a task to inspect it" />
+      <span class="caret"></span>
+    </div>
+  </div>
+</div>
+
+<script>
+var state = { data: null, filter: "ALL" };
+var OWNERS = ["ALL", "NATE", "SEBAS", "BOTH"];
+var STAGE_NAMES = {
+  s0_verification:     "STAGE 0 · VERIFICATION",
+  s1_spine_verdicts:   "STAGE 1 · SPINE + VERDICTS",
+  s2_agent_review:     "STAGE 2 · AGENT + REVIEW",
+  s3_board_loop:       "STAGE 3 · BOARD + LOOP",
+  s4_trackb_secondary: "STAGE 4 · TRACK B + SECONDARY",
+};
+
+function esc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+function d(s){ return new Date(s + "T00:00:00"); }
+function daysBetween(a,b){ return Math.round((d(b)-d(a))/86400000); }
+function todayStr(){ var t=new Date(); return t.getFullYear()+"-"+String(t.getMonth()+1).padStart(2,"0")+"-"+String(t.getDate()).padStart(2,"0"); }
+function md(s){ var x=d(s); return (x.getMonth()+1)+"/"+x.getDate(); }
+function ownerClass(o){ return o==="nate"?"nate":o==="sebas"?"sebas":"both"; }
+function statBox(st){ return st==="done"?"[x]":st==="in_progress"?"[~]":st==="blocked"?"[!]":st==="dropped"?"[-]":"[ ]"; }
+
+async function loadRoadmap(){
+  try {
+    var res = await fetch("/api/roadmap", { headers:{ "Accept":"application/json" }});
+    var j = await res.json();
+    if (!res.ok || j.error) { termLine("t-err","// roadmap load failed: " + (j.error||res.status)); return; }
+    state.data = j;
+    render();
+  } catch(e){ termLine("t-err","// roadmap unreachable: " + e.message); }
+}
+
+function isLate(t){
+  if (t.status==="done" || t.status==="dropped") return false;
+  return daysBetween(todayStr(), t.planned_end) < 0;
+}
+function visible(){
+  if (!state.data) return [];
+  return state.data.tasks.filter(function(t){
+    if (state.filter==="ALL") return true;
+    return t.owner === state.filter.toLowerCase();
+  });
+}
+
+function render(){ renderHead(); renderTicker(); renderFilters(); renderGantt(); renderSignal(); renderGates(); renderAlerts(); }
+
+function renderHead(){
+  var d0 = state.data.project_start;
+  document.getElementById("head-sub").textContent =
+    "build roadmap · starts " + (d0?md(d0):"—") + " · read-only";
+}
+
+function renderTicker(){
+  var j = state.data, c = j.counts, parts = [];
+  parts.push(c.total + " ON ROADMAP");
+  parts.push('<span class="' + (c.done? "" : "") + '">' + c.done + " DONE</span>");
+  if (c.in_progress) parts.push('<span class="warn">' + c.in_progress + " IN FLIGHT</span>");
+  if (c.late) parts.push('<span class="bad">' + c.late + " LATE</span>");
+  var g = gateList()[0];
+  if (g) {
+    var dd = daysBetween(todayStr(), g.planned_start);
+    var w = dd<0 ? Math.abs(dd)+"D OVERDUE" : dd===0 ? "TODAY" : "IN "+dd+"D";
+    parts.push('NEXT GATE <span class="warn">' + esc(g.title.toUpperCase()) + " · " + w + "</span>");
+  }
+  // surface a few upcoming titles
+  nextUp().slice(0,5).forEach(function(t){
+    parts.push('<span style="color:var(--ph-dim)">↗</span> ' + esc(t.title.toUpperCase()));
+  });
+  var track = parts.join('<span style="opacity:.3">&nbsp;&nbsp;•&nbsp;&nbsp;</span>');
+  document.getElementById("tick").innerHTML = "<span>"+track+"</span><span>"+track+"</span>";
+}
+
+function renderFilters(){
+  var el = document.getElementById("filters");
+  var d0 = state.data.tasks;
+  var counts = { NATE: 0, SEBAS: 0, BOTH: 0 };
+  d0.forEach(function(t){ var k=t.owner==="nate"?"NATE":t.owner==="sebas"?"SEBAS":"BOTH"; counts[k]++; });
+  el.innerHTML = OWNERS.map(function(o){
+    var n = o==="ALL" ? d0.length : counts[o];
+    return '<button class="filt'+(state.filter===o?" active":"")+'" data-o="'+o+'">'+o+'<span class="ct">'+n+'</span></button>';
+  }).join("");
+  Array.prototype.forEach.call(el.querySelectorAll(".filt"), function(b){
+    b.addEventListener("click", function(){ state.filter=b.getAttribute("data-o"); renderFilters(); renderGantt(); });
+  });
+}
+
+// timeline bounds across ALL tasks (stable regardless of filter)
+function bounds(){
+  var ts = state.data.tasks;
+  var lo = ts[0].planned_start, hi = ts[0].planned_end;
+  ts.forEach(function(t){ if (t.planned_start<lo) lo=t.planned_start; if (t.planned_end>hi) hi=t.planned_end; });
+  return { lo: lo, hi: hi, span: daysBetween(lo,hi)+1 };
+}
+function posPct(dateStr, b){ return (daysBetween(b.lo, dateStr) / b.span * 100); }
+function widPct(s,e,b){ return ((daysBetween(s,e)+1) / b.span * 100); }
+
+function gateList(){ return state.data.tasks.filter(function(t){ return t.is_gate; })
+  .sort(function(a,b){ return d(a.planned_start)-d(b.planned_start); }); }
+
+function renderGantt(){
+  var b = bounds();
+  // header: weekly labels + gate flags
+  var head = document.getElementById("g-head-track");
+  var hh = "";
+  for (var day=0; day<=b.span; day+=7){
+    var pct = day/b.span*100;
+    var lab = md(new Date(d(b.lo).getTime()+day*86400000).toISOString().slice(0,10));
+    hh += '<span class="g-wk" style="left:'+pct.toFixed(2)+'%">'+lab+'</span>';
+  }
+  gateList().forEach(function(g){
+    var m = g.title.match(/sprint\s*\d/i);
+    hh += '<span class="g-gate-flag" style="left:'+posPct(g.planned_start,b).toFixed(2)+'%">▚ '+(m?m[0].toUpperCase():"GATE")+'</span>';
+  });
+  head.innerHTML = hh;
+
+  // overlay: week lines + gate lines + now line
+  var ovl = document.getElementById("g-ovl");
+  var ov = "";
+  for (var dd=0; dd<=b.span; dd+=7){ ov += '<div class="g-line" style="left:'+(dd/b.span*100).toFixed(2)+'%"></div>'; }
+  gateList().forEach(function(g){ ov += '<div class="g-gateline" style="left:'+posPct(g.planned_start,b).toFixed(2)+'%"></div>'; });
+  var nowP = posPct(todayStr(), b);
+  if (nowP>=0 && nowP<=100) ov += '<div class="g-nowline" style="left:'+nowP.toFixed(2)+'%"></div>';
+  ovl.innerHTML = ov;
+
+  // rows grouped by stage (respect filter for dimming: filtered-out are hidden)
+  var vis = visible();
+  var byStage = {};
+  vis.forEach(function(t){ (byStage[t.stage]=byStage[t.stage]||[]).push(t); });
+  var order = state.data.stages.map(function(s){ return s.stage; });
+
+  var html = "";
+  order.forEach(function(stg){
+    var list = byStage[stg]; if (!list || !list.length) return;
+    var mn = list[0].planned_start, mx = list[0].planned_end;
+    list.forEach(function(t){ if (t.planned_start<mn) mn=t.planned_start; if (t.planned_end>mx) mx=t.planned_end; });
+    html += '<div class="g-stage"><div class="s-name">'+esc(STAGE_NAMES[stg]||stg)+'</div>'+
+            '<div class="s-meta"><span class="s-span" style="left:'+posPct(mn,b).toFixed(2)+'%">'+md(mn)+' – '+md(mx)+' · '+list.length+'</span></div></div>';
+    list.forEach(function(t){
+      var late = isLate(t);
+      var labCls = "g-label" + (t.status==="done"?" done":"") + (late?" late":"");
+      var barCls = "g-bar " + ownerClass(t.owner) + (t.is_gate?" gate":"") +
+                   (t.status==="done"?" done":"") + (t.status==="in_progress"?" inprogress":"") + (late?" late":"");
+      html += '<div class="g-row">'+
+        '<div class="'+labCls+'" data-id="'+esc(t.task_id)+'" title="'+esc(t.title)+'"><span class="stat">'+statBox(t.status)+'</span>'+esc(t.title)+'</div>'+
+        '<div class="g-track"><div class="'+barCls+'" data-id="'+esc(t.task_id)+'" '+
+        'style="left:'+posPct(t.planned_start,b).toFixed(2)+'%;width:'+widPct(t.planned_start,t.planned_end,b).toFixed(2)+'%"></div></div>'+
+        '</div>';
+    });
+  });
+  document.getElementById("g-rows").innerHTML = html || '<div class="empty" style="padding:12px">// nothing matches filter</div>';
+
+  Array.prototype.forEach.call(document.querySelectorAll("#g-rows [data-id]"), function(el){
+    el.addEventListener("click", function(){ inspect(el.getAttribute("data-id")); });
+  });
+}
+
+function renderSignal(){
+  var c = state.data.counts;
+  document.getElementById("sig-total").textContent = c.total;
+  document.getElementById("sig-done").textContent = c.done;
+  var f = document.getElementById("sig-flight"); f.textContent = c.in_progress; f.className = "v" + (c.in_progress?" warn":"");
+  var l = document.getElementById("sig-late"); l.textContent = c.late; l.className = "v" + (c.late?" bad":"");
+}
+
+function renderGates(){
+  var el = document.getElementById("gates");
+  var gs = gateList();
+  el.innerHTML = gs.map(function(g){
+    var dd = daysBetween(todayStr(), g.planned_start);
+    var over = dd<0;
+    var w = over ? Math.abs(dd)+"d overdue" : dd===0 ? "today" : "in "+dd+"d";
+    if (g.status==="done") w = "done";
+    return '<div class="gate-row" data-id="'+esc(g.task_id)+'">'+
+      '<div class="g-t"><span>'+esc(g.title)+'</span><span class="when'+(over?" over":"")+'">'+w+'</span></div>'+
+      '<div class="g-d">'+md(g.planned_start)+'</div></div>';
+  }).join("") || '<div class="empty">// no gates found</div>';
+  Array.prototype.forEach.call(el.querySelectorAll(".gate-row"), function(r){
+    r.addEventListener("click", function(){ inspect(r.getAttribute("data-id")); });
+  });
+}
+
+function nextUp(){
+  var t = todayStr();
+  return state.data.tasks.filter(function(x){
+    return x.status!=="done" && x.status!=="dropped" && daysBetween(t, x.planned_start) >= 0;
+  }).sort(function(a,b){ return d(a.planned_start)-d(b.planned_start); });
+}
+
+function renderAlerts(){
+  var late = state.data.tasks.filter(isLate).sort(function(a,b){ return d(a.planned_end)-d(b.planned_end); });
+  var ll = document.getElementById("late-list");
+  ll.innerHTML = late.length ? late.map(function(t){
+    var od = Math.abs(daysBetween(todayStr(), t.planned_end));
+    return '<div class="arow" data-id="'+esc(t.task_id)+'"><span>'+esc(t.title)+'</span><span class="sub">'+od+'d</span></div>';
+  }).join("") : '<div class="empty">// nothing late</div>';
+
+  var nx = nextUp().slice(0,8);
+  var nl = document.getElementById("next-list");
+  nl.innerHTML = nx.length ? nx.map(function(t){
+    var dd = daysBetween(todayStr(), t.planned_start);
+    var w = dd===0?"today":dd+"d";
+    return '<div class="arow" data-id="'+esc(t.task_id)+'"><span>'+esc(t.title)+'</span><span class="sub">'+w+'</span></div>';
+  }).join("") : '<div class="empty">// clear ahead</div>';
+
+  Array.prototype.forEach.call(document.querySelectorAll(".arow"), function(r){
+    r.addEventListener("click", function(){ inspect(r.getAttribute("data-id")); });
+  });
+}
+
+// clicking any task echoes its detail into the terminal (read-only inspect).
+// This is what the agent will eventually replace with real Q&A.
+function inspect(id){
+  var t = state.data.tasks.find(function(x){ return x.task_id===id; });
+  if (!t) return;
+  var late = isLate(t);
+  var when = late ? (Math.abs(daysBetween(todayStr(),t.planned_end))+"d overdue")
+    : (t.status==="done" ? "done" : (md(t.planned_start)+" – "+md(t.planned_end)));
+  var owner = t.owner==="nate"?"NATE":t.owner==="sebas"?"SEBAS":"BOTH";
+  termLine("t-user", "inspect " + id);
+  termLine("t-agent", t.task_id + " · " + t.title);
+  termLine("t-sys", owner + " · " + t.work_type + " · " + when + " · status: " + t.status +
+    (t.depends_on && t.depends_on.length ? " · needs: " + t.depends_on.join(", ") : ""));
+  if (t.detail) termLine("t-sys", t.detail);
+}
+
+function termLine(cls, text){
+  var s = document.getElementById("term-scroll");
+  var div = document.createElement("div");
+  div.className = "t-line " + cls; div.textContent = text;
+  s.appendChild(div); s.scrollTop = s.scrollHeight;
+}
+
+// terminal input is a placeholder until the agent is wired
+document.getElementById("term-input").addEventListener("keydown", function(e){
+  if (e.key==="Enter"){ var v=this.value.trim(); this.value=""; if(!v) return;
+    termLine("t-user", v);
+    termLine("t-sys", "// agent offline — not yet connected. Click a task on the roadmap to inspect it.");
+  }
+});
+Array.prototype.forEach.call(document.querySelectorAll(".qbtn"), function(b){
+  b.addEventListener("click", function(){
+    termLine("t-user", b.getAttribute("data-cmd"));
+    termLine("t-sys", "// agent offline — commands not wired yet.");
+  });
+});
+
+// boot
+termLine("t-sys", "CÓRTEX ROADMAP TERMINAL — read-only view. Agent slot reserved; click any task to inspect.");
+loadRoadmap();
+setInterval(loadRoadmap, 60000); // refresh as status changes
+window.addEventListener("resize", function(){ if (state.data) renderGantt(); });
+</script>
+</body>
+</html>
