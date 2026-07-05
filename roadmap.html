@@ -137,7 +137,7 @@
   .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: .7rem; font-size: 14px; color: var(--ph-faint); letter-spacing: .04em; align-items: center; }
   .legend .k { display: flex; align-items: center; gap: 6px; }
 
-  /* terminal (agent placeholder) */
+  /* terminal (agent) */
   .term { margin-top: 1.3rem; border: 1px solid var(--ph-dim); background: #030703; }
   .term-bar { background: rgba(0,255,65,.08); border-bottom: 1px solid var(--ph-faint); padding: 4px 11px; font-size: 14px; color: var(--ph-dim); letter-spacing: .1em; display: flex; justify-content: space-between; }
   .term-scroll { height: 150px; overflow-y: auto; padding: 10px 13px; font-size: 16px; line-height: 1.32; }
@@ -212,7 +212,7 @@
     </div>
   </div>
 
-  <!-- AGENT TERMINAL — placeholder shell. Wire /api/roadmap-agent here later. -->
+  <!-- AGENT TERMINAL — wired to /api/roadmap-agent -->
   <div class="term">
     <div class="term-bar"><span>AGENT TERMINAL</span><span id="term-status">OFFLINE</span></div>
     <div class="term-scroll" id="term-scroll"></div>
@@ -224,7 +224,7 @@
     </div>
     <div class="term-input-row">
       <span class="pr">C:\CORTEX></span>
-      <input class="term-input" id="term-input" autocomplete="off" spellcheck="false" placeholder="agent not yet connected — click a task to inspect it" />
+      <input class="term-input" id="term-input" autocomplete="off" spellcheck="false" placeholder="ask the agent, or /brief /late /next /gates" />
       <span class="caret"></span>
     </div>
   </div>
@@ -232,6 +232,7 @@
 
 <script>
 var state = { data: null, filter: "ALL" };
+var AGENT_USER = "nate"; // set per person, or read from a query param / Cloudflare Access header
 var OWNERS = ["ALL", "NATE", "SEBAS", "BOTH"];
 var STAGE_NAMES = {
   s0_verification:     "STAGE 0 · VERIFICATION",
@@ -406,8 +407,7 @@ function renderAlerts(){
   });
 }
 
-// clicking any task echoes its detail into the terminal — the slot the agent
-// will eventually replace with real Q&A.
+// clicking any task echoes its detail into the terminal (local, no round-trip).
 function inspect(id){
   var t = state.data.tasks.find(function(x){ return x.task_id===id; });
   if (!t) return;
@@ -428,20 +428,31 @@ function termLine(cls, text){
   s.appendChild(div); s.scrollTop = s.scrollHeight;
 }
 
+// send a message to the agent and render its reply
+async function askAgent(message){
+  termLine("t-user", message);
+  try {
+    var res = await fetch("/api/roadmap-agent", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user: AGENT_USER, message: message })
+    });
+    var j = await res.json();
+    termLine(j.error ? "t-err" : "t-agent", j.reply || ("// error: " + (j.error || res.status)));
+    loadRoadmap(); // refresh — the agent may have changed a status
+  } catch(e){ termLine("t-err", "// agent unreachable: " + e.message); }
+}
+
 document.getElementById("term-input").addEventListener("keydown", function(e){
-  if (e.key==="Enter"){ var v=this.value.trim(); this.value=""; if(!v) return;
-    termLine("t-user", v);
-    termLine("t-sys", "// agent offline — not yet connected. Click a task in the list to inspect it.");
-  }
+  if (e.key==="Enter"){ var v=this.value.trim(); this.value=""; if(v) askAgent(v); }
 });
 Array.prototype.forEach.call(document.querySelectorAll(".qbtn"), function(b){
-  b.addEventListener("click", function(){
-    termLine("t-user", b.getAttribute("data-cmd"));
-    termLine("t-sys", "// agent offline — commands not wired yet.");
-  });
+  b.addEventListener("click", function(){ askAgent(b.getAttribute("data-cmd")); });
 });
 
-termLine("t-sys", "CÓRTEX ROADMAP TERMINAL — read-only view. Agent slot reserved; click any task to inspect.");
+// boot
+document.getElementById("term-status").textContent = "ONLINE";
+termLine("t-sys", "CÓRTEX ROADMAP TERMINAL — agent online. Ask a question, use /brief /late /next /gates, or click any task to inspect.");
 loadRoadmap();
 setInterval(loadRoadmap, 60000);
 </script>
