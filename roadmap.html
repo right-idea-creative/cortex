@@ -34,20 +34,13 @@
   }
   @keyframes tick { from{transform:translateX(0);} to{transform:translateX(-50%);} }
   @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:.3;} }
-  @keyframes barpulse { 0%,100%{opacity:1;} 50%{opacity:.5;} }
   @keyframes blink { 0%,49%{opacity:1;} 50%,100%{opacity:0;} }
   @media (prefers-reduced-motion: reduce) { .tick-track { animation: none !important; } }
 
   .wrap { max-width: 1180px; margin: 0 auto; padding: 1.1rem 1.2rem 3rem; }
 
-  .head-line {
-    display: flex; justify-content: space-between; align-items: baseline;
-    margin-bottom: .8rem; flex-wrap: wrap; gap: .4rem;
-  }
-  .head-line h1 {
-    font-family: inherit; font-weight: 400; font-size: 26px; margin: 0;
-    letter-spacing: .1em; color: var(--ph); text-shadow: 0 0 8px rgba(0,255,65,.4);
-  }
+  .head-line { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: .8rem; flex-wrap: wrap; gap: .4rem; }
+  .head-line h1 { font-family: inherit; font-weight: 400; font-size: 26px; margin: 0; letter-spacing: .1em; color: var(--ph); text-shadow: 0 0 8px rgba(0,255,65,.4); }
   .head-line .sub { font-size: 16px; color: var(--ph-faint); letter-spacing: .06em; }
 
   /* ticker */
@@ -58,10 +51,7 @@
     -webkit-mask-image: linear-gradient(90deg,transparent,#000 3%,#000 97%,transparent);
     mask-image: linear-gradient(90deg,transparent,#000 3%,#000 97%,transparent);
   }
-  .tick-track {
-    display: inline-block; animation: tick 40s linear infinite;
-    font-size: 16px; color: var(--ph-dim); letter-spacing: .05em;
-  }
+  .tick-track { display: inline-block; animation: tick 40s linear infinite; font-size: 16px; color: var(--ph-dim); letter-spacing: .05em; }
   .tick-track span { margin-right: 42px; }
   .tick-track .warn { color: var(--amber); } .tick-track .bad { color: var(--red); }
 
@@ -73,66 +63,48 @@
     padding: 5px 12px; cursor: pointer; transition: all .12s; white-space: nowrap;
   }
   .filt:hover { color: var(--ph); border-color: var(--ph-dim); }
-  .filt.active {
-    background: rgba(0,255,65,.14); color: var(--ph); border-color: var(--ph);
-    text-shadow: 0 0 6px rgba(0,255,65,.5);
-  }
+  .filt.active { background: rgba(0,255,65,.14); color: var(--ph); border-color: var(--ph); text-shadow: 0 0 6px rgba(0,255,65,.5); }
   .filt .ct { margin-left: 7px; color: var(--ph-faint); }
 
-  /* hero: gantt + rail */
+  /* layout */
   .hero { display: grid; grid-template-columns: minmax(0,1fr) 300px; gap: 1.1rem; align-items: start; }
 
-  /* gantt */
-  .gantt { border: 1px solid var(--ph-faint); padding: 10px 12px 14px; overflow: hidden; }
-  .g-head { display: grid; grid-template-columns: 220px 1fr; align-items: end; height: 30px; margin-bottom: 4px; border-bottom: 1px solid var(--ph-ghost); }
-  .g-head-track { position: relative; height: 30px; }
-  .g-wk { position: absolute; bottom: 2px; font-size: 12px; color: var(--ph-faint); transform: translateX(-50%); letter-spacing: .04em; white-space: nowrap; }
-  .g-gate-flag { position: absolute; top: 0; font-size: 12px; color: var(--amber); transform: translateX(-50%); white-space: nowrap; }
-  .rowswrap { position: relative; margin-top: 4px; }
-  .g-ovl { position: absolute; left: 220px; right: 0; top: 0; bottom: 0; pointer-events: none; }
-  .g-line { position: absolute; top: 0; bottom: 0; width: 0; border-left: 1px solid var(--ph-ghost); }
-  .g-gateline { position: absolute; top: 0; bottom: 0; width: 0; border-left: 1px dashed var(--amber-dim); }
-  .g-nowline { position: absolute; top: 0; bottom: 0; width: 0; border-left: 1px solid var(--ph); box-shadow: 0 0 6px var(--ph); }
+  /* task table */
+  .tbl { border: 1px solid var(--ph-faint); padding: 10px 12px 14px; }
+  .stage-hd {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin-top: 14px; padding-bottom: 4px; border-bottom: 1px solid var(--ph-ghost);
+    font-size: 16px; letter-spacing: .1em; color: var(--ph);
+  }
+  .stage-hd:first-child { margin-top: 0; }
+  .stage-hd .s-meta { font-size: 13px; color: var(--ph-faint); letter-spacing: .04em; }
 
-  .g-stage {
-    display: grid; grid-template-columns: 220px 1fr; align-items: center;
-    margin-top: 10px; height: 24px;
+  .t-row {
+    display: grid; grid-template-columns: 26px 1fr 74px 108px 60px;
+    gap: 10px; align-items: baseline; padding: 4px 0;
+    border-bottom: 1px solid var(--ph-ghost); cursor: pointer; font-size: 15px;
   }
-  .g-stage .s-name { font-size: 15px; color: var(--ph); letter-spacing: .08em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 8px; }
-  .g-stage .s-meta { position: relative; height: 24px; }
-  .g-stage .s-span { position: absolute; font-size: 13px; color: var(--ph-faint); top: 4px; letter-spacing: .04em; white-space: nowrap; }
-
-  .g-row { display: grid; grid-template-columns: 220px 1fr; align-items: center; min-height: 25px; }
-  .g-label {
-    font-size: 14px; color: var(--ph-dim); white-space: nowrap; overflow: hidden;
-    text-overflow: ellipsis; padding-right: 10px; cursor: pointer; letter-spacing: .02em;
-  }
-  .g-label:hover { color: var(--ph); text-shadow: 0 0 5px rgba(0,255,65,.4); }
-  .g-label .stat { color: var(--ph-faint); margin-right: 4px; }
-  .g-label.done .stat { color: var(--ph); }
-  .g-label.late { color: rgba(255,120,120,.95); }
-  .g-label.late .stat { color: var(--red); }
-  .g-track { position: relative; height: 25px; }
-  .g-bar {
-    position: absolute; top: 6px; height: 13px; min-width: 6px; border-radius: 2px; cursor: pointer;
-  }
-  /* owner encodings */
-  .g-bar.nate  { background: var(--ph); box-shadow: 0 0 5px rgba(0,255,65,.4); }
-  .g-bar.sebas { background: transparent; border: 1.4px solid var(--ph); }
-  .g-bar.both  { background: var(--amber); box-shadow: 0 0 5px rgba(255,176,0,.4); }
-  .g-bar.gate  { border-radius: 0; transform: skewX(-16deg); }
-  .g-bar.done  { opacity: .34; }
-  .g-bar.late  { background: var(--red) !important; border-color: var(--red) !important; box-shadow: 0 0 7px rgba(255,43,43,.6); animation: barpulse 1.6s ease-in-out infinite; }
-  .g-bar.inprogress { animation: barpulse 2.2s ease-in-out infinite; }
+  .t-row:hover { background: rgba(0,255,65,.05); }
+  .t-row .box { color: var(--ph-dim); }
+  .t-row.done .box { color: var(--ph); }
+  .t-row .title { color: var(--ph-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .t-row:hover .title { color: var(--ph); }
+  .t-row.done .title { color: var(--ph-faint); text-decoration: line-through; text-decoration-color: var(--ph-ghost); }
+  .t-row.late .title, .t-row.late .box { color: var(--red); text-shadow: 0 0 5px rgba(255,43,43,.4); }
+  .t-row .owner { font-size: 13px; letter-spacing: .06em; }
+  .t-row .owner.nate { color: var(--ph); }
+  .t-row .owner.sebas { color: var(--ph-dim); }
+  .t-row .owner.both { color: var(--amber); }
+  .t-row .dates { font-size: 13px; color: var(--ph-faint); white-space: nowrap; }
+  .t-row.late .dates { color: var(--red-dim); }
+  .t-row .flag { font-size: 12px; letter-spacing: .05em; text-align: right; }
+  .t-row .flag.gate { color: var(--amber); }
+  .t-row .flag.late-tag { color: var(--red); }
 
   /* right rail */
   .rail { display: flex; flex-direction: column; gap: 1.1rem; padding-top: 2px; }
   .panel { border: 1px solid var(--ph-faint); padding: 10px 11px 11px; }
-  .panel h3 {
-    font-family: inherit; font-weight: 400; font-size: 15px; margin: 0 0 8px;
-    letter-spacing: .16em; color: var(--ph-dim);
-    border-bottom: 1px solid var(--ph-ghost); padding-bottom: 5px;
-  }
+  .panel h3 { font-family: inherit; font-weight: 400; font-size: 15px; margin: 0 0 8px; letter-spacing: .16em; color: var(--ph-dim); border-bottom: 1px solid var(--ph-ghost); padding-bottom: 5px; }
   .sig-row { display: flex; justify-content: space-between; align-items: center; font-size: 15px; padding: 3px 0; color: var(--ph-dim); letter-spacing: .04em; }
   .sig-row .v { color: var(--ph); }
   .sig-row .v.warn { color: var(--amber); } .sig-row .v.bad { color: var(--red); }
@@ -140,10 +112,10 @@
   .dot.ok { background: var(--ph); box-shadow: 0 0 5px var(--ph); }
   .gate-row { padding: 5px 0; border-bottom: 1px solid var(--ph-ghost); cursor: pointer; }
   .gate-row:last-child { border-bottom: none; }
-  .gate-row .g-t { font-size: 15px; color: var(--ph-dim); letter-spacing: .04em; display: flex; justify-content: space-between; }
+  .gate-row .g-t { font-size: 15px; color: var(--ph-dim); letter-spacing: .04em; display: flex; justify-content: space-between; gap: .5rem; }
   .gate-row:hover .g-t { color: var(--ph); }
   .gate-row .g-d { font-size: 13px; color: var(--ph-faint); }
-  .gate-row .when { color: var(--amber); } .gate-row .when.over { color: var(--red); }
+  .gate-row .when { color: var(--amber); white-space: nowrap; } .gate-row .when.over { color: var(--red); }
 
   /* alert row */
   .alerts { display: grid; grid-template-columns: 1fr 1fr; gap: 1.1rem; margin-top: 1.3rem; }
@@ -159,17 +131,11 @@
   .arow:hover { text-shadow: 0 0 6px currentColor; }
   .empty { font-size: 15px; color: var(--ph-faint); letter-spacing: .04em; }
   .alist { max-height: 120px; overflow-y: auto; padding-right: 4px; }
-  .alist::-webkit-scrollbar { width: 5px; }
-  .alist::-webkit-scrollbar-thumb { background: var(--ph-faint); }
+  .alist::-webkit-scrollbar { width: 5px; } .alist::-webkit-scrollbar-thumb { background: var(--ph-faint); }
 
   /* legend */
   .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: .7rem; font-size: 14px; color: var(--ph-faint); letter-spacing: .04em; align-items: center; }
   .legend .k { display: flex; align-items: center; gap: 6px; }
-  .legend .sw { width: 18px; height: 11px; border-radius: 2px; display: inline-block; }
-  .legend .sw.nate { background: var(--ph); }
-  .legend .sw.sebas { border: 1.4px solid var(--ph); }
-  .legend .sw.both { background: var(--amber); }
-  .legend .sw.late { background: var(--red); }
 
   /* terminal (agent placeholder) */
   .term { margin-top: 1.3rem; border: 1px solid var(--ph-dim); background: #030703; }
@@ -191,8 +157,8 @@
     .hero { grid-template-columns: 1fr; }
     .rail { flex-direction: row; flex-wrap: wrap; } .rail .panel { flex: 1 1 240px; }
     .alerts { grid-template-columns: 1fr; }
-    .g-head, .g-stage, .g-row { grid-template-columns: 150px 1fr; }
-    .g-ovl { left: 150px; }
+    .t-row { grid-template-columns: 20px 1fr 56px; }
+    .t-row .dates, .t-row .flag { display: none; }
   }
 </style>
 </head>
@@ -210,22 +176,12 @@
 
   <div class="hero">
     <div>
-      <div class="gantt">
-        <div class="g-head">
-          <div></div>
-          <div class="g-head-track" id="g-head-track"></div>
-        </div>
-        <div class="rowswrap" id="rowswrap">
-          <div class="g-ovl" id="g-ovl"></div>
-          <div id="g-rows"></div>
-        </div>
-      </div>
+      <div class="tbl" id="tbl"></div>
       <div class="legend">
-        <span class="k"><span class="sw nate"></span> Nate</span>
-        <span class="k"><span class="sw sebas"></span> Sebas</span>
-        <span class="k"><span class="sw both"></span> Both</span>
-        <span class="k"><span class="sw late"></span> Late</span>
-        <span class="k" style="color:var(--amber)">▚ gate</span>
+        <span class="k" style="color:var(--ph)">■ Nate</span>
+        <span class="k" style="color:var(--ph-dim)">□ Sebas</span>
+        <span class="k" style="color:var(--amber)">■ Both</span>
+        <span class="k" style="color:var(--red)">■ Late</span>
       </div>
     </div>
 
@@ -286,11 +242,15 @@ var STAGE_NAMES = {
 };
 
 function esc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
-function d(s){ return new Date(s + "T00:00:00"); }
+function d(s){
+  var m = String(s).match(/^(\d{4}-\d{2}-\d{2})/);
+  return m ? new Date(m[1] + "T00:00:00") : new Date(NaN);
+}
 function daysBetween(a,b){ return Math.round((d(b)-d(a))/86400000); }
 function todayStr(){ var t=new Date(); return t.getFullYear()+"-"+String(t.getMonth()+1).padStart(2,"0")+"-"+String(t.getDate()).padStart(2,"0"); }
-function md(s){ var x=d(s); return (x.getMonth()+1)+"/"+x.getDate(); }
+function md(s){ var x=d(s); if (isNaN(x)) return "—"; return (x.getMonth()+1)+"/"+x.getDate(); }
 function ownerClass(o){ return o==="nate"?"nate":o==="sebas"?"sebas":"both"; }
+function ownerLabel(o){ return o==="nate"?"NATE":o==="sebas"?"SEBAS":"BOTH"; }
 function statBox(st){ return st==="done"?"[x]":st==="in_progress"?"[~]":st==="blocked"?"[!]":st==="dropped"?"[-]":"[ ]"; }
 
 async function loadRoadmap(){
@@ -315,18 +275,27 @@ function visible(){
   });
 }
 
-function render(){ renderHead(); renderTicker(); renderFilters(); renderGantt(); renderSignal(); renderGates(); renderAlerts(); }
+function render(){ renderHead(); renderTicker(); renderFilters(); renderTable(); renderSignal(); renderGates(); renderAlerts(); }
 
 function renderHead(){
-  var d0 = state.data.project_start;
   document.getElementById("head-sub").textContent =
-    "build roadmap · starts " + (d0?md(d0):"—") + " · read-only";
+    "build roadmap · starts " + md(state.data.project_start) + " · read-only";
+}
+
+function gateList(){ return state.data.tasks.filter(function(t){ return t.is_gate; })
+  .sort(function(a,b){ return d(a.planned_start)-d(b.planned_start); }); }
+
+function nextUp(){
+  var t = todayStr();
+  return state.data.tasks.filter(function(x){
+    return x.status!=="done" && x.status!=="dropped" && daysBetween(t, x.planned_start) >= 0;
+  }).sort(function(a,b){ return d(a.planned_start)-d(b.planned_start); });
 }
 
 function renderTicker(){
   var j = state.data, c = j.counts, parts = [];
   parts.push(c.total + " ON ROADMAP");
-  parts.push('<span class="' + (c.done? "" : "") + '">' + c.done + " DONE</span>");
+  parts.push(c.done + " DONE");
   if (c.in_progress) parts.push('<span class="warn">' + c.in_progress + " IN FLIGHT</span>");
   if (c.late) parts.push('<span class="bad">' + c.late + " LATE</span>");
   var g = gateList()[0];
@@ -335,7 +304,6 @@ function renderTicker(){
     var w = dd<0 ? Math.abs(dd)+"D OVERDUE" : dd===0 ? "TODAY" : "IN "+dd+"D";
     parts.push('NEXT GATE <span class="warn">' + esc(g.title.toUpperCase()) + " · " + w + "</span>");
   }
-  // surface a few upcoming titles
   nextUp().slice(0,5).forEach(function(t){
     parts.push('<span style="color:var(--ph-dim)">↗</span> ' + esc(t.title.toUpperCase()));
   });
@@ -345,57 +313,19 @@ function renderTicker(){
 
 function renderFilters(){
   var el = document.getElementById("filters");
-  var d0 = state.data.tasks;
+  var all = state.data.tasks;
   var counts = { NATE: 0, SEBAS: 0, BOTH: 0 };
-  d0.forEach(function(t){ var k=t.owner==="nate"?"NATE":t.owner==="sebas"?"SEBAS":"BOTH"; counts[k]++; });
+  all.forEach(function(t){ counts[ownerLabel(t.owner)]++; });
   el.innerHTML = OWNERS.map(function(o){
-    var n = o==="ALL" ? d0.length : counts[o];
+    var n = o==="ALL" ? all.length : counts[o];
     return '<button class="filt'+(state.filter===o?" active":"")+'" data-o="'+o+'">'+o+'<span class="ct">'+n+'</span></button>';
   }).join("");
   Array.prototype.forEach.call(el.querySelectorAll(".filt"), function(b){
-    b.addEventListener("click", function(){ state.filter=b.getAttribute("data-o"); renderFilters(); renderGantt(); });
+    b.addEventListener("click", function(){ state.filter=b.getAttribute("data-o"); renderFilters(); renderTable(); });
   });
 }
 
-// timeline bounds across ALL tasks (stable regardless of filter)
-function bounds(){
-  var ts = state.data.tasks;
-  var lo = ts[0].planned_start, hi = ts[0].planned_end;
-  ts.forEach(function(t){ if (t.planned_start<lo) lo=t.planned_start; if (t.planned_end>hi) hi=t.planned_end; });
-  return { lo: lo, hi: hi, span: daysBetween(lo,hi)+1 };
-}
-function posPct(dateStr, b){ return (daysBetween(b.lo, dateStr) / b.span * 100); }
-function widPct(s,e,b){ return ((daysBetween(s,e)+1) / b.span * 100); }
-
-function gateList(){ return state.data.tasks.filter(function(t){ return t.is_gate; })
-  .sort(function(a,b){ return d(a.planned_start)-d(b.planned_start); }); }
-
-function renderGantt(){
-  var b = bounds();
-  // header: weekly labels + gate flags
-  var head = document.getElementById("g-head-track");
-  var hh = "";
-  for (var day=0; day<=b.span; day+=7){
-    var pct = day/b.span*100;
-    var lab = md(new Date(d(b.lo).getTime()+day*86400000).toISOString().slice(0,10));
-    hh += '<span class="g-wk" style="left:'+pct.toFixed(2)+'%">'+lab+'</span>';
-  }
-  gateList().forEach(function(g){
-    var m = g.title.match(/sprint\s*\d/i);
-    hh += '<span class="g-gate-flag" style="left:'+posPct(g.planned_start,b).toFixed(2)+'%">▚ '+(m?m[0].toUpperCase():"GATE")+'</span>';
-  });
-  head.innerHTML = hh;
-
-  // overlay: week lines + gate lines + now line
-  var ovl = document.getElementById("g-ovl");
-  var ov = "";
-  for (var dd=0; dd<=b.span; dd+=7){ ov += '<div class="g-line" style="left:'+(dd/b.span*100).toFixed(2)+'%"></div>'; }
-  gateList().forEach(function(g){ ov += '<div class="g-gateline" style="left:'+posPct(g.planned_start,b).toFixed(2)+'%"></div>'; });
-  var nowP = posPct(todayStr(), b);
-  if (nowP>=0 && nowP<=100) ov += '<div class="g-nowline" style="left:'+nowP.toFixed(2)+'%"></div>';
-  ovl.innerHTML = ov;
-
-  // rows grouped by stage (respect filter for dimming: filtered-out are hidden)
+function renderTable(){
   var vis = visible();
   var byStage = {};
   vis.forEach(function(t){ (byStage[t.stage]=byStage[t.stage]||[]).push(t); });
@@ -404,25 +334,28 @@ function renderGantt(){
   var html = "";
   order.forEach(function(stg){
     var list = byStage[stg]; if (!list || !list.length) return;
-    var mn = list[0].planned_start, mx = list[0].planned_end;
-    list.forEach(function(t){ if (t.planned_start<mn) mn=t.planned_start; if (t.planned_end>mx) mx=t.planned_end; });
-    html += '<div class="g-stage"><div class="s-name">'+esc(STAGE_NAMES[stg]||stg)+'</div>'+
-            '<div class="s-meta"><span class="s-span" style="left:'+posPct(mn,b).toFixed(2)+'%">'+md(mn)+' – '+md(mx)+' · '+list.length+'</span></div></div>';
+    var doneCt = list.filter(function(t){ return t.status==="done"; }).length;
+    html += '<div class="stage-hd"><span>'+esc(STAGE_NAMES[stg]||stg)+'</span>' +
+            '<span class="s-meta">'+doneCt+'/'+list.length+' done</span></div>';
     list.forEach(function(t){
       var late = isLate(t);
-      var labCls = "g-label" + (t.status==="done"?" done":"") + (late?" late":"");
-      var barCls = "g-bar " + ownerClass(t.owner) + (t.is_gate?" gate":"") +
-                   (t.status==="done"?" done":"") + (t.status==="in_progress"?" inprogress":"") + (late?" late":"");
-      html += '<div class="g-row">'+
-        '<div class="'+labCls+'" data-id="'+esc(t.task_id)+'" title="'+esc(t.title)+'"><span class="stat">'+statBox(t.status)+'</span>'+esc(t.title)+'</div>'+
-        '<div class="g-track"><div class="'+barCls+'" data-id="'+esc(t.task_id)+'" '+
-        'style="left:'+posPct(t.planned_start,b).toFixed(2)+'%;width:'+widPct(t.planned_start,t.planned_end,b).toFixed(2)+'%"></div></div>'+
+      var rowCls = "t-row" + (t.status==="done"?" done":"") + (late?" late":"");
+      var flag = late ? '<span class="flag late-tag">LATE</span>'
+        : t.is_gate ? '<span class="flag gate">GATE</span>'
+        : '<span class="flag"></span>';
+      var dates = t.status==="done" ? "done" : (md(t.planned_start)+"–"+md(t.planned_end));
+      html += '<div class="'+rowCls+'" data-id="'+esc(t.task_id)+'">' +
+        '<span class="box">'+statBox(t.status)+'</span>' +
+        '<span class="title" title="'+esc(t.title)+'">'+esc(t.title)+'</span>' +
+        '<span class="owner '+ownerClass(t.owner)+'">'+ownerLabel(t.owner)+'</span>' +
+        '<span class="dates">'+dates+'</span>' +
+        flag +
         '</div>';
     });
   });
-  document.getElementById("g-rows").innerHTML = html || '<div class="empty" style="padding:12px">// nothing matches filter</div>';
+  document.getElementById("tbl").innerHTML = html || '<div class="empty" style="padding:12px">// nothing matches filter</div>';
 
-  Array.prototype.forEach.call(document.querySelectorAll("#g-rows [data-id]"), function(el){
+  Array.prototype.forEach.call(document.querySelectorAll(".t-row"), function(el){
     el.addEventListener("click", function(){ inspect(el.getAttribute("data-id")); });
   });
 }
@@ -452,13 +385,6 @@ function renderGates(){
   });
 }
 
-function nextUp(){
-  var t = todayStr();
-  return state.data.tasks.filter(function(x){
-    return x.status!=="done" && x.status!=="dropped" && daysBetween(t, x.planned_start) >= 0;
-  }).sort(function(a,b){ return d(a.planned_start)-d(b.planned_start); });
-}
-
 function renderAlerts(){
   var late = state.data.tasks.filter(isLate).sort(function(a,b){ return d(a.planned_end)-d(b.planned_end); });
   var ll = document.getElementById("late-list");
@@ -480,18 +406,17 @@ function renderAlerts(){
   });
 }
 
-// clicking any task echoes its detail into the terminal (read-only inspect).
-// This is what the agent will eventually replace with real Q&A.
+// clicking any task echoes its detail into the terminal — the slot the agent
+// will eventually replace with real Q&A.
 function inspect(id){
   var t = state.data.tasks.find(function(x){ return x.task_id===id; });
   if (!t) return;
   var late = isLate(t);
   var when = late ? (Math.abs(daysBetween(todayStr(),t.planned_end))+"d overdue")
     : (t.status==="done" ? "done" : (md(t.planned_start)+" – "+md(t.planned_end)));
-  var owner = t.owner==="nate"?"NATE":t.owner==="sebas"?"SEBAS":"BOTH";
   termLine("t-user", "inspect " + id);
   termLine("t-agent", t.task_id + " · " + t.title);
-  termLine("t-sys", owner + " · " + t.work_type + " · " + when + " · status: " + t.status +
+  termLine("t-sys", ownerLabel(t.owner) + " · " + t.work_type + " · " + when + " · status: " + t.status +
     (t.depends_on && t.depends_on.length ? " · needs: " + t.depends_on.join(", ") : ""));
   if (t.detail) termLine("t-sys", t.detail);
 }
@@ -503,11 +428,10 @@ function termLine(cls, text){
   s.appendChild(div); s.scrollTop = s.scrollHeight;
 }
 
-// terminal input is a placeholder until the agent is wired
 document.getElementById("term-input").addEventListener("keydown", function(e){
   if (e.key==="Enter"){ var v=this.value.trim(); this.value=""; if(!v) return;
     termLine("t-user", v);
-    termLine("t-sys", "// agent offline — not yet connected. Click a task on the roadmap to inspect it.");
+    termLine("t-sys", "// agent offline — not yet connected. Click a task in the list to inspect it.");
   }
 });
 Array.prototype.forEach.call(document.querySelectorAll(".qbtn"), function(b){
@@ -517,11 +441,9 @@ Array.prototype.forEach.call(document.querySelectorAll(".qbtn"), function(b){
   });
 });
 
-// boot
 termLine("t-sys", "CÓRTEX ROADMAP TERMINAL — read-only view. Agent slot reserved; click any task to inspect.");
 loadRoadmap();
-setInterval(loadRoadmap, 60000); // refresh as status changes
-window.addEventListener("resize", function(){ if (state.data) renderGantt(); });
+setInterval(loadRoadmap, 60000);
 </script>
 </body>
 </html>
