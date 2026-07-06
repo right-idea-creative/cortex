@@ -1,6 +1,6 @@
 # Cortex OS — Current State
 
-> **Last updated:** 2026-06-17 (session 8)
+> **Last updated:** 2026-07-05 (Meta ingest session)
 > **Updated by:** Claude (Sebas, work account)
 >
 > This is a **snapshot of the system right now**, not a history. If a section feels stale, rewrite it. History lives in `/sessions/`.
@@ -10,6 +10,8 @@
 > **Update (2026-06-17, session 7):** Nextdoor spend moved off the other-channels Sheet to a direct API pipeline (Cloud Run Job → `budget.nextdoor_spend_daily`). `actual_spend_all` now has a third CTE and excludes Nextdoor from the Sheet branch. See ADR-010.
 >
 > **Update (2026-06-17, session 8):** Post-deploy fixes. Backfilled the June 1–13 Nextdoor ingestion gap. Fixed SPENT MTD $0 (all channels) — the pacing webhook query was a stale explicit column list, now `p.*`; that webhook is now **administered by us**. Swapped Nextdoor in `actual_spend_mtd` too (Sheet → API), the second of the two parallel spend views. See LEARNINGS L-019/L-020, PENDING P-TECH-12/13.
+>
+> **Update (2026-07-05, Meta ingest session):** Meta Ads spend moved off the other-channels Sheet to a direct API pipeline (Cloud Run Job → `budget.meta_spend_daily`). Both `actual_spend_all` and `actual_spend_mtd` now read Meta from the API table and exclude it from the Sheet branch. Second channel on the ADR-010 template. See ADR-011, LEARNINGS L-021. Reconciliation surfaced a Sheet under-capture (Savannah, P-OPS-09) and a bad Daytona account id (resolved via a per-channel crosswalk INSERT).
 
 ## Platform
 
@@ -55,7 +57,7 @@ client_crosswalk (active=TRUE) ─► AM + source_group enrichment ────�
                                           Dashboard https://cortex-cmv.pages.dev/ad-spend-pacing (live fetch)
 ```
 
-**Nextdoor (added 2026-06-17, ADR-010):** Nextdoor spend no longer comes from the other-channels Sheet. A Cloud Run Job (`cortex-nextdoor-ingest`) pulls the Nextdoor Ads API daily into the native table `budget.nextdoor_spend_daily`; `actual_spend_all` reads Nextdoor from there and excludes it from the Sheet branch. The diagram above still shows the Sheet path, which now carries Bing/LSA/Meta only.
+**Nextdoor (added 2026-06-17, ADR-010) and Meta (added 2026-07-05, ADR-011):** neither Nextdoor nor Meta spend comes from the other-channels Sheet any more. Cloud Run Jobs (`cortex-nextdoor-ingest`, `cortex-meta-ingest`) pull their APIs daily into native tables (`budget.nextdoor_spend_daily`, `budget.meta_spend_daily`); `actual_spend_all` and `actual_spend_mtd` read those channels from the API tables and exclude them from the Sheet branch. The diagram above still shows the Sheet path, which now carries **Bing and LSA only**.
 
 Why native tables instead of querying the Sheets directly: an external table on a Google Sheet fails the **entire** view when the Drive credential drops, which took the whole dashboard down once. Materializing to native tables isolates that failure — a failed refresh keeps the last good copy and the dashboard stays up. See ADR-008 and LEARNINGS L-014.
 
@@ -74,6 +76,7 @@ right-idea-creative/cortex/
 ├── triage_data.json           # Source for Triage
 ├── pacing_api_view.sql        # DDL of pacing_api — STALE vs live view, see PENDING P-TECH-08
 ├── nextdoor-ingest/           # Cloud Run Job: Nextdoor Ads API -> BigQuery daily ingestion (ADR-010)
+├── meta-ingest/               # Cloud Run Job: Meta Marketing API -> BigQuery daily ingestion (ADR-011)
 ├── functions/monday-proxy.js  # Cloudflare Function: Monday ticket proxy
 ├── README.md
 └── docs/                      # This shared brain
@@ -101,13 +104,15 @@ Removed 2026-06-01 (old static-JSON pacing pipeline, no longer used): `export_pa
 | Object | Type | What it is |
 | --- | --- | --- |
 | `committed_budget_live` | NATIVE table | Materialized from the `committed_budget_long` Sheet. Daily 05:00 UTC. Live committed-budget source of truth. |
-| `other_channels_live` | NATIVE table | Materialized from the other-channels Sheet. Daily 05:00 UTC. Channels consumed by `actual_spend_all`: Bing, LSA, Meta Ads. (Nextdoor rows still physically present but excluded downstream — see `nextdoor_spend_daily` / ADR-010.) |
-| `nextdoor_spend_daily` | NATIVE table | Nextdoor spend/performance from the Ads API. Partitioned by `report_date`, clustered by `advertiser_id`. Written daily by Cloud Run Job `cortex-nextdoor-ingest` via MERGE on `(advertiser_id, report_date)`. Source of Nextdoor in `actual_spend_all`. (ADR-010.) |
+| `other_channels_live` | NATIVE table | Materialized from the other-channels Sheet. Daily 05:00 UTC. Channels consumed downstream: **Bing, LSA** only. (Nextdoor rows excluded per ADR-010; Meta Ads rows excluded per ADR-011 — both migrated to API tables. Their Sheet rows are physically present but dead.) |
+| `nextdoor_spend_daily` | NATIVE table | Nextdoor spend/performance from the Ads API. Partitioned by `report_date`, clustered by `advertiser_id`. Written daily by Cloud Run Job `cortex-nextdoor-ingest` via MERGE on `(advertiser_id, report_date)`. Source of Nextdoor in the spend views. (ADR-010.) |
 | `nextdoor_spend_daily_staging` | NATIVE table | WRITE_TRUNCATE staging for the Nextdoor MERGE. Holds the current run's rows only. |
-| `actual_spend_all` | VIEW | Three CTEs: Google Ads (cost de-micro'd) UNION other_channels_live (excl Nextdoor) UNION nextdoor_spend_daily; all joined to `client_crosswalk` on `customer_id` (Nextdoor matches `advertiser_id = customer_id`). |
-| `actual_spend_mtd` | VIEW | Same union, filtered to current-month-to-date. **Fixed 06-01** to include all channels (was Google-only). **Session 8 (06-17):** now 3 CTEs incl a `nextdoor` CTE reading `nextdoor_spend_daily` (Sheet branch excludes Nextdoor), mirroring `actual_spend_all`. Feeds `spent_mtd` in pacing_api. Duplicated union with `actual_spend_all` is tech debt — PENDING P-TECH-12. |
+| `meta_spend_daily` | NATIVE table | Meta Ads spend at campaign/day grain from the Marketing API. Partitioned by `date`. Schema identical to `other_channels_live` (account_name, customer_id, campaign, date, cost, channel). Written daily by Cloud Run Job `cortex-meta-ingest` via staging + range DELETE+INSERT (idempotent range-replace, not MERGE). Source of Meta in both spend views. (ADR-011.) |
+| `meta_spend_daily_staging` | NATIVE table | WRITE_TRUNCATE staging for the Meta range-replace. Holds the current run's rows only. |
+| `actual_spend_all` | VIEW | CTEs: Google Ads (cost de-micro'd) UNION LSA UNION other_channels_live (Bing only) UNION meta_spend_daily UNION nextdoor_spend_daily; all joined to `client_crosswalk` on `customer_id`. Meta added 2026-07-05 (ADR-011); Nextdoor 2026-06-17 (ADR-010); both excluded from the Sheet branch. |
+| `actual_spend_mtd` | VIEW | Same union, filtered to current-month-to-date. **Fixed 06-01** to include all channels (was Google-only). **Session 8 (06-17):** added a `nextdoor` CTE. **2026-07-05:** Meta swapped Sheet → `meta_spend_daily`, matching `actual_spend_all` (L-020). Feeds `spent_mtd` in pacing_api. Duplicated union with `actual_spend_all` is tech debt — PENDING P-TECH-12. |
 | `pacing_api` | VIEW | committed_budget_live FULL OUTER JOIN actual_spend_all + AM/source_group enrichment + spent_mtd + day-of-month dims (America/Chicago), filtered to current year. **This is what the webhook serves.** |
-| `client_crosswalk` | table | customer_id → canonical_client → account_manager → source_group. `pacing_api` reads it with `active = TRUE`. |
+| `client_crosswalk` | table | customer_id → canonical_client → account_manager → source_group. `pacing_api` reads it with `active = TRUE`. Multi-channel by design (one row per channel id); Daytona's Meta id was inserted 2026-07-05 (ADR-011 / L-021). |
 | `committed` | VIEW | **ORPHANED.** Reads old `committed_budget_seed` (no Yelp, stale). **Not used by pacing_api.** See PENDING P-TECH-07. |
 | `committed_budget_seed` | table | Old hand-loaded committed budget. Source for the orphaned `committed` view only. |
 
@@ -120,21 +125,25 @@ Removed 2026-06-01 (old static-JSON pacing pipeline, no longer used): `export_pa
 
 Both verified SUCCEEDED on their first unattended run (overnight 05-31 → 06-01).
 
-### Cloud Run Jobs (Nextdoor ingestion — ADR-010)
+### Cloud Run Jobs (API ingestion — ADR-010, ADR-011)
 
 | Name | Type | Schedule | Action |
 | --- | --- | --- | --- |
 | `cortex-nextdoor-ingest` | Cloud Run Job (region `us-central1`) | triggered by Scheduler | Loops `/me` advertisers → synchronous `/stats` per advertiser/day → MERGE into `budget.nextdoor_spend_daily`. `LOOKBACK_DAYS=3` trailing re-statement window. SA `cortex-nextdoor@`, token from Secret Manager `nextdoor-ads-token`. Source in repo `nextdoor-ingest/`. |
 | `cortex-nextdoor-daily` | Cloud Scheduler (region `us-central1`) | 09:00 America/New_York daily | POSTs to the Run Jobs API to execute `cortex-nextdoor-ingest`. |
+| `cortex-meta-ingest` | Cloud Run Job (region `us-central1`) | triggered by Scheduler | Enumerates active accounts via `/me/adaccounts` (`account_status==1`) → insights per account/day (`level=campaign`, `time_increment=1`) → staging + range DELETE+INSERT into `budget.meta_spend_daily`. 7-day trailing window default; `--since/--until` for backfill. SA `cortex-meta@`, token from Secret Manager `meta-access-token`. Source in repo `meta-ingest/`. |
+| `cortex-meta-daily` | Cloud Scheduler (region `us-central1`) | 08:00 America/New_York daily | POSTs to the Run Jobs API to execute `cortex-meta-ingest`. Staggered 1h before Nextdoor. |
 
-**Secret Manager:** `nextdoor-ads-token` — Nextdoor Ads API v3 bearer token, **expires 2027-06-16** (rotation tracked in PENDING P-TECH-10).
+**Secret Manager:**
+- `nextdoor-ads-token` — Nextdoor Ads API v3 bearer token, **expires 2027-06-16** (rotation tracked in PENDING P-TECH-10).
+- `meta-access-token` — Meta System User (`cortex-bigquery`) token, `ads_read`. **Exposed in build chat 2026-07-05 — rotation pending (P-TECH-14).**
 
 ### Google Sheets connected to BQ
 
 | Sheet | ID | Connected via | Materialized to | Used in |
 | --- | --- | --- | --- | --- |
 | committed_budget_long | `15Ju5gm9q5lu8RbevwrVlbrLS3sMqcrY-_KW4tldKOR4` | `raw_budget.committed_budget_long` | `budget.committed_budget_live` | Committed budget (live truth) |
-| Other Channel Spend | `1pJ8GyxepeoO_yddEvVleUaUQ8zAN7_EVckJ_zvg93G4` | `raw_budget.other_channels_normalized` | `budget.other_channels_live` | Other-channel actual spend (weekly). Bing/LSA/Meta only — Nextdoor migrated to API (ADR-010); its Sheet rows are now dead (P-OPS-08). |
+| Other Channel Spend | `1pJ8GyxepeoO_yddEvVleUaUQ8zAN7_EVckJ_zvg93G4` | `raw_budget.other_channels_normalized` | `budget.other_channels_live` | Other-channel actual spend (weekly). **Bing/LSA only** — Nextdoor migrated to API (ADR-010, P-OPS-08) and Meta migrated to API (ADR-011, P-OPS-10); both channels' Sheet rows are now dead. |
 
 The refreshes read Sheets, so whatever identity runs them needs a valid Drive credential at run time — which is exactly why the downstream layer is materialized.
 
@@ -142,6 +151,7 @@ The refreshes read Sheets, so whatever identity runs them needs a valid Drive cr
 
 - **Google Ads transfer** from Master MCC `611-819-8619` to `raw_google_ads`, daily ~06:00 UTC, ~1-day lag (today's spend appears tomorrow).
 - Jan-Mar 2026 backfill: ~35 of 49 affected combos recovered; ~14 likely permanently `BQ Data Gap` (CID was outside MCC). Acceptable.
+- **Note:** Meta has no DTS connector (Google-Ads-only). `cortex-meta-ingest` is Meta's equivalent of a transfer; same for Nextdoor.
 
 ## Service accounts in use
 
@@ -151,6 +161,7 @@ The refreshes read Sheets, so whatever identity runs them needs a valid Drive cr
 | `cortex-pacing-gha@...` | GitHub-side automation (secret `GCP_SA_KEY`); Viewer on `committed_budget_long`. |
 | `ctm-pipeline-sa@...` | Call Tracking pipeline (Nate). |
 | `cortex-nextdoor@...` | Nextdoor API → BigQuery ingestion (Cloud Run Job). Roles: `bigquery.dataEditor`, `bigquery.jobUser`, `run.invoker`, `secretmanager.secretAccessor` on `nextdoor-ads-token`. |
+| `cortex-meta@...` | Meta Marketing API → BigQuery ingestion (Cloud Run Job). Roles: `bigquery.dataEditor`, `bigquery.jobUser`, `run.invoker`, `secretmanager.secretAccessor` on `meta-access-token`. |
 
 ## n8n
 
@@ -187,4 +198,4 @@ Dataset `ctm_data` contains data sourced from the CallTrackingMetrics API. Loade
 - **`budget.committed` (orphaned, seed) vs `committed_budget_live` (live, Sheet)** — two committed-budget objects, different data. `pacing_api` uses the live one. Anything reading `budget.committed` gets stale data. (PENDING P-TECH-07.)
 - **Repo `pacing_api_view.sql` vs live `pacing_api`** — repo file is a simplified template; the live view is more complex. (PENDING P-TECH-08.)
 - ~~Repo `ad-spend-pacing.html` vs production~~ — **RESOLVED/incorrect (2026-06-17, session 8):** verified the repo IS production's source (CF Pages auto-deploy from `main`, no Direct Uploads). The repo copy reads the webhook and uses `cortex-shell.js`. The earlier "stale copy / uploaded outside repo" claim does not hold. (P-TECH-09 closed.)
-- **`budget.other_channels_live` still carries Nextdoor rows** — the Sheet was not cleaned after Nextdoor moved to the API (ADR-010). `actual_spend_all` excludes them so there is no double count, but the Sheet and native table carry dead Nextdoor rows. (PENDING P-OPS-08.)
+- **`budget.other_channels_live` still carries Nextdoor AND Meta rows** — the Sheet was not cleaned after Nextdoor (ADR-010) and Meta (ADR-011) moved to APIs. `actual_spend_all` and `actual_spend_mtd` exclude them so there is no double count, but the Sheet and native table carry dead Nextdoor + Meta rows. (PENDING P-OPS-08 for Nextdoor, P-OPS-10 for Meta.)

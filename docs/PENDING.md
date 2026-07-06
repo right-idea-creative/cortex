@@ -2,7 +2,7 @@
 
 > **Purpose:** what's open, blocked, or waiting. Only live items. **Delete resolved items** — they belong in session logs, not here.
 
-> **Last updated:** 2026-06-17 (session 8)
+> **Last updated:** 2026-07-05 (Meta ingest session)
 
 ---
 
@@ -45,11 +45,23 @@
 - **Effect:** the dashboard shows Yelp as ~100% under-spent for every client with Yelp budget. That's a capture gap, not under-spend.
 - **Decision needed:** either (a) add a Yelp actual-spend feed to the other-channels Sheet, or (b) decide Yelp is committed-only for now and suppress/annotate it in the dashboard.
 - **Owner:** Nate / whoever maintains the other-channels Sheet.
-- **Status:** waiting. (Same class of gap as LSA historically.)
+- **Status:** waiting. (Same class of gap as LSA historically.) **Note:** now that two channels (Nextdoor, Meta) follow the Cloud Run Job template, a Yelp API pull would be the natural (c) option — same `meta-ingest/` scaffold.
 
 ### P-OPS-08: Remove Nextdoor rows from the Other Channel Spend Sheet
 - **What:** Nextdoor now flows from the API (`budget.nextdoor_spend_daily`, ADR-010). `actual_spend_all` excludes Nextdoor from the Sheet branch, but the Other Channel Spend Sheet (and therefore `other_channels_live`) still physically carries ~1,689 Nextdoor rows. They are dead — ignored by the view — but waste space and will confuse whoever edits the Sheet.
 - **Fix:** stop entering Nextdoor in the Sheet going forward; optionally clear historical Nextdoor rows from it.
+- **Owner:** whoever maintains the Other Channel Spend Sheet (Cole / Nate).
+- **Status:** waiting
+
+### P-OPS-09: ODC Savannah under-captured in the Meta Sheet (~$895)
+- **What:** Reconciling the Meta API backfill against the Sheet, ODC Savannah (`2758529924464378`) showed +$379 (March) and +$516 (April) in the API vs the Sheet. Drill-down confirmed the API is correct (consecutive days, one real campaign, no dupes) — the manual Sheet capture **under-recorded ~$895** of real Meta spend across the two months.
+- **Effect:** historical Meta reporting for Savannah was low by ~$895. Now corrected at source (API).
+- **Owner:** Cole (or whoever maintains the manual Meta capture) — flag that the manual process missed real spend.
+- **Status:** waiting
+
+### P-OPS-10: Remove Meta rows from the Other Channel Spend Sheet
+- **What:** Meta now flows from the API (`budget.meta_spend_daily`, ADR-011). Both spend views exclude "Meta Ads" from the Sheet branch, but the Sheet (and `other_channels_live`) still physically carries them. Dead rows — same class as P-OPS-08 (Nextdoor).
+- **Fix:** stop entering Meta in the Sheet going forward; optionally clear historical Meta rows.
 - **Owner:** whoever maintains the Other Channel Spend Sheet (Cole / Nate).
 - **Status:** waiting
 
@@ -94,7 +106,7 @@
 
 ### P-TECH-08: `pacing_api_view.sql` in the repo is stale vs the live view
 - **What:** The repo's `pacing_api_view.sql` is a simplified/template version (uses `your_project` placeholder, reads `committed`, lacks the enrichment / `actual_spend_mtd` / day-of-month dims). The **live** `pacing_api` in BigQuery is significantly more complex (verified via DDL 2026-06-01).
-- **Fix:** dump the live `pacing_api` DDL into `pacing_api_view.sql` so the repo matches production. Same for `actual_spend_all` / `actual_spend_mtd` if we want them versioned.
+- **Fix:** dump the live `pacing_api` DDL into `pacing_api_view.sql` so the repo matches production. Same for `actual_spend_all` / `actual_spend_mtd` if we want them versioned. **Note (2026-07-05):** `actual_spend_all` and `actual_spend_mtd` are now more complex too (Meta CTE added, ADR-011) — worth versioning all three view DDLs together.
 - **Priority:** medium.
 
 ### P-TECH-10: Rotate the Nextdoor API token before it expires
@@ -107,6 +119,19 @@
 - **What:** `/me` returns 26 advertisers including non-client junk (`TEST 1 [DO NOT USE]`, `TEST 2 [DO NOT USE]`, `TRASH`, `Trash`). They are written to the raw `nextdoor_spend_daily` table. They do **not** reach `actual_spend_all` (not present in `client_crosswalk`, so the join drops them), so this is cosmetic.
 - **Fix (optional):** exclude by name in the job, or filter the `/me` list against an allowlist derived from `client_crosswalk`.
 - **Priority:** low.
+
+### P-TECH-12: Refactor `actual_spend_mtd` to not duplicate the channel union
+- `actual_spend_mtd` (month-to-date) carries its own copy of the channel union that `actual_spend_all` (annual) already has. This duplication is what caused the session-8 bug: Nextdoor was swapped in one view but not the other, so the dashboard went half-right (ACTUAL correct, MTD $0). **Reinforced 2026-07-05:** Meta had to be swapped in both views for the same reason. Refactor so the MTD figure derives from the same base/source as the annual view and the union exists once. Until then, any channel-source change must be applied to **both** views (LEARNINGS L-020).
+- **Priority:** medium (grows each time a channel is added).
+
+### P-TECH-13: Verify `committed = "0.0"` is not hitting ODC clients with budget
+- The webhook returns `committed = "0.0"` for some clients with real `actual` (e.g. CharterWest Bank — but that's `source_group: Other`, likely legitimately no committed budget). Confirm this is **not** happening for any **ODC** client that does have committed budget in the planner. If it is, the bug is likely in the `pacing_api` FULL OUTER JOIN with `committed_budget_live` (a client present in actuals but unmatched on the committed side yields 0). Low urgency; verify with a targeted query across ODC clients.
+
+### P-TECH-14: Rotate the Meta access token (exposed in build chat)
+- **What:** Secret Manager secret `meta-access-token` holds the Meta System User token used by `cortex-meta-ingest`. It was **pasted in plaintext in the build chat session** on 2026-07-05, so it must be rotated regardless of its natural expiry.
+- **Fix:** in Business Manager → System User `cortex-bigquery` (`61591760422985`) → revoke the current token, generate a new one (`ads_read`), then `gcloud secrets versions add meta-access-token --project=rightidea-cortex --data-file=-` with the new value. The job reads `:latest`, so **no redeploy** is needed.
+- **Owner:** Sebas. Do next session.
+- **Priority:** medium-high (security; a live read token was exposed).
 
 ---
 
@@ -125,36 +150,10 @@
 ### P-CARRY-04: Extend the channel mapping with non-Google IDs natively
 - The crosswalk is built from Google Ads CIDs + a join to `client_mapping`. Non-Google channel IDs (Meta/Nextdoor/LSA/Bing/Yelp) currently need manual inserts that get wiped on rebuild. Rewrite the crosswalk build to UNPIVOT `client_mapping` so all channel IDs map natively.
 - **Note (2026-06-17):** Nextdoor IDs are already present in `client_crosswalk` and matched 1:1 in the Nextdoor backfill (ADR-010), but per this item they can be wiped on a crosswalk rebuild — the native UNPIVOT fix would make them durable. `reference.client_mapping` already has a `nextdoor_id` column to source from.
+- **Note (2026-07-05):** Daytona's Meta id (`1414845413594090`) was **manually inserted** into `client_crosswalk` this session (ADR-011 / L-021) and is exactly the kind of per-channel row a rebuild would wipe. Meta ids in general are now a live dependency of this item.
 - **Priority:** medium.
 
 ### P-CARRY-05: Delete empty remote repo `cortex-budget-pacing`
 - `right-idea-creative/cortex-budget-pacing` is an empty GitHub repo (created 05-27, never populated) from the abandoned Cloud Run + GCS approach. Local clone already deleted.
 - **Fix:** delete the remote repo from GitHub. Quick confirm with Nate since it's in the org.
 - **Priority:** low (inert).
-
----
-
-### P-TECH-12 — Refactor `actual_spend_mtd` to not duplicate the channel union
-
-`actual_spend_mtd` (month-to-date) carries its own copy of the channel union that `actual_spend_all` (annual) already has. This duplication is what caused the session-8 bug: Nextdoor was swapped in one view but not the other, so the dashboard went half-right (ACTUAL correct, MTD $0). Refactor so the MTD figure derives from the same base/source as the annual view and the union exists once. Until then, any channel-source change must be applied to **both** views (LEARNINGS L-020).
-
-### P-TECH-13 — Verify `committed = "0.0"` is not hitting ODC clients with budget
-
-The webhook returns `committed = "0.0"` for some clients with real `actual` (e.g. CharterWest Bank — but that's `source_group: Other`, likely legitimately no committed budget). Confirm this is **not** happening for any **ODC** client that does have committed budget in the planner. If it is, the bug is likely in the `pacing_api` FULL OUTER JOIN with `committed_budget_live` (a client present in actuals but unmatched on the committed side yields 0). Low urgency; verify with a targeted query across ODC clients.
-
-## Resolved in session 2026-06-17 (will be deleted on next update)
-
-**Session 8/9 (frontend audit):**
-- **P-TECH-09 — closed as incorrect/resolved.** The premise (repo `ad-spend-pacing.html` is a stale old-JSON copy; production is uploaded by Nate outside the repo) was verified false on 2026-06-17. Cloudflare Pages deploys from `right-idea-creative/cortex` on push to `main` (automatic deployments, no Direct Uploads in history). The repo's `ad-spend-pacing.html` reads the n8n webhook and includes `cortex-shell.js` — it IS what production serves. No reconciliation needed; the repo was already the source of truth. Corrected STATE.md, ARCHITECTURE.md, state.json, and the L-015 narrative clause accordingly.
-- Migrated `call-tracking.html` and `tickets.html` to `cortex-shell.js` (they carried a hardcoded 4-link nav, missing Campaign Triage + Budget Planning). Commit `6aeb20a`.
-- Removed orphaned `odc_pacing.html` template (placeholder webhooks, unreferenced). Commit `79b4eb8`.
-
-**Session 8 (post-deploy pacing fixes):**
-- Backfilled the June 1–13 Nextdoor ingestion gap in `nextdoor_spend_daily` (gap between end-of-backfill May 31 and the daily job's 3-day trailing window). Dallas ACTUAL $140 → $798.
-- Fixed SPENT MTD = $0 for all channels: pacing webhook query was a stale explicit column list, switched to `p.*`. Webhook now administered by us.
-- Swapped Nextdoor source in `actual_spend_mtd` (Sheet → `nextdoor_spend_daily`), matching `actual_spend_all`.
-
-- Built and deployed the Nextdoor Ads API → BigQuery pipeline end-to-end (ADR-010): Cloud Run Job `cortex-nextdoor-ingest` + Scheduler `cortex-nextdoor-daily` + SA `cortex-nextdoor@` + Secret `nextdoor-ads-token` + native table `budget.nextdoor_spend_daily`.
-- Backfilled Jan 1 – May 31 2026 for all 26 advertisers (1,322 active account-days); validated parity vs the Sheet to the cent.
-- Swapped `actual_spend_all` to read Nextdoor from the API table (third CTE) and excluded Nextdoor from the Sheet branch; verified no double counting.
-- Confirmed idempotency of the MERGE and a Scheduler-triggered execution running as the SA.

@@ -164,3 +164,29 @@ Current instances:
 - Metric chosen is `billable_spend` (what the client is billed), not gross delivery spend. For pacing against committed budget this is correct; gross would be a separate pull if invoice reconciliation ever needs it.
 - The job source lives in the repo at `nextdoor-ingest/` (infra-as-code).
 - **The Nextdoor swap applies to TWO views, not one** (added 2026-06-17, session 8): both `actual_spend_all` (annual) and `actual_spend_mtd` (month-to-date) carry the channel union and both must read Nextdoor from `nextdoor_spend_daily` and exclude it from the Sheet branch. Session 1 only swapped `actual_spend_all`; `actual_spend_mtd` was swapped in session 8. The duplicated union is itself tracked as tech debt — see PENDING P-TECH-12 and LEARNINGS L-020.
+
+---
+
+## ADR-011: Meta Ads spend is ingested via the Meta Marketing API directly, not the other-channels Sheet
+
+**Date:** 2026-07-05
+**Status:** Active. Supersedes the Meta slot of ADR-008 (the other-channels Sheet path) for any Meta spend that reaches `actual_spend_all` / `actual_spend_mtd`.
+
+**Decision:** Meta Ads spend is pulled daily from the Meta Marketing API by a **Cloud Run Job** (`cortex-meta-ingest`) triggered by **Cloud Scheduler** (`cortex-meta-daily`, 08:00 America/New_York). The job enumerates active ad accounts dynamically via `/me/adaccounts` (filtered to `account_status==1`), calls the insights endpoint per account at campaign/day grain (`level=campaign&fields=campaign_name,spend&time_increment=1`), maps to the 6-column schema, and writes to the native table `budget.meta_spend_daily` (partitioned by `date`) via a staging load + a `DELETE`+`INSERT` of the date range in a transaction. Both `actual_spend_all` and `actual_spend_mtd` read Meta from this table (joined to `client_crosswalk` on `customer_id`) and **exclude** Meta from the other-channels Sheet branch to avoid double counting.
+
+**Why this replaces the Sheet for Meta:**
+- The Sheet was manual, weekly, and rounded; the API is daily, automated, and exact. Reconciliation over Jan–Jul 2026 matched within billing-adjustment noise **except** where the Sheet had under-captured (ODC Savannah, ~$895 across Mar+Apr) and where it had a bad account id (Daytona) — i.e. the API is the more complete and correct source.
+- Removes a manual-capture step and its recurring errors (P-OPS-04 class) for the Meta slot.
+
+**Why the same pattern as Nextdoor (ADR-010):** this is the **second** channel to follow the Cloud Run Job template. Dedicated SA (`cortex-meta@`) + Secret Manager (`meta-access-token`) + scheduled trigger, source in the repo at `meta-ingest/`. Future channel APIs (Yelp, P-OPS-07) follow the same template.
+
+**Why `requests` direct, not the `facebook-business` SDK:** for a read-only insights pull the SDK adds a heavy dependency and obscures debugging. Direct Graph API calls (paginated via `paging.next`, backoff on rate-limit codes 4/17/613) are simpler and were validated with a plain `curl` before any code.
+
+**Why the write is DELETE+INSERT of the range, not MERGE:** the table is partitioned by `date`; deleting the exact requested range (partition-pruned) then inserting from staging is idempotent and also clears rows for campaigns that dropped to zero — which a key-based MERGE would leave stale. Re-running a range replaces those dates and never duplicates. (Note this differs from Nextdoor's MERGE-on-key; both achieve idempotency, the range-replace is cleaner for daily-grain spend.)
+
+**Consequences / notes:**
+- Meta has **no** BigQuery Data Transfer Service connector (DTS is Google-Ads-only). This Cloud Run Job **is** the transfer for Meta.
+- The System User token has an expiry; rotation is a manual step — see PENDING P-TECH-14. The token was exposed in the build chat and must be rotated.
+- `other_channels_live` still physically contains "Meta Ads" rows (the Sheet was not cleaned), but both spend views filter them out. Cleaning the Sheet is P-OPS-10.
+- **Applies to TWO views** (same as ADR-010 / L-020): both `actual_spend_all` and `actual_spend_mtd` were swapped to read Meta from `meta_spend_daily` and exclude it from the Sheet branch, in the same session.
+- A client can have **different ids per channel** and dirty ids in the Sheet. Daytona surfaced with three ids: LSA `7490097466` (crosswalk), a bad Sheet id `2758529924464379`, and the real Meta id `1414845413594090`. Verify channel ids against `client_crosswalk` before carving a view. (LEARNINGS L-021; relates to P-CARRY-04.)
