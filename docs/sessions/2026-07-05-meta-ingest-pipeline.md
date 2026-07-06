@@ -75,3 +75,7 @@ Connect Meta Ads to BigQuery directly via the Marketing API and retire the "Meta
 - Third channel API (Yelp, P-OPS-07) can follow the same `meta-ingest/` / `nextdoor-ingest/` template.
 - Daytona is a live example of P-CARRY-04 (per-channel ids that a crosswalk rebuild would wipe): it now has a manually-inserted Meta-id row that a rebuild would drop.
 - Token rotation (P-TECH-14) is the only open security item; the pipeline is otherwise complete and autonomous.
+
+## Follow-up: Other Channel Spend Sheet cleaned to Bing-only
+
+After the view swaps, the Other Channel Spend Sheet was cleaned: Nextdoor, Meta Ads, and LSA rows all deleted (a backup copy of the Sheet was kept). Verified before deleting that none feed the live views — Nextdoor from `nextdoor_spend_daily`, Meta from `meta_spend_daily`, and LSA from Google Ads (`LOCAL_SERVICES` CTE; the reporting total $54,305 vs the Sheet's $28,913 confirmed the Sheet's LSA rows were already ignored). **The Sheet now carries Bing only** — Bing stays Sheet-fed because the Microsoft Ads API is still blocked on account authentication (no pipeline yet). Closes P-OPS-08 (Nextdoor rows) and P-OPS-10 (Meta rows). Change reflects in `other_channels_live` on the next 05:00 UTC scheduled refresh.

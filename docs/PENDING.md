@@ -2,7 +2,7 @@
 
 > **Purpose:** what's open, blocked, or waiting. Only live items. **Delete resolved items** — they belong in session logs, not here.
 
-> **Last updated:** 2026-07-05 (Meta ingest session)
+> **Last updated:** 2026-07-05 (Meta ingest session + Sheet cleanup)
 
 ---
 
@@ -26,7 +26,7 @@
 - **Status:** waiting
 
 ### P-OPS-04: Manual sheet capture generates Date NULL rows
-- **What:** The Other Channel Spend sheet periodically has rows with `Date NULL` that get silently dropped by `WHERE Date IS NOT NULL`. Root cause (copy-paste/export error) not identified; will recur.
+- **What:** The Other Channel Spend sheet periodically has rows with `Date NULL` that get silently dropped by `WHERE Date IS NOT NULL`. Root cause (copy-paste/export error) not identified; will recur. **Note (2026-07-05):** the Sheet is now Bing-only, so the surface area for this shrank considerably.
 - **Owner:** Cole / whoever maintains the manual capture.
 - **Status:** waiting
 
@@ -43,26 +43,14 @@
 ### P-OPS-07: Yelp has committed budget but no actual-spend feed
 - **What:** Yelp appears as a channel in the live committed budget (`committed_budget_long` Sheet → `committed_budget_live`), with real committed amounts for several ODC clients (e.g. ODC Dallas Fort Worth, ODC Denver). But `pacing_api` shows actual = 0 for Yelp because there is no Yelp actual-spend feed — Yelp is not in the other-channels Sheet (`other_channels_normalized`).
 - **Effect:** the dashboard shows Yelp as ~100% under-spent for every client with Yelp budget. That's a capture gap, not under-spend.
-- **Decision needed:** either (a) add a Yelp actual-spend feed to the other-channels Sheet, or (b) decide Yelp is committed-only for now and suppress/annotate it in the dashboard.
+- **Decision needed:** either (a) add a Yelp actual-spend feed, or (b) decide Yelp is committed-only for now and suppress/annotate it in the dashboard.
 - **Owner:** Nate / whoever maintains the other-channels Sheet.
-- **Status:** waiting. (Same class of gap as LSA historically.) **Note:** now that two channels (Nextdoor, Meta) follow the Cloud Run Job template, a Yelp API pull would be the natural (c) option — same `meta-ingest/` scaffold.
-
-### P-OPS-08: Remove Nextdoor rows from the Other Channel Spend Sheet
-- **What:** Nextdoor now flows from the API (`budget.nextdoor_spend_daily`, ADR-010). `actual_spend_all` excludes Nextdoor from the Sheet branch, but the Other Channel Spend Sheet (and therefore `other_channels_live`) still physically carries ~1,689 Nextdoor rows. They are dead — ignored by the view — but waste space and will confuse whoever edits the Sheet.
-- **Fix:** stop entering Nextdoor in the Sheet going forward; optionally clear historical Nextdoor rows from it.
-- **Owner:** whoever maintains the Other Channel Spend Sheet (Cole / Nate).
-- **Status:** waiting
+- **Status:** waiting. (Same class of gap as LSA historically.) **Note:** now that two channels (Nextdoor, Meta) follow the Cloud Run Job template, a Yelp API pull would be the natural (a) option — same `meta-ingest/` scaffold.
 
 ### P-OPS-09: ODC Savannah under-captured in the Meta Sheet (~$895)
 - **What:** Reconciling the Meta API backfill against the Sheet, ODC Savannah (`2758529924464378`) showed +$379 (March) and +$516 (April) in the API vs the Sheet. Drill-down confirmed the API is correct (consecutive days, one real campaign, no dupes) — the manual Sheet capture **under-recorded ~$895** of real Meta spend across the two months.
 - **Effect:** historical Meta reporting for Savannah was low by ~$895. Now corrected at source (API).
 - **Owner:** Cole (or whoever maintains the manual Meta capture) — flag that the manual process missed real spend.
-- **Status:** waiting
-
-### P-OPS-10: Remove Meta rows from the Other Channel Spend Sheet
-- **What:** Meta now flows from the API (`budget.meta_spend_daily`, ADR-011). Both spend views exclude "Meta Ads" from the Sheet branch, but the Sheet (and `other_channels_live`) still physically carries them. Dead rows — same class as P-OPS-08 (Nextdoor).
-- **Fix:** stop entering Meta in the Sheet going forward; optionally clear historical Meta rows.
-- **Owner:** whoever maintains the Other Channel Spend Sheet (Cole / Nate).
 - **Status:** waiting
 
 ---
