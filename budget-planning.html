@@ -196,6 +196,17 @@ fetch("/cdn-cgi/access/get-identity")
   .then(j => { IDENTITY = (j && j.email) || null; })
   .catch(()=>{});
 
+// [EDIT] Write permission comes from the server (enforced there too — this only
+// controls whether cells look editable). Until confirmed, editing is off.
+let CAN_WRITE = false;
+fetch("/api/budget-events?mode=perms", { cache: "no-store" })
+  .then(r => r.ok ? r.json() : null)
+  .then(p => {
+    CAN_WRITE = !!(p && p.can_write);
+    if (STATE.data) render(); // re-render once permissions are known
+  })
+  .catch(()=>{});
+
 function channelsInData(){
   return [...new Set(STATE.data.items.map(r=>r.channel))].sort();
 }
@@ -256,14 +267,14 @@ function render(){
       : `<div class="acct">${esc(r.client)}</div><div class="chan"><span class="pill ${esc(r.channel)}">${esc(r.channel.replace(/_/g," "))}</span></div>`;
     return `<tr class="${cls}">
       <td>${label}</td>
-      ${MONTHS.map(m=>cell(r[m], r, m, !isTotals)).join("")}
+      ${MONTHS.map(m=>cell(r[m], r, m, !isTotals && CAN_WRITE)).join("")}
       <td class="r"><b>${fmtMoney(r.row_total)}</b></td>
     </tr>`;
   }).join("");
 
   const totalShown=display.reduce((a,r)=>a+(r.row_total||0),0);
   document.getElementById("foot").textContent=
-    `Showing ${display.length} ${isTotals?"clients":"budget lines"} · ${fmtMoney(totalShown)} committed in view · click a column header to sort · click a month cell to edit`;
+    `Showing ${display.length} ${isTotals?"clients":"budget lines"} · ${fmtMoney(totalShown)} committed in view · click a column header to sort${CAN_WRITE ? " · click a month cell to edit" : ""}`;
 }
 
 // ── [EDIT] Edit modal logic ─────────────────────────────────
@@ -309,7 +320,7 @@ async function saveEdit(){
     month: MONTHS.indexOf(EDIT.m) + 1,
     amount: amount,
     event_type: "update",
-    changed_by: IDENTITY || "unknown",
+    // changed_by is set server-side from the Access identity header
     note: $("mNote").value.trim() || null
   };
 

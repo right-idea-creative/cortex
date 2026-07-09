@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Budget Change History — Córtex OS</title>
+<style>
+:root {
+  --c-bg:#ffffff; --c-surface:#f0f2f5; --c-surface-2:#e9edf3;
+  --c-text:#1a1a2e; --c-text-2:#5f6470; --c-text-3:#9099a6;
+  --c-border:#e4e6ea; --c-border-2:#d0d3d8;
+  --c-danger-bg:#fdecea; --c-danger-tx:#c62828;
+  --c-warn-bg:#fff4e0; --c-warn-tx:#a35a00;
+  --c-ok-bg:#e8f5e9; --c-ok-tx:#2e7d32; --c-info-tx:#1565c0;
+  --c-radius:10px; --c-radius-sm:7px;
+  --font-sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --font-mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}
+* { box-sizing:border-box; margin:0; padding:0; }
+body { margin:0; background:#f0f2f5; color:var(--c-text);
+  font-family:var(--font-sans); font-size:14px; line-height:1.5; -webkit-font-smoothing:antialiased; }
+.wrap { max-width:1180px; margin:0 auto; padding:24px 32px 60px; }
+header.page { margin-bottom:18px; }
+header.page h1 { font-size:22px; font-weight:700; margin:0 0 4px; letter-spacing:-0.01em; color:#0d1b2a; }
+header.page .sub { color:var(--c-text-2); font-size:13px; }
+.controls { display:flex; flex-wrap:wrap; gap:7px; align-items:center; margin-bottom:14px; }
+.controls .spacer { flex:1; }
+select.f { font:inherit; font-size:13px; color:var(--c-text); background:transparent;
+  border:1px solid var(--c-border-2); border-radius:var(--c-radius-sm); padding:5px 12px; cursor:pointer; }
+input.search { font:inherit; font-size:13px; color:var(--c-text); width:220px; background:var(--c-bg);
+  border:1px solid var(--c-border-2); border-radius:var(--c-radius-sm); padding:5px 11px; }
+input.search::placeholder { color:var(--c-text-3); }
+.tablecard { background:#fff; border:1px solid var(--c-border); border-radius:var(--c-radius); overflow:hidden; box-shadow:0 1px 4px rgba(0,0,0,.07); }
+.scroll { overflow-x:auto; }
+table { width:100%; border-collapse:collapse; font-size:13px; min-width:960px; }
+thead th { text-align:left; font-weight:500; color:var(--c-text-2); padding:11px 12px;
+  border-bottom:1px solid var(--c-border); white-space:nowrap; position:sticky; top:0; background:var(--c-bg); }
+thead th.r { text-align:right; }
+tbody td { padding:9px 12px; border-bottom:1px solid var(--c-border); vertical-align:top; }
+tbody tr:last-child td { border-bottom:0; }
+td.r { text-align:right; font-variant-numeric:tabular-nums; }
+td.when { white-space:nowrap; color:var(--c-text-2); font-size:12px; }
+td.who { white-space:nowrap; }
+td.note { color:var(--c-text-2); max-width:280px; }
+.pill { display:inline-block; padding:2px 9px; border-radius:20px; font-size:12px; white-space:nowrap; }
+.pill.google_ads { background:#eaf2fd; color:var(--c-info-tx); }
+.pill.meta { background:#ede7f6; color:#5e35b1; }
+.pill.lsa { background:var(--c-ok-bg); color:var(--c-ok-tx); }
+.pill.nextdoor { background:var(--c-warn-bg); color:var(--c-warn-tx); }
+.tag { display:inline-block; padding:1px 8px; border-radius:5px; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.4px; }
+.tag.update { background:#eaf2fd; color:var(--c-info-tx); }
+.tag.create { background:var(--c-ok-bg); color:var(--c-ok-tx); }
+.tag.delete { background:var(--c-danger-bg); color:var(--c-danger-tx); }
+.muted { color:var(--c-text-3); }
+.foot { color:var(--c-text-3); font-size:12px; margin-top:14px; }
+.empty, .loading { padding:40px; text-align:center; color:var(--c-text-2); }
+.err { padding:30px; border:1px solid var(--c-border); border-radius:var(--c-radius);
+  color:var(--c-danger-tx); background:var(--c-danger-bg); margin-top:16px; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="page">
+    <h1>Budget change history</h1>
+    <div class="sub">Audit log of every committed-budget change · <span id="who" class="muted"></span></div>
+  </header>
+  <div class="controls">
+    <select class="f" id="fChannel"><option value="">All channels</option></select>
+    <select class="f" id="fUser"><option value="">All users</option></select>
+    <span class="spacer"></span>
+    <input class="search" id="q" type="search" placeholder="Search client or note…" aria-label="Search">
+  </div>
+  <div class="tablecard">
+    <div class="scroll">
+      <table>
+        <thead><tr>
+          <th>When (UTC)</th>
+          <th>Client</th>
+          <th>Channel</th>
+          <th>Period</th>
+          <th class="r">Amount</th>
+          <th>Type</th>
+          <th>Changed by</th>
+          <th>Note</th>
+        </tr></thead>
+        <tbody id="tbody"><tr><td colspan="8" class="loading">Loading change history…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+  <div class="foot" id="foot"></div>
+</div>
+
+<script>
+const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const STATE = { events: [], channel: "", user: "", q: "" };
+const esc = s => String(s ?? "").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const fmtMoney = n => "$" + Number(n).toLocaleString(undefined,{maximumFractionDigits:2});
+
+// BigQuery returns TIMESTAMP as epoch seconds (string); render as UTC.
+function fmtWhen(v){
+  const d = new Date(parseFloat(v) * 1000);
+  if (Number.isNaN(d.getTime())) return esc(v);
+  return d.toISOString().replace("T"," ").slice(0,19);
+}
+
+function passes(e){
+  if (STATE.channel && e.channel !== STATE.channel) return false;
+  if (STATE.user && e.changed_by !== STATE.user) return false;
+  if (STATE.q){
+    const q = STATE.q.toLowerCase();
+    if (!(e.client||"").toLowerCase().includes(q) && !(e.note||"").toLowerCase().includes(q)) return false;
+  }
+  return true;
+}
+
+function render(){
+  const rows = STATE.events.filter(passes);
+  const tb = document.getElementById("tbody");
+  if (!rows.length){
+    tb.innerHTML = `<tr><td colspan="8" class="empty">No events match this view.</td></tr>`;
+    document.getElementById("foot").textContent = "";
+    return;
+  }
+  tb.innerHTML = rows.map(e => `<tr>
+    <td class="when">${fmtWhen(e.changed_at)}</td>
+    <td><b>${esc(e.client)}</b></td>
+    <td><span class="pill ${esc(e.channel)}">${esc((e.channel||"").replace(/_/g," "))}</span></td>
+    <td>${MONTH_NAMES[(Number(e.month)||1)-1]} ${esc(e.year)}</td>
+    <td class="r">${fmtMoney(e.amount)}</td>
+    <td><span class="tag ${esc(e.event_type)}">${esc(e.event_type)}</span></td>
+    <td class="who">${esc(e.changed_by)}</td>
+    <td class="note">${e.note ? esc(e.note) : '<span class="muted">—</span>'}</td>
+  </tr>`).join("");
+  document.getElementById("foot").textContent =
+    `Showing ${rows.length} of ${STATE.events.length} events (most recent first)`;
+}
+
+function wire(){
+  const chans = [...new Set(STATE.events.map(e=>e.channel))].sort();
+  const users = [...new Set(STATE.events.map(e=>e.changed_by))].sort();
+  const fc = document.getElementById("fChannel");
+  chans.forEach(c => { const o=document.createElement("option"); o.value=c; o.textContent=c.replace(/_/g," "); fc.appendChild(o); });
+  const fu = document.getElementById("fUser");
+  users.forEach(u => { const o=document.createElement("option"); o.value=u; o.textContent=u; fu.appendChild(o); });
+  fc.onchange = e => { STATE.channel = e.target.value; render(); };
+  fu.onchange = e => { STATE.user = e.target.value; render(); };
+  document.getElementById("q").oninput = e => { STATE.q = e.target.value; render(); };
+}
+
+fetch("/cdn-cgi/access/get-identity")
+  .then(r => r.ok ? r.json() : null)
+  .then(j => { if (j && j.email) document.getElementById("who").textContent = "viewing as " + j.email; })
+  .catch(()=>{});
+
+fetch("/api/budget-events?limit=500", { cache: "no-store" })
+  .then(async r => {
+    const data = await r.json().catch(()=> ({}));
+    if (r.status === 403) throw new Error("You are not authorized to view this page.");
+    if (!r.ok) throw new Error(data.error ? JSON.stringify(data.error) : ("HTTP " + r.status));
+    return data;
+  })
+  .then(d => { STATE.events = d.events || []; wire(); render(); })
+  .catch(e => {
+    document.getElementById("tbody").innerHTML = "";
+    document.querySelector(".wrap").insertAdjacentHTML("beforeend",
+      `<div class="err">${esc(e.message)}</div>`);
+    document.getElementById("foot").textContent = "";
+  });
+</script>
+<script src="/cortex-shell.js" defer></script>
+</body>
+</html>
