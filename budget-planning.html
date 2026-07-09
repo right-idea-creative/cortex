@@ -92,6 +92,14 @@ td.editable:hover { background:#eaf2fd; box-shadow:inset 0 0 0 1px #b7d3f5; }
   cursor:pointer; border:1px solid var(--c-border-2); background:transparent; color:var(--c-text); }
 .modal button.primary { background:var(--c-text); color:#fff; border-color:var(--c-text); }
 .modal button:disabled { opacity:.5; cursor:default; }
+.modal select { font:inherit; width:100%; padding:8px 11px; background:var(--c-bg);
+  border:1px solid var(--c-border-2); border-radius:var(--c-radius-sm); color:var(--c-text); }
+.modal .mwarn { display:none; margin-top:10px; padding:9px 12px; border-radius:var(--c-radius-sm);
+  background:var(--c-warn-bg); color:var(--c-warn-tx); font-size:13px; }
+.modal .mhint { display:none; margin-top:6px; color:var(--c-text-2); font-size:12px; }
+.modal .inline { display:flex; gap:10px; align-items:center; }
+.modal .inline label.chk { display:flex; align-items:center; gap:6px; margin:0;
+  text-transform:none; font-weight:400; font-size:13px; color:var(--c-text-2); letter-spacing:0; }
 .modal .merr { color:var(--c-danger-tx); font-size:13px; margin-top:10px; display:none; }
 .toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
   background:#0d1b2a; color:#fff; padding:10px 18px; border-radius:8px; font-size:13px;
@@ -111,6 +119,7 @@ td.editable:hover { background:#eaf2fd; box-shadow:inset 0 0 0 1px #b7d3f5; }
     <div class="grp" id="channelFilters">
       <button class="f on" data-f="all">All channels</button>
     </div>
+    <button class="f" id="addBtn" style="display:none">+ Add budget line</button>
     <span class="spacer"></span>
     <select class="f" id="viewMode">
       <option value="rows">Channel rows</option>
@@ -153,12 +162,41 @@ td.editable:hover { background:#eaf2fd; box-shadow:inset 0 0 0 1px #b7d3f5; }
     <div class="cur" id="mCur">—</div>
     <label for="mAmount">New amount ($)</label>
     <input type="number" id="mAmount" min="0" step="0.01" inputmode="decimal">
-    <label for="mNote">Note <span style="font-weight:400;text-transform:none;">(why is this changing?)</span></label>
+    <label for="mNote">Note <span style="font-weight:400;text-transform:none;">(required — why is this changing?)</span></label>
     <textarea id="mNote" placeholder="e.g. Client approved Q3 increase on call 7/8"></textarea>
+    <div class="mwarn" id="mWarn"></div>
     <div class="merr" id="mErr"></div>
     <div class="btns">
       <button id="mCancel" type="button">Cancel</button>
       <button id="mSave" class="primary" type="button">Save change</button>
+    </div>
+  </div>
+</div>
+
+<!-- [EDIT] Add budget line modal -->
+<div class="modal-back" id="aBack" role="dialog" aria-modal="true" aria-labelledby="aTitle">
+  <div class="modal">
+    <h2 id="aTitle">Add budget line</h2>
+    <div class="ctx">Creates budget events for a client &amp; channel · year <span id="aYear"></span></div>
+    <label for="aClient">Client</label>
+    <select id="aClient"></select>
+    <input type="text" id="aClientNew" placeholder="New client name (exact, e.g. ODC Springfield)" style="display:none;margin-top:6px">
+    <label for="aChannel">Channel</label>
+    <select id="aChannel"></select>
+    <label>Period</label>
+    <div class="inline">
+      <select id="aMonth" style="flex:1"></select>
+      <label class="chk"><input type="checkbox" id="aAllMonths"> All 12 months</label>
+    </div>
+    <label for="aAmount">Amount ($) per month</label>
+    <input type="number" id="aAmount" min="0" step="0.01" inputmode="decimal">
+    <label for="aNote">Note <span style="font-weight:400;text-transform:none;">(required — why is this being added?)</span></label>
+    <textarea id="aNote" placeholder="e.g. New client onboarded July 2026, signed IO #123"></textarea>
+    <div class="mhint" id="aHint"></div>
+    <div class="merr" id="aErr"></div>
+    <div class="btns">
+      <button id="aCancel" type="button">Cancel</button>
+      <button id="aSave" class="primary" type="button">Add line</button>
     </div>
   </div>
 </div>
@@ -203,6 +241,7 @@ fetch("/api/budget-events?mode=perms", { cache: "no-store" })
   .then(r => r.ok ? r.json() : null)
   .then(p => {
     CAN_WRITE = !!(p && p.can_write);
+    if (CAN_WRITE) document.getElementById("addBtn").style.display = "";
     if (STATE.data) render(); // re-render once permissions are known
   })
   .catch(()=>{});
@@ -284,13 +323,14 @@ const $ = id => document.getElementById(id);
 function openEdit(client, channel, m){
   const item = STATE.data.items.find(r => r.client===client && r.channel===channel);
   if(!item) return;
-  EDIT.item = item; EDIT.m = m; EDIT.busy = false;
+  EDIT.item = item; EDIT.m = m; EDIT.busy = false; EDIT.confirmed = false;
   const monthName = MONTH_NAMES[MONTHS.indexOf(m)];
   $("mCtx").innerHTML = `${esc(client)} · <span class="pill ${esc(channel)}">${esc(channel.replace(/_/g," "))}</span> · <b>${monthName} ${STATE.data.summary.year}</b>`;
   $("mCur").textContent = fmtMoney(item[m]||0);
   $("mAmount").value = Math.round((item[m]||0)*100)/100;
   $("mNote").value = "";
   $("mErr").style.display = "none";
+  $("mWarn").style.display = "none";
   $("mSave").disabled = false; $("mSave").textContent = "Save change";
   $("mBack").classList.add("open");
   setTimeout(()=>$("mAmount").select(), 50);
@@ -305,13 +345,28 @@ function toast(msg){
 async function saveEdit(){
   if(EDIT.busy || !EDIT.item) return;
   const amount = parseFloat($("mAmount").value);
-  const errBox = $("mErr");
+  const errBox = $("mErr"), warnBox = $("mWarn");
+  errBox.style.display = "none";
   if(Number.isNaN(amount) || amount < 0){
     errBox.textContent = "Enter a valid amount (0 or more)."; errBox.style.display="block"; return;
   }
+  const note = $("mNote").value.trim();
+  if(!note){
+    errBox.textContent = "A note is required — briefly explain why this is changing.";
+    errBox.style.display = "block"; return;
+  }
+  // [EDIT] Guardrail: large change (>50% vs current, or zeroing out) needs a second click.
+  const current = EDIT.item[EDIT.m] || 0;
+  const isBig = current > 0 && (amount === 0 || Math.abs(amount - current) / current > 0.5);
+  if(isBig && !EDIT.confirmed){
+    EDIT.confirmed = true;
+    warnBox.textContent = `Large change: ${fmtMoney(current)} → ${fmtMoney(amount)}. Double-check the amount, then click "Confirm change".`;
+    warnBox.style.display = "block";
+    $("mSave").textContent = "Confirm change";
+    return;
+  }
   EDIT.busy = true;
   $("mSave").disabled = true; $("mSave").textContent = "Saving…";
-  errBox.style.display = "none";
 
   const payload = {
     client: EDIT.item.client,
@@ -353,6 +408,116 @@ async function saveEdit(){
   }
 }
 
+// ── [EDIT] Add-line modal logic ─────────────────────────────
+const ADD = { busy:false };
+
+function openAdd(){
+  if(!STATE.data) return;
+  ADD.busy = false;
+  $("aYear").textContent = STATE.data.summary.year;
+  // Client dropdown: existing clients + explicit "new client" option (avoids free-text typos).
+  const clients = [...new Set(STATE.data.items.map(r=>r.client))].sort();
+  $("aClient").innerHTML =
+    clients.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join("") +
+    `<option value="__new__">➕ New client…</option>`;
+  $("aClientNew").style.display = "none"; $("aClientNew").value = "";
+  // Channel dropdown: closed vocabulary from channels already in the data.
+  $("aChannel").innerHTML = channelsInData()
+    .map(ch=>`<option value="${esc(ch)}">${esc(ch.replace(/_/g," "))}</option>`).join("");
+  $("aMonth").innerHTML = MONTH_NAMES
+    .map((n,i)=>`<option value="${i+1}">${n}</option>`).join("");
+  $("aMonth").value = String(new Date().getMonth()+1);
+  $("aAllMonths").checked = false; $("aMonth").disabled = false;
+  $("aAmount").value = ""; $("aNote").value = "";
+  $("aErr").style.display = "none"; $("aHint").style.display = "none";
+  $("aSave").disabled = false; $("aSave").textContent = "Add line";
+  $("aBack").classList.add("open");
+  updateAddHint();
+}
+function closeAdd(){ if(!ADD.busy) $("aBack").classList.remove("open"); }
+
+function addClientValue(){
+  const sel = $("aClient").value;
+  return sel === "__new__" ? $("aClientNew").value.trim() : sel;
+}
+// Soft heads-up when the client/channel line already exists.
+function updateAddHint(){
+  const client = addClientValue(), channel = $("aChannel").value;
+  const item = STATE.data && STATE.data.items.find(r=>r.client===client && r.channel===channel);
+  const hint = $("aHint");
+  if(item){
+    hint.textContent = "This client/channel line already exists — the amount will overwrite the selected month(s).";
+    hint.style.display = "block";
+  } else hint.style.display = "none";
+}
+
+async function saveAdd(){
+  if(ADD.busy || !STATE.data) return;
+  const errBox = $("aErr");
+  errBox.style.display = "none";
+  const client = addClientValue();
+  const channel = $("aChannel").value;
+  const amount = parseFloat($("aAmount").value);
+  const note = $("aNote").value.trim();
+  if(!client){ errBox.textContent="Client name is required."; errBox.style.display="block"; return; }
+  if(!channel){ errBox.textContent="Channel is required."; errBox.style.display="block"; return; }
+  if(Number.isNaN(amount) || amount < 0){
+    errBox.textContent="Enter a valid amount (0 or more)."; errBox.style.display="block"; return; }
+  if(!note){
+    errBox.textContent="A note is required — briefly explain why this line is being added.";
+    errBox.style.display="block"; return; }
+
+  const months = $("aAllMonths").checked
+    ? [1,2,3,4,5,6,7,8,9,10,11,12]
+    : [Number($("aMonth").value)];
+  const year = Number(STATE.data.summary.year);
+
+  ADD.busy = true;
+  $("aSave").disabled = true;
+
+  const saved = [];
+  try {
+    for(const month of months){
+      $("aSave").textContent = months.length > 1 ? `Adding… (${saved.length+1}/${months.length})` : "Adding…";
+      const res = await fetch(EVENTS_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ client, channel, year, month, amount, event_type: "create", note })
+      });
+      const data = await res.json().catch(()=> ({}));
+      if(!res.ok || !data.event_id){
+        throw new Error(data.error ? JSON.stringify(data.error) : ("HTTP "+res.status));
+      }
+      saved.push(month);
+    }
+    // Optimistic local update: create or update the line.
+    let item = STATE.data.items.find(r=>r.client===client && r.channel===channel);
+    if(!item){
+      item = { client, channel, row_total: 0 };
+      MONTHS.forEach(m=>item[m]=0);
+      STATE.data.items.push(item);
+      STATE.data.summary.lines = STATE.data.items.length;
+      STATE.data.summary.clients = new Set(STATE.data.items.map(r=>r.client)).size;
+    }
+    saved.forEach(month=>{ item["m"+month] = amount; });
+    item.row_total = MONTHS.reduce((a,m)=>a+(item[m]||0), 0);
+    STATE.data.summary.total_committed =
+      STATE.data.items.reduce((a,r)=>a+(r.row_total||0), 0);
+    ADD.busy = false;
+    closeAdd();
+    // rebuild channel filters is unnecessary (channel came from existing set)
+    render();
+    toast(`Added · ${client} / ${channel.replace(/_/g," ")} · ${saved.length} month${saved.length>1?"s":""} @ ${fmtMoney(amount)}`);
+  } catch(e){
+    ADD.busy = false;
+    $("aSave").disabled = false; $("aSave").textContent = "Add line";
+    errBox.textContent = (saved.length
+      ? `Saved ${saved.length} of ${months.length} months, then failed: `
+      : "Couldn't save: ") + e.message;
+    errBox.style.display = "block";
+  }
+}
+
 function wire(){
   // channel filter buttons (built dynamically once data loads)
   const grp=document.getElementById("channelFilters");
@@ -389,7 +554,26 @@ function wire(){
   $("mBack").addEventListener("click", e=>{ if(e.target === $("mBack")) closeEdit(); });
   $("mSave").onclick = saveEdit;
   $("mAmount").addEventListener("keydown", e=>{ if(e.key==="Enter") saveEdit(); });
-  document.addEventListener("keydown", e=>{ if(e.key==="Escape") closeEdit(); });
+  // [EDIT] Changing the amount invalidates a pending large-change confirmation.
+  $("mAmount").addEventListener("input", ()=>{
+    EDIT.confirmed = false;
+    $("mWarn").style.display = "none";
+    if(!EDIT.busy) $("mSave").textContent = "Save change";
+  });
+  // [EDIT] Add-line modal wiring.
+  $("addBtn").onclick = openAdd;
+  $("aCancel").onclick = closeAdd;
+  $("aBack").addEventListener("click", e=>{ if(e.target === $("aBack")) closeAdd(); });
+  $("aSave").onclick = saveAdd;
+  $("aClient").addEventListener("change", ()=>{
+    $("aClientNew").style.display = $("aClient").value === "__new__" ? "block" : "none";
+    if($("aClient").value === "__new__") setTimeout(()=>$("aClientNew").focus(), 50);
+    updateAddHint();
+  });
+  $("aClientNew").addEventListener("input", updateAddHint);
+  $("aChannel").addEventListener("change", updateAddHint);
+  $("aAllMonths").addEventListener("change", ()=>{ $("aMonth").disabled = $("aAllMonths").checked; });
+  document.addEventListener("keydown", e=>{ if(e.key==="Escape"){ closeEdit(); closeAdd(); } });
 }
 
 function boot(d){ STATE.data=d; wire(); render(); }
