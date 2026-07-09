@@ -69,6 +69,34 @@ td.zero { color:var(--c-text-3); }
 .retry:hover{background:var(--c-danger-bg);}
 .err { padding:30px; border:1px solid var(--c-border); border-radius:var(--c-radius); color:var(--c-danger-tx); background:var(--c-danger-bg); margin-top:16px; }
 .loading { padding:40px; text-align:center; color:var(--c-text-3); }
+
+/* ── [EDIT] Budget editing: clickable cells, modal, toast ── */
+td.editable { cursor:pointer; position:relative; }
+td.editable:hover { background:#eaf2fd; box-shadow:inset 0 0 0 1px #b7d3f5; }
+.modal-back { position:fixed; inset:0; background:rgba(13,27,42,.45); display:none;
+  align-items:center; justify-content:center; z-index:1000; }
+.modal-back.open { display:flex; }
+.modal { background:#fff; border-radius:var(--c-radius); width:min(440px,92vw);
+  box-shadow:0 12px 40px rgba(0,0,0,.22); padding:22px 24px; }
+.modal h2 { font-size:16px; font-weight:700; color:#0d1b2a; margin-bottom:2px; }
+.modal .ctx { color:var(--c-text-2); font-size:13px; margin-bottom:16px; }
+.modal .ctx .pill { margin-left:4px; }
+.modal label { display:block; font-size:12px; font-weight:600; color:var(--c-text-2);
+  text-transform:uppercase; letter-spacing:.5px; margin:12px 0 4px; }
+.modal input[type=number], .modal textarea { font:inherit; width:100%; padding:8px 11px;
+  border:1px solid var(--c-border-2); border-radius:var(--c-radius-sm); color:var(--c-text); }
+.modal textarea { resize:vertical; min-height:60px; }
+.modal .cur { font-variant-numeric:tabular-nums; font-size:15px; }
+.modal .btns { display:flex; gap:8px; justify-content:flex-end; margin-top:18px; }
+.modal button { font:inherit; font-size:13px; padding:7px 16px; border-radius:var(--c-radius-sm);
+  cursor:pointer; border:1px solid var(--c-border-2); background:transparent; color:var(--c-text); }
+.modal button.primary { background:var(--c-text); color:#fff; border-color:var(--c-text); }
+.modal button:disabled { opacity:.5; cursor:default; }
+.modal .merr { color:var(--c-danger-tx); font-size:13px; margin-top:10px; display:none; }
+.toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
+  background:#0d1b2a; color:#fff; padding:10px 18px; border-radius:8px; font-size:13px;
+  box-shadow:0 6px 24px rgba(0,0,0,.25); opacity:0; transition:opacity .25s; pointer-events:none; z-index:1100; }
+.toast.show { opacity:1; }
 </style>
 </head>
 <body>
@@ -116,21 +144,57 @@ td.zero { color:var(--c-text-3); }
   <div class="foot" id="foot"></div>
 </div>
 
+<!-- [EDIT] Budget edit modal -->
+<div class="modal-back" id="mBack" role="dialog" aria-modal="true" aria-labelledby="mTitle">
+  <div class="modal">
+    <h2 id="mTitle">Edit committed budget</h2>
+    <div class="ctx" id="mCtx"></div>
+    <label>Current amount</label>
+    <div class="cur" id="mCur">—</div>
+    <label for="mAmount">New amount ($)</label>
+    <input type="number" id="mAmount" min="0" step="0.01" inputmode="decimal">
+    <label for="mNote">Note <span style="font-weight:400;text-transform:none;">(why is this changing?)</span></label>
+    <textarea id="mNote" placeholder="e.g. Client approved Q3 increase on call 7/8"></textarea>
+    <div class="merr" id="mErr"></div>
+    <div class="btns">
+      <button id="mCancel" type="button">Cancel</button>
+      <button id="mSave" class="primary" type="button">Save change</button>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
 <script>
 // ==========================================================
 //  Budget data endpoint (n8n webhook — duplicate of triage_api,
 //  query node swapped to budget.committed).
 // ==========================================================
 const DATA_URL = "https://naterimc.app.n8n.cloud/webhook/bee33f7f-a929-4f0f-8c97-921febf32ca8";
+// [EDIT] Write endpoint: Pages Function -> BigQuery budget.budget_events
+const EVENTS_URL = "/api/budget-events";
 // ==========================================================
 
 const MONTHS = ["m1","m2","m3","m4","m5","m6","m7","m8","m9","m10","m11","m12"];
+const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const STATE = { data:null, channel:"all", view:"rows", q:"", sortK:null, sortDir:1 };
 const fmtMoney = n => (n==null) ? "—" : "$"+Math.round(n).toLocaleString();
-const cell = n => { const v = Math.round(n||0); return v===0
-  ? '<td class="r zero">—</td>'
-  : `<td class="r">$${v.toLocaleString()}</td>`; };
 const esc = s => String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+// [EDIT] cell() now emits data-attributes so month cells are editable in rows view.
+const cell = (n, r, m, editable) => {
+  const v = Math.round(n||0);
+  const attrs = editable
+    ? ` class="r editable${v===0?" zero":""}" data-client="${esc(r.client)}" data-channel="${esc(r.channel)}" data-m="${m}" title="Click to edit"`
+    : ` class="r${v===0?" zero":""}"`;
+  return `<td${attrs}>${v===0 ? "—" : "$"+v.toLocaleString()}</td>`;
+};
+
+// [EDIT] Identity from Cloudflare Access (site is behind Access, so this endpoint exists).
+let IDENTITY = null;
+fetch("/cdn-cgi/access/get-identity")
+  .then(r => r.ok ? r.json() : null)
+  .then(j => { IDENTITY = (j && j.email) || null; })
+  .catch(()=>{});
 
 function channelsInData(){
   return [...new Set(STATE.data.items.map(r=>r.channel))].sort();
@@ -192,14 +256,90 @@ function render(){
       : `<div class="acct">${esc(r.client)}</div><div class="chan"><span class="pill ${esc(r.channel)}">${esc(r.channel.replace(/_/g," "))}</span></div>`;
     return `<tr class="${cls}">
       <td>${label}</td>
-      ${MONTHS.map(m=>cell(r[m])).join("")}
+      ${MONTHS.map(m=>cell(r[m], r, m, !isTotals)).join("")}
       <td class="r"><b>${fmtMoney(r.row_total)}</b></td>
     </tr>`;
   }).join("");
 
   const totalShown=display.reduce((a,r)=>a+(r.row_total||0),0);
   document.getElementById("foot").textContent=
-    `Showing ${display.length} ${isTotals?"clients":"budget lines"} · ${fmtMoney(totalShown)} committed in view · click a column header to sort`;
+    `Showing ${display.length} ${isTotals?"clients":"budget lines"} · ${fmtMoney(totalShown)} committed in view · click a column header to sort · click a month cell to edit`;
+}
+
+// ── [EDIT] Edit modal logic ─────────────────────────────────
+const EDIT = { item:null, m:null, busy:false };
+const $ = id => document.getElementById(id);
+
+function openEdit(client, channel, m){
+  const item = STATE.data.items.find(r => r.client===client && r.channel===channel);
+  if(!item) return;
+  EDIT.item = item; EDIT.m = m; EDIT.busy = false;
+  const monthName = MONTH_NAMES[MONTHS.indexOf(m)];
+  $("mCtx").innerHTML = `${esc(client)} · <span class="pill ${esc(channel)}">${esc(channel.replace(/_/g," "))}</span> · <b>${monthName} ${STATE.data.summary.year}</b>`;
+  $("mCur").textContent = fmtMoney(item[m]||0);
+  $("mAmount").value = Math.round((item[m]||0)*100)/100;
+  $("mNote").value = "";
+  $("mErr").style.display = "none";
+  $("mSave").disabled = false; $("mSave").textContent = "Save change";
+  $("mBack").classList.add("open");
+  setTimeout(()=>$("mAmount").select(), 50);
+}
+function closeEdit(){ if(!EDIT.busy) $("mBack").classList.remove("open"); }
+
+function toast(msg){
+  const t=$("toast"); t.textContent=msg; t.classList.add("show");
+  setTimeout(()=>t.classList.remove("show"), 3500);
+}
+
+async function saveEdit(){
+  if(EDIT.busy || !EDIT.item) return;
+  const amount = parseFloat($("mAmount").value);
+  const errBox = $("mErr");
+  if(Number.isNaN(amount) || amount < 0){
+    errBox.textContent = "Enter a valid amount (0 or more)."; errBox.style.display="block"; return;
+  }
+  EDIT.busy = true;
+  $("mSave").disabled = true; $("mSave").textContent = "Saving…";
+  errBox.style.display = "none";
+
+  const payload = {
+    client: EDIT.item.client,
+    channel: EDIT.item.channel,
+    year: Number(STATE.data.summary.year),
+    month: MONTHS.indexOf(EDIT.m) + 1,
+    amount: amount,
+    event_type: "update",
+    changed_by: IDENTITY || "unknown",
+    note: $("mNote").value.trim() || null
+  };
+
+  try {
+    const res = await fetch(EVENTS_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json().catch(()=> ({}));
+    if(!res.ok || !data.event_id){
+      throw new Error(data.error ? JSON.stringify(data.error) : ("HTTP "+res.status));
+    }
+    // Optimistic local update: reflect the change immediately in the table.
+    // (Source view budget.committed refreshes downstream; the event is the record.)
+    const item = EDIT.item;
+    item[EDIT.m] = amount;
+    item.row_total = MONTHS.reduce((a,m)=>a+(item[m]||0), 0);
+    STATE.data.summary.total_committed =
+      STATE.data.items.reduce((a,r)=>a+(r.row_total||0), 0);
+    EDIT.busy = false;
+    closeEdit();
+    render();
+    toast(`Saved · ${item.client} ${MONTH_NAMES[MONTHS.indexOf(EDIT.m)]} → ${fmtMoney(amount)}`);
+  } catch(e){
+    EDIT.busy = false;
+    $("mSave").disabled = false; $("mSave").textContent = "Save change";
+    errBox.textContent = "Couldn't save: " + e.message;
+    errBox.style.display = "block";
+  }
 }
 
 function wire(){
@@ -227,6 +367,18 @@ function wire(){
       span.textContent=STATE.sortDir>0?" ▲":" ▼"; th.appendChild(span); render();
     };
   });
+
+  // [EDIT] Delegated click on month cells (rows view only).
+  document.getElementById("tbody").addEventListener("click", e=>{
+    const td = e.target.closest("td.editable");
+    if(!td) return;
+    openEdit(td.dataset.client, td.dataset.channel, td.dataset.m);
+  });
+  $("mCancel").onclick = closeEdit;
+  $("mBack").addEventListener("click", e=>{ if(e.target === $("mBack")) closeEdit(); });
+  $("mSave").onclick = saveEdit;
+  $("mAmount").addEventListener("keydown", e=>{ if(e.key==="Enter") saveEdit(); });
+  document.addEventListener("keydown", e=>{ if(e.key==="Escape") closeEdit(); });
 }
 
 function boot(d){ STATE.data=d; wire(); render(); }
