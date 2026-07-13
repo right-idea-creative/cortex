@@ -1,47 +1,120 @@
 /* =====================================================================
-   cortex-shell.js — shared chrome for every Córtex OS page.
-   Injects the top navigation (with automatic active-page highlight)
-   and carries its own styles, so individual pages no longer hand-copy
-   the nav markup or its CSS.
+   cortex-shell.js — shared chrome for every Córtex OS page. (v2)
+   Injects the top navigation (categorized dropdowns on desktop,
+   hamburger drawer on mobile, role-aware links) and carries its own
+   styles, so individual pages never hand-copy nav markup or CSS.
 
    USAGE: add ONE line near the end of each page's <body>:
      <script src="/cortex-shell.js" defer></script>
-   Then DELETE the hand-written <div class="site-top">…</div> block and
-   the nav CSS rules from that page (the shell provides both).
 
-   ADD A PAGE: edit the NAV_LINKS array below — once — and every page
+   ADD A PAGE: edit the NAV array below — once — and every page
    picks it up automatically.
+
+   ROLES: the shell asks /api/budget-events?mode=perms once.
+     - Links marked adminOnly only render for role=admin.
+     - If HIDE_BUDGETS_FROM_VIEWERS is true, the whole Budgets
+       category is hidden from users who can't write.
    ===================================================================== */
 (function () {
   "use strict";
+
+  // ---- Feature flags ----
+  // Flip to true when leadership confirms viewers must not see budgets.
+  var HIDE_BUDGETS_FROM_VIEWERS = false;
 
   // ---- Ticket bot (n8n hosted chat widget) ----
   var BOT_WEBHOOK_URL = "https://naterimc.app.n8n.cloud/webhook/80464afc-47e2-4cd9-9164-1f2a9aac272e/chat";
   var BOT_CSS_URL     = "https://cdn.jsdelivr.net/npm/@n8n/chat/dist/style.css";
   var BOT_JS_URL      = "https://cdn.jsdelivr.net/npm/@n8n/chat/dist/chat.bundle.es.js";
 
-  // ---- Single source of truth for the nav. Add new pages here. ----
-  var NAV_LINKS = [
-    { label: "Home",            href: "index.html" },
-    { label: "Call Tracking",   href: "call-tracking.html" },
-    { label: "Ad Spend Pacing", href: "ad-spend-pacing.html" },
-    { label: "Campaign Triage", href: "triage.html" },
-    { label: "Budget Planning", href: "budget-planning.html" },
-    { label: "Tickets",         href: "tickets.html" }
+  // ---- Single source of truth for the nav. ----
+  // Top-level items can be direct links {label, href} or categories
+  // {label, items:[{label, href, adminOnly?}], gated?}.
+  var NAV = [
+    { label: "Home", href: "index.html" },
+    {
+      label: "Performance",
+      items: [
+        { label: "Ad Spend Pacing", href: "ad-spend-pacing.html" },
+        { label: "Campaign Triage", href: "triage.html" },
+        { label: "Call Tracking",   href: "call-tracking.html" }
+      ]
+    },
+    {
+      label: "Budgets",
+      gated: true, // hidden from viewers when HIDE_BUDGETS_FROM_VIEWERS is on
+      items: [
+        { label: "Budget Planning", href: "budget-planning.html" },
+        { label: "Budget History",  href: "budget-history.html", adminOnly: true }
+      ]
+    },
+    {
+      label: "Ops",
+      items: [
+        { label: "Tickets",          href: "tickets.html" },
+        { label: "Roadmap",          href: "roadmap.html" },
+        { label: "Strategy",         href: "strategy.html" },
+        { label: "KPI Criteria",     href: "kpi.html" },
+        { label: "Account Standard", href: "account-standard.html" }
+      ]
+    }
   ];
 
-  // ---- Styles (identical to the original per-page nav CSS) ----
+  // ---- Styles ----
   var CSS = '' +
     '.site-top{position:sticky;top:0;z-index:100;}' +
-    '.site-header{background:#0d1b2a;padding:0 32px;height:52px;display:flex;align-items:center;box-shadow:0 1px 0 rgba(255,255,255,.06);}' +
+    '.site-header{background:#0d1b2a;padding:0 32px;height:52px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 1px 0 rgba(255,255,255,.06);}' +
     '.brand{display:flex;align-items:center;gap:10px;text-decoration:none;}' +
     '.brand-name{font-size:17px;font-weight:700;color:#fff;letter-spacing:-.3px;}' +
     '.brand-divider{color:rgba(255,255,255,.25);font-size:14px;}' +
     '.brand-sub{font-size:11px;color:rgba(255,255,255,.45);font-weight:500;}' +
+
+    /* ---- Desktop nav ---- */
     '.site-nav{background:#0f2236;padding:0 32px;display:flex;gap:2px;border-bottom:1px solid rgba(255,255,255,.07);}' +
-    '.nav-link{color:rgba(255,255,255,.5);text-decoration:none;font-size:13px;font-weight:500;padding:10px 16px;border-bottom:2px solid transparent;transition:color .15s,border-color .15s;}' +
-    '.nav-link:hover{color:rgba(255,255,255,.85);}' +
+    '.nav-link{color:rgba(255,255,255,.5);text-decoration:none;font-size:13px;font-weight:500;padding:11px 16px;border-bottom:2px solid transparent;transition:color .18s,border-color .18s;display:inline-flex;align-items:center;gap:6px;background:none;border-top:0;border-left:0;border-right:0;font-family:inherit;cursor:pointer;}' +
+    '.nav-link:hover{color:rgba(255,255,255,.9);}' +
     '.nav-link.active{color:#fff;border-bottom-color:#4285F4;}' +
+    '.nav-dd{position:relative;}' +
+    '.nav-dd .chev{width:8px;height:8px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:rotate(45deg) translateY(-2px);transition:transform .2s;margin-left:2px;}' +
+    '.nav-dd.open .chev,.nav-dd:hover .chev{transform:rotate(225deg) translateY(2px);}' +
+    '.dd-panel{position:absolute;top:calc(100% + 1px);left:8px;min-width:200px;background:#0d1b2a;border:1px solid rgba(255,255,255,.09);border-radius:0 0 10px 10px;box-shadow:0 14px 34px rgba(0,0,0,.4);padding:6px;opacity:0;transform:translateY(8px);pointer-events:none;transition:opacity .18s ease,transform .18s ease;}' +
+    '.nav-dd.open .dd-panel,.nav-dd:hover .dd-panel{opacity:1;transform:translateY(0);pointer-events:auto;}' +
+    '.dd-item{display:block;padding:9px 12px;border-radius:7px;color:rgba(255,255,255,.6);text-decoration:none;font-size:13px;font-weight:500;transition:background .14s,color .14s,padding-left .14s;}' +
+    '.dd-item:hover{background:rgba(66,133,244,.14);color:#fff;padding-left:16px;}' +
+    '.dd-item.active{color:#fff;background:rgba(66,133,244,.22);}' +
+
+    /* ---- Hamburger (hidden on desktop) ---- */
+    '.nav-burger{display:none;background:none;border:0;cursor:pointer;padding:10px;margin-right:-10px;}' +
+    '.nav-burger span{display:block;width:22px;height:2px;background:#fff;margin:5px 0;border-radius:2px;transition:transform .25s,opacity .2s;}' +
+    '.nav-burger.open span:nth-child(1){transform:translateY(7px) rotate(45deg);}' +
+    '.nav-burger.open span:nth-child(2){opacity:0;}' +
+    '.nav-burger.open span:nth-child(3){transform:translateY(-7px) rotate(-45deg);}' +
+
+    /* ---- Mobile drawer ---- */
+    '.nav-backdrop{position:fixed;inset:0;background:rgba(6,13,22,.55);opacity:0;pointer-events:none;transition:opacity .25s;z-index:998;}' +
+    '.nav-backdrop.open{opacity:1;pointer-events:auto;}' +
+    '.nav-drawer{position:fixed;top:0;left:0;bottom:0;width:282px;max-width:82vw;background:#0d1b2a;z-index:999;transform:translateX(-102%);transition:transform .27s cubic-bezier(.3,.8,.3,1);display:flex;flex-direction:column;box-shadow:8px 0 32px rgba(0,0,0,.4);}' +
+    '.nav-drawer.open{transform:translateX(0);}' +
+    '.drawer-head{padding:18px 20px;border-bottom:1px solid rgba(255,255,255,.08);}' +
+    '.drawer-head .brand-name{font-size:16px;}' +
+    '.drawer-body{overflow-y:auto;padding:10px 12px 24px;flex:1;}' +
+    '.drawer-link{display:block;padding:12px 12px;color:rgba(255,255,255,.65);text-decoration:none;font-size:14px;font-weight:500;border-radius:8px;transition:background .14s,color .14s;}' +
+    '.drawer-link:hover{background:rgba(255,255,255,.06);color:#fff;}' +
+    '.drawer-link.active{background:rgba(66,133,244,.2);color:#fff;}' +
+    '.drawer-cat{margin-top:6px;}' +
+    '.drawer-cat-btn{width:100%;display:flex;align-items:center;justify-content:space-between;background:none;border:0;cursor:pointer;padding:12px 12px;color:rgba(255,255,255,.85);font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;font-family:inherit;border-radius:8px;transition:background .14s;}' +
+    '.drawer-cat-btn:hover{background:rgba(255,255,255,.05);}' +
+    '.drawer-cat-btn .chev{width:8px;height:8px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:rotate(45deg);transition:transform .22s;}' +
+    '.drawer-cat.open .drawer-cat-btn .chev{transform:rotate(225deg);}' +
+    '.drawer-cat-items{max-height:0;overflow:hidden;transition:max-height .28s ease;padding-left:8px;}' +
+    '.drawer-cat.open .drawer-cat-items{max-height:320px;}' +
+
+    '@media (max-width: 768px){' +
+      '.site-nav{display:none;}' +
+      '.nav-burger{display:block;}' +
+      '.site-header{padding:0 20px;}' +
+    '}' +
+
     /* ---- n8n chat widget: position bottom-LEFT + Cortex theming ---- */
     ':root{' +
       '--chat--color-primary:#1565c0;' +
@@ -57,14 +130,10 @@
       '--chat--window--width:380px;' +
       '--chat--window--height:560px;' +
     '}' +
-    /* move launcher + window to the bottom-left corner */
     '.n8n-chat .chat-window-toggle,' +
     '.n8n-chat .chat-window-wrapper{right:auto !important;left:20px !important;}' +
     '.n8n-chat .chat-window{right:auto !important;left:20px !important;}' +
-    /* ---- swap the default chat-bubble launcher icon for a ticket icon ---- */
-    /* hide n8n's built-in toggle SVG... */
     '.n8n-chat .chat-window-toggle svg{display:none !important;}' +
-    /* ...and paint a ticket glyph via a mask so it inherits the toggle color */
     '.n8n-chat .chat-window-toggle::after{' +
       'content:"";' +
       'width:26px;height:26px;' +
@@ -73,41 +142,116 @@
       "mask:url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"black\"><path d=\"M22 10V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v4a2 2 0 0 1 0 4v4a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-4a2 2 0 0 1 0-4zM13 5.5h-2v2h2zm0 5h-2v3h2zm0 6h-2v2h2z\"/></svg>') center/contain no-repeat;" +
     '}';
 
-  // ---- Figure out which link is the current page ----
+  // ---- Permissions (role-aware links) ----
+  var PERMS = { role: null, can_write: false, is_admin: false, loaded: false };
+
+  function fetchPerms() {
+    return fetch("/api/budget-events?mode=perms", { cache: "no-store" })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (p) {
+        if (p) {
+          PERMS.role = p.role || null;
+          PERMS.can_write = !!p.can_write;
+          PERMS.is_admin = !!p.is_admin;
+        }
+        PERMS.loaded = true;
+      })
+      .catch(function () { PERMS.loaded = true; });
+  }
+
+  function linkVisible(link) {
+    if (link.adminOnly && !PERMS.is_admin) return false;
+    return true;
+  }
+  function categoryVisible(cat) {
+    if (cat.gated && HIDE_BUDGETS_FROM_VIEWERS && !PERMS.can_write) return false;
+    return cat.items.some(linkVisible);
+  }
+
+  // ---- Active-page helpers ----
   function currentFile() {
     var path = window.location.pathname;
     var last = path.substring(path.lastIndexOf("/") + 1);
-    if (last === "" ) return "index.html";        // "/" -> home
-    return last;                                   // e.g. "triage" or "triage.html"
+    if (last === "") return "index.html";
+    return last;
   }
   function isActive(href) {
-    var cur = currentFile();
-    // tolerate both "triage" and "triage.html" (Cloudflare Pages serves clean URLs)
     var hrefBase = href.replace(/\.html$/, "");
-    var curBase  = cur.replace(/\.html$/, "");
-    return hrefBase === curBase || (curBase === "index" && hrefBase === "index");
+    var curBase = currentFile().replace(/\.html$/, "");
+    return hrefBase === curBase;
+  }
+  function categoryActive(cat) {
+    return cat.items.some(function (l) { return isActive(l.href); });
   }
 
-  function buildNav() {
-    var links = NAV_LINKS.map(function (l) {
-      var cls = "nav-link" + (isActive(l.href) ? " active" : "");
-      return '<a href="' + l.href + '" class="' + cls + '">' + l.label + '</a>';
-    }).join("");
+  // ---- Build desktop nav + mobile drawer ----
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
 
-    var html =
+  function buildDesktopNav() {
+    var html = "";
+    NAV.forEach(function (item) {
+      if (item.href) {
+        html += '<a href="' + item.href + '" class="nav-link' + (isActive(item.href) ? " active" : "") + '">' + esc(item.label) + "</a>";
+        return;
+      }
+      if (!categoryVisible(item)) return;
+      var links = item.items.filter(linkVisible).map(function (l) {
+        return '<a href="' + l.href + '" class="dd-item' + (isActive(l.href) ? " active" : "") + '">' + esc(l.label) + "</a>";
+      }).join("");
+      html +=
+        '<div class="nav-dd' + (categoryActive(item) ? " is-current" : "") + '">' +
+          '<button type="button" class="nav-link dd-toggle' + (categoryActive(item) ? " active" : "") + '" aria-haspopup="true" aria-expanded="false">' +
+            esc(item.label) + '<span class="chev"></span>' +
+          "</button>" +
+          '<div class="dd-panel">' + links + "</div>" +
+        "</div>";
+    });
+    return html;
+  }
+
+  function buildDrawer() {
+    var html = "";
+    NAV.forEach(function (item) {
+      if (item.href) {
+        html += '<a href="' + item.href + '" class="drawer-link' + (isActive(item.href) ? " active" : "") + '">' + esc(item.label) + "</a>";
+        return;
+      }
+      if (!categoryVisible(item)) return;
+      var open = categoryActive(item) ? " open" : "";
+      var links = item.items.filter(linkVisible).map(function (l) {
+        return '<a href="' + l.href + '" class="drawer-link' + (isActive(l.href) ? " active" : "") + '">' + esc(l.label) + "</a>";
+      }).join("");
+      html +=
+        '<div class="drawer-cat' + open + '">' +
+          '<button type="button" class="drawer-cat-btn">' + esc(item.label) + '<span class="chev"></span></button>' +
+          '<div class="drawer-cat-items">' + links + "</div>" +
+        "</div>";
+    });
+    return html;
+  }
+
+  function buildShell() {
+    return (
       '<div class="site-top">' +
         '<header class="site-header">' +
           '<a href="index.html" class="brand">' +
             '<span class="brand-name">Córtex OS</span>' +
             '<span class="brand-divider">|</span>' +
             '<span class="brand-sub">Right Idea Media &amp; Creative</span>' +
-          '</a>' +
-        '</header>' +
-        '<nav class="site-nav">' + links + '</nav>' +
-      '</div>';
-    return html;
+          "</a>" +
+          '<button type="button" class="nav-burger" aria-label="Menu"><span></span><span></span><span></span></button>' +
+        "</header>" +
+        '<nav class="site-nav">' + buildDesktopNav() + "</nav>" +
+      "</div>" +
+      '<div class="nav-backdrop"></div>' +
+      '<aside class="nav-drawer" aria-label="Navigation">' +
+        '<div class="drawer-head"><span class="brand-name">Córtex OS</span></div>' +
+        '<div class="drawer-body">' + buildDrawer() + "</div>" +
+      "</aside>"
+    );
   }
 
+  // ---- Injection + wiring ----
   function injectStyles() {
     if (document.getElementById("cortex-shell-style")) return;
     var s = document.createElement("style");
@@ -116,22 +260,67 @@
     document.head.appendChild(s);
   }
 
-  function injectNav() {
-    // If a hand-written .site-top already exists (mid-migration), replace it
-    // so we never get two navs.
-    var existing = document.querySelector(".site-top");
+  function injectShell() {
+    var existingTop = document.querySelector(".site-top");
     var wrapper = document.createElement("div");
-    wrapper.innerHTML = buildNav();
-    var nav = wrapper.firstChild;
-    if (existing && existing.parentNode) {
-      existing.parentNode.replaceChild(nav, existing);
-    } else {
-      document.body.insertBefore(nav, document.body.firstChild);
+    wrapper.innerHTML = buildShell();
+    var nodes = Array.prototype.slice.call(wrapper.childNodes);
+    if (existingTop && existingTop.parentNode) existingTop.parentNode.removeChild(existingTop);
+    var oldBackdrop = document.querySelector(".nav-backdrop");
+    var oldDrawer = document.querySelector(".nav-drawer");
+    if (oldBackdrop) oldBackdrop.remove();
+    if (oldDrawer) oldDrawer.remove();
+    for (var i = nodes.length - 1; i >= 0; i--) {
+      document.body.insertBefore(nodes[i], document.body.firstChild);
     }
+    wire();
+  }
+
+  function wire() {
+    // Desktop dropdowns: click toggles (hover handled by CSS).
+    document.querySelectorAll(".nav-dd .dd-toggle").forEach(function (btn) {
+      btn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        var dd = btn.parentNode;
+        var wasOpen = dd.classList.contains("open");
+        document.querySelectorAll(".nav-dd.open").forEach(function (d) { d.classList.remove("open"); });
+        if (!wasOpen) dd.classList.add("open");
+        btn.setAttribute("aria-expanded", String(!wasOpen));
+      });
+    });
+    document.addEventListener("click", function () {
+      document.querySelectorAll(".nav-dd.open").forEach(function (d) { d.classList.remove("open"); });
+    });
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") { closeDrawer(); document.querySelectorAll(".nav-dd.open").forEach(function (d) { d.classList.remove("open"); }); }
+    });
+
+    // Mobile drawer.
+    var burger = document.querySelector(".nav-burger");
+    var drawer = document.querySelector(".nav-drawer");
+    var backdrop = document.querySelector(".nav-backdrop");
+    function openDrawer() { drawer.classList.add("open"); backdrop.classList.add("open"); burger.classList.add("open"); }
+    function close() { closeDrawer(); }
+    window.closeDrawer = function () {
+      if (drawer) drawer.classList.remove("open");
+      if (backdrop) backdrop.classList.remove("open");
+      if (burger) burger.classList.remove("open");
+    };
+    function closeDrawer() { window.closeDrawer(); }
+    if (burger) burger.addEventListener("click", function () {
+      drawer.classList.contains("open") ? close() : openDrawer();
+    });
+    if (backdrop) backdrop.addEventListener("click", close);
+
+    // Drawer category accordions.
+    document.querySelectorAll(".drawer-cat-btn").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        btn.parentNode.classList.toggle("open");
+      });
+    });
   }
 
   function mountBot() {
-    // Load n8n's chat stylesheet once.
     if (!document.getElementById("cortex-bot-css")) {
       var link = document.createElement("link");
       link.id = "cortex-bot-css";
@@ -139,13 +328,12 @@
       link.href = BOT_CSS_URL;
       document.head.appendChild(link);
     }
-    // The widget bundle is an ES module — load it dynamically and init.
     import(BOT_JS_URL)
       .then(function (mod) {
         if (mod && typeof mod.createChat === "function") {
           mod.createChat({
             webhookUrl: BOT_WEBHOOK_URL,
-            mode: "window",          // floating launcher + popup panel
+            mode: "window",
             showWelcomeScreen: false,
             initialMessages: [
               "Hi! 👋 I'm the Córtex ticket assistant.",
@@ -170,7 +358,10 @@
 
   function init() {
     injectStyles();
-    injectNav();
+    // Render immediately with safe defaults (admin-only links hidden),
+    // then re-render once real permissions arrive.
+    injectShell();
+    fetchPerms().then(function () { injectShell(); });
     mountBot();
   }
 
