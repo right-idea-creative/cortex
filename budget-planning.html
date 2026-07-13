@@ -204,10 +204,11 @@ td.editable:hover { background:#eaf2fd; box-shadow:inset 0 0 0 1px #b7d3f5; }
 
 <script>
 // ==========================================================
-//  Budget data endpoint (n8n webhook — duplicate of triage_api,
-//  query node swapped to budget.committed).
+//  Budget data endpoint — served by our own Pages Function
+//  (reads budget_base_current: sheet base + event overlay).
+//  Replaced the old n8n webhook read on 2026-07-13.
 // ==========================================================
-const DATA_URL = "https://naterimc.app.n8n.cloud/webhook/bee33f7f-a929-4f0f-8c97-921febf32ca8";
+const DATA_URL = "/api/budget-events?mode=data";
 // [EDIT] Write endpoint: Pages Function -> BigQuery budget.budget_events
 const EVENTS_URL = "/api/budget-events";
 // ==========================================================

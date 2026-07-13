@@ -243,6 +243,58 @@ async function handleInsert(request, env, email) {
   return json({ event_id: eventId }, 201);
 }
 
+// ---------- Budget planning data (replaces the n8n read webhook) ----------
+// GET ?mode=data -> { summary:{year,clients,lines,total_committed}, items:[...] }
+// Served from budget_base_current (sheet base + latest events overlay), so
+// AM edits are reflected on the next page load.
+
+// Flip together with the shell flag when leadership confirms viewers
+// must not see budget data. true = only editors/admins can read.
+const HIDE_BUDGETS_FROM_VIEWERS = false;
+
+async function handleData(env) {
+  const year = new Date().getUTCFullYear();
+  const rows = await bqQuery(env, `
+    SELECT
+      client, channel,
+      SUM(IF(month=1,  base_amount, 0)) AS m1,
+      SUM(IF(month=2,  base_amount, 0)) AS m2,
+      SUM(IF(month=3,  base_amount, 0)) AS m3,
+      SUM(IF(month=4,  base_amount, 0)) AS m4,
+      SUM(IF(month=5,  base_amount, 0)) AS m5,
+      SUM(IF(month=6,  base_amount, 0)) AS m6,
+      SUM(IF(month=7,  base_amount, 0)) AS m7,
+      SUM(IF(month=8,  base_amount, 0)) AS m8,
+      SUM(IF(month=9,  base_amount, 0)) AS m9,
+      SUM(IF(month=10, base_amount, 0)) AS m10,
+      SUM(IF(month=11, base_amount, 0)) AS m11,
+      SUM(IF(month=12, base_amount, 0)) AS m12,
+      SUM(base_amount) AS row_total
+    FROM \`${PROJECT}.${DATASET}.budget_base_current\`
+    WHERE year = ${year} AND month BETWEEN 1 AND 12
+    GROUP BY client, channel
+    ORDER BY client, channel
+  `, 1000);
+
+  const items = rows.map(r => ({
+    client: r.client,
+    channel: r.channel,
+    m1: Number(r.m1), m2: Number(r.m2), m3: Number(r.m3), m4: Number(r.m4),
+    m5: Number(r.m5), m6: Number(r.m6), m7: Number(r.m7), m8: Number(r.m8),
+    m9: Number(r.m9), m10: Number(r.m10), m11: Number(r.m11), m12: Number(r.m12),
+    row_total: Number(r.row_total),
+  }));
+
+  const summary = {
+    year,
+    clients: new Set(items.map(i => i.client)).size,
+    lines: items.length,
+    total_committed: Math.round(items.reduce((a, i) => a + i.row_total, 0) * 100) / 100,
+  };
+
+  return json({ summary, items });
+}
+
 async function handleHistory(env, url) {
   let limit = parseInt(url.searchParams.get('limit') || '200', 10);
   if (Number.isNaN(limit) || limit < 1) limit = 200;
@@ -274,6 +326,14 @@ export async function onRequest(context) {
     // Any authenticated user can ask about their own permissions (UI gating).
     if (request.method === 'GET' && url.searchParams.get('mode') === 'perms') {
       return json(perms);
+    }
+
+    // Budget planning table data (replaces the public n8n webhook).
+    if (request.method === 'GET' && url.searchParams.get('mode') === 'data') {
+      if (HIDE_BUDGETS_FROM_VIEWERS && !perms.can_write) {
+        return json({ error: 'Not authorized to view budget data.' }, 403);
+      }
+      return await handleData(env);
     }
 
     if (request.method === 'POST') {
