@@ -4,17 +4,15 @@
 // with OAuth2 signed via Web Crypto. Authorization is enforced server-side
 // using the Cloudflare Access identity header (cannot be spoofed by the client).
 //
-// POST /api/budget-events              -> insert event   (WRITERS only)
-//   Body: { client, channel, year, month, amount, event_type, alloc_type?, note? }
-//   changed_by is taken from the Access header, NOT from the body.
-//   -> 201 { event_id }
+// ROLES are read dynamically from `budget.am_directory` (cached ~5 min):
+//   role = 'admin'  -> can write + view history
+//   role = 'editor' -> can write
+//   role = 'viewer' -> read-only UI (no write, no history)
+// Manage access by editing that table — no redeploy needed.
 //
-// GET  /api/budget-events              -> event history  (ADMINS only)
-//   Optional query params: ?limit=200
-//   -> 200 { events: [...] }
-//
-// GET  /api/budget-events?mode=perms   -> caller's own permissions (any authenticated user)
-//   -> 200 { email, can_write, is_admin }
+// POST /api/budget-events              -> insert event   (editors + admins)
+// GET  /api/budget-events              -> event history  (admins only)
+// GET  /api/budget-events?mode=perms   -> caller's own permissions
 //
 // Requires Cloudflare Pages Secret: GCP_SA_KEY (service account JSON for
 // cortex-pages-writer@rightidea-cortex.iam.gserviceaccount.com)
@@ -22,16 +20,12 @@
 const PROJECT = 'rightidea-cortex';
 const DATASET = 'budget';
 const TABLE = 'budget_events';
+const DIRECTORY_TABLE = 'am_directory';
+const ROLES_TTL_SECONDS = 300; // re-read am_directory every 5 minutes
 
-// ---- Authorization (emails as authenticated by Cloudflare Access) ----
-// Add AM emails here as they're approved to edit budgets.
-const WRITERS = [
-  'sebas.guzman@rightideacreative.net',
-];
-// Admins can view the full change history.
-const ADMINS = [
-  'sebas.guzman@rightideacreative.net',
-];
+// Safety net: if the roles query ever fails, these emails keep working
+// so the system can never lock out its own admin.
+const FALLBACK_ADMINS = ['sebas.guzman@rightideacreative.net'];
 
 // TODO: confirmar vocabularios definitivos
 const EVENT_TYPES = ['create', 'update', 'delete'];
@@ -81,9 +75,8 @@ async function getAccessToken(env) {
   const claims = b64urlFromString(
     JSON.stringify({
       iss: sa.client_email,
-      // Full BigQuery scope: needed for both streaming inserts and queries.
-      // What the SA can actually touch is still limited by IAM (table-level
-      // dataEditor + project jobUser).
+      // Full BigQuery scope: inserts + queries. What the SA can actually touch
+      // is still limited by IAM (table-level bindings + project jobUser).
       scope: 'https://www.googleapis.com/auth/bigquery',
       aud: 'https://oauth2.googleapis.com/token',
       iat: now,
@@ -121,6 +114,73 @@ async function getAccessToken(env) {
 
   tokenCache = { token: data.access_token, exp: now + (data.expires_in || 3600) };
   return tokenCache.token;
+}
+
+// ---------- BigQuery query helper (jobs.query) ----------
+
+async function bqQuery(env, query, maxResults = 1000) {
+  const token = await getAccessToken(env);
+  const res = await fetch(
+    `https://bigquery.googleapis.com/bigquery/v2/projects/${PROJECT}/queries`,
+    {
+      method: 'POST',
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ query, useLegacySql: false, maxResults }),
+    }
+  );
+  const data = await res.json();
+  if (!res.ok) throw new Error(`BigQuery query failed: ${JSON.stringify(data)}`);
+  if (!data.jobComplete) throw new Error('Query did not complete in time');
+  const fields = (data.schema && data.schema.fields || []).map(f => f.name);
+  return (data.rows || []).map(r => {
+    const o = {};
+    r.f.forEach((cell, i) => { o[fields[i]] = cell.v; });
+    return o;
+  });
+}
+
+// ---------- Roles from am_directory (cached) ----------
+
+let rolesCache = { map: null, exp: 0 };
+
+async function getRoles(env) {
+  const now = Math.floor(Date.now() / 1000);
+  if (rolesCache.map && rolesCache.exp > now) return rolesCache.map;
+
+  const rows = await bqQuery(env, `
+    SELECT LOWER(TRIM(email)) AS email, LOWER(TRIM(role)) AS role
+    FROM \`${PROJECT}.${DATASET}.${DIRECTORY_TABLE}\`
+    WHERE active = TRUE
+    QUALIFY ROW_NUMBER() OVER (PARTITION BY email ORDER BY updated_at DESC) = 1
+  `, 200);
+
+  const map = {};
+  for (const r of rows) map[r.email] = r.role;
+  rolesCache = { map, exp: now + ROLES_TTL_SECONDS };
+  return map;
+}
+
+async function getPerms(env, email) {
+  try {
+    const roles = await getRoles(env);
+    const role = roles[email] || null;
+    return {
+      email: email || null,
+      role,
+      can_write: role === 'editor' || role === 'admin',
+      is_admin: role === 'admin',
+    };
+  } catch (e) {
+    // Directory unreachable: fall back so admins are never locked out.
+    const isFallbackAdmin = FALLBACK_ADMINS.includes(email);
+    return {
+      email: email || null,
+      role: isFallbackAdmin ? 'admin' : null,
+      can_write: isFallbackAdmin,
+      is_admin: isFallbackAdmin,
+      degraded: true,
+    };
+  }
 }
 
 // ---------- Validación ----------
@@ -188,33 +248,13 @@ async function handleHistory(env, url) {
   if (Number.isNaN(limit) || limit < 1) limit = 200;
   if (limit > 1000) limit = 1000;
 
-  const token = await getAccessToken(env);
-  const res = await fetch(
-    `https://bigquery.googleapis.com/bigquery/v2/projects/${PROJECT}/queries`,
-    {
-      method: 'POST',
-      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
-      body: JSON.stringify({
-        query: `SELECT event_id, client, channel, year, month, amount, alloc_type,
-                       event_type, changed_by, changed_at, note
-                FROM \`${PROJECT}.${DATASET}.${TABLE}\`
-                ORDER BY changed_at DESC
-                LIMIT ${limit}`,
-        useLegacySql: false,
-        maxResults: limit,
-      }),
-    }
-  );
-  const data = await res.json();
-  if (!res.ok) return json({ error: 'BigQuery query failed', detail: data }, 502);
-  if (!data.jobComplete) return json({ error: 'Query did not complete in time' }, 504);
-
-  const fields = (data.schema && data.schema.fields || []).map(f => f.name);
-  const events = (data.rows || []).map(r => {
-    const o = {};
-    r.f.forEach((cell, i) => { o[fields[i]] = cell.v; });
-    return o;
-  });
+  const events = await bqQuery(env, `
+    SELECT event_id, client, channel, year, month, amount, alloc_type,
+           event_type, changed_by, changed_at, note
+    FROM \`${PROJECT}.${DATASET}.${TABLE}\`
+    ORDER BY changed_at DESC
+    LIMIT ${limit}
+  `, limit);
   return json({ events });
 }
 
@@ -229,24 +269,22 @@ export async function onRequest(context) {
   const url = new URL(request.url);
 
   try {
+    const perms = await getPerms(env, email);
+
     // Any authenticated user can ask about their own permissions (UI gating).
     if (request.method === 'GET' && url.searchParams.get('mode') === 'perms') {
-      return json({
-        email: email || null,
-        can_write: WRITERS.includes(email),
-        is_admin: ADMINS.includes(email),
-      });
+      return json(perms);
     }
 
     if (request.method === 'POST') {
-      if (!WRITERS.includes(email)) {
+      if (!perms.can_write) {
         return json({ error: 'Not authorized to edit budgets.' }, 403);
       }
       return await handleInsert(request, env, email);
     }
 
     if (request.method === 'GET') {
-      if (!ADMINS.includes(email)) {
+      if (!perms.is_admin) {
         return json({ error: 'Not authorized to view change history.' }, 403);
       }
       return await handleHistory(env, url);
