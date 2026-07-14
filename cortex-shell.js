@@ -77,9 +77,10 @@
 
     /* ---- Desktop nav ---- */
     '.site-nav{background:#14141b;padding:0 32px;display:flex;gap:2px;border-bottom:1px solid rgba(255,255,255,.07);}' +
-    '.nav-link{color:rgba(255,255,255,.5);text-decoration:none;font-size:13px;font-weight:500;padding:11px 16px;border-bottom:2px solid transparent;transition:color .18s,border-color .18s;display:inline-flex;align-items:center;gap:6px;background:none;border-top:0;border-left:0;border-right:0;font-family:inherit;cursor:pointer;}' +
-    '.nav-link:hover{color:rgba(255,255,255,.9);}' +
-    '.nav-link.active{color:#fff;border-bottom-color:#00D4AA;}' +
+    '.nav-link{color:rgba(255,255,255,.5);text-decoration:none;font-size:13px;font-weight:500;padding:11px 16px;border-bottom:2px solid transparent;transition:color .18s,border-color .18s;display:inline-flex;align-items:center;gap:6px;background:none !important;border-top:0;border-left:0;border-right:0;font-family:inherit;cursor:pointer;outline:none;}' +
+    '.nav-link:hover,.nav-link:focus,.nav-link:focus-visible{color:#fff;background:none !important;}' +
+    '.nav-link.active{color:#fff;border-bottom-color:#00D4AA;background:none !important;}' +
+    '.nav-dd.open>.dd-toggle,.nav-dd:hover>.dd-toggle{color:#fff;background:none !important;}' +
     '.nav-dd{position:relative;}' +
     '.nav-dd .chev{width:8px;height:8px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:rotate(45deg) translateY(-2px);transition:transform .2s;margin-left:2px;}' +
     '.nav-dd.open .chev,.nav-dd:hover .chev{transform:rotate(225deg) translateY(2px);}' +
@@ -122,32 +123,30 @@
       '.site-header{padding:0 20px;}' +
     '}' +
 
-    /* ---- n8n chat widget: position bottom-LEFT + Cortex teal theming ---- */
-    ':root{' +
-      '--chat--color-primary:#00D4AA;' +
-      '--chat--color-primary-shade-50:#00c39c;' +
-      '--chat--color-primary-shade-100:#00b28f;' +
-      '--chat--color-secondary:#0d0d12;' +
-      '--chat--toggle--background:#00D4AA;' +
-      '--chat--toggle--hover--background:#00c39c;' +
-      '--chat--toggle--active--background:#00b28f;' +
-      '--chat--toggle--color:#0d0d12;' +
-      '--chat--header--background:#0d0d12;' +
-      '--chat--header--color:#fff;' +
-      '--chat--window--width:380px;' +
-      '--chat--window--height:560px;' +
-    '}' +
-    '.n8n-chat .chat-window-toggle,' +
-    '.n8n-chat .chat-window-wrapper{right:auto !important;left:20px !important;}' +
-    '.n8n-chat .chat-window{right:auto !important;left:20px !important;}' +
-    '.n8n-chat .chat-window-toggle svg{display:none !important;}' +
+    /* ---- n8n chat widget: bottom-LEFT position + Cortex teal, direct class targeting ---- */
+    /* Position (widget uses .chat-window-wrapper / .chat-window) */
+    '.n8n-chat.chat-window-wrapper,.n8n-chat .chat-window-toggle{right:auto !important;left:20px !important;}' +
+    '.n8n-chat .chat-window{right:auto !important;left:20px !important;bottom:90px !important;' +
+      'width:380px !important;height:560px !important;' +
+      'border-radius:18px !important;overflow:hidden !important;' +
+      'box-shadow:0 18px 50px rgba(0,0,0,.4) !important;border:1px solid rgba(255,255,255,.08) !important;}' +
+    /* Header -> carbon */
+    '.n8n-chat .chat-header,.n8n-chat .chat-heading{background:#0d0d12 !important;}' +
+    '.n8n-chat .chat-header *,.n8n-chat .chat-heading *{color:#fff !important;}' +
+    /* Toggle bubble -> teal, rounded, ticket icon */
+    '.n8n-chat .chat-window-toggle{background:#00D4AA !important;border-radius:16px !important;box-shadow:0 6px 20px rgba(0,212,170,.4) !important;}' +
+    '.n8n-chat .chat-window-toggle:hover{background:#00c39c !important;}' +
+    '.n8n-chat .chat-window-toggle > *{display:none !important;}' +
     '.n8n-chat .chat-window-toggle::after{' +
-      'content:"";' +
+      'content:"";display:block;' +
       'width:26px;height:26px;' +
-      'background-color:var(--chat--toggle--color,#0d0d12);' +
+      'background-color:#0d0d12;' +
       "-webkit-mask:url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"black\"><path d=\"M22 10V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v4a2 2 0 0 1 0 4v4a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-4a2 2 0 0 1 0-4zM13 5.5h-2v2h2zm0 5h-2v3h2zm0 6h-2v2h2z\"/></svg>') center/contain no-repeat;" +
       "mask:url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"black\"><path d=\"M22 10V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v4a2 2 0 0 1 0 4v4a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-4a2 2 0 0 1 0-4zM13 5.5h-2v2h2zm0 5h-2v3h2zm0 6h-2v2h2z\"/></svg>') center/contain no-repeat;" +
-    '}';
+    '}' +
+    /* Send button + user message bubbles -> teal */
+    '.n8n-chat .chat-input .chat-input-send-button,.n8n-chat [class*="send"]{color:#00D4AA !important;}' +
+    '.n8n-chat .chat-message-from-user .chat-message-markdown{background:#00D4AA !important;color:#0d0d12 !important;}';
 
   // ---- Brand mark (inline SVG: teal C + chevron) ----
   var MARK = '<svg class="brand-mark" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' +
@@ -377,7 +376,6 @@
       ["link", { rel: "icon", type: "image/png", sizes: "32x32", href: "/favicon-32x32.png" }],
       ["link", { rel: "icon", type: "image/png", sizes: "16x16", href: "/favicon-16x16.png" }],
       ["link", { rel: "apple-touch-icon", sizes: "180x180", href: "/favicon-180x180.png" }],
-      ["link", { rel: "manifest", href: "/manifest.json" }],
       ["meta", { name: "theme-color", content: "#0A0A0F" }]
     ];
     var marker = document.createElement("meta");
