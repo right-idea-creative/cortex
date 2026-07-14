@@ -8,6 +8,7 @@
 //   capability 'budgets.view'    -> read budget data (mode=data)
 //   capability 'budgets.edit'    -> insert events (POST)
 //   capability 'budgets.history' -> read the audit log (GET)
+//   capability 'budgets.delete'  -> hard-delete audit events (DELETE)
 //   capability '*'               -> everything (admin)
 // Manage access by editing identity.users / identity.roles — no redeploy.
 // Falls back to budget.am_directory during the migration window.
@@ -144,6 +145,28 @@ async function bqQuery(env, query, maxResults = 1000) {
   });
 }
 
+// DML statements (DELETE/UPDATE): returns number of affected rows.
+async function bqDml(env, query) {
+  const token = await getAccessToken(env);
+  const res = await fetch(
+    `https://bigquery.googleapis.com/bigquery/v2/projects/${PROJECT}/queries`,
+    {
+      method: 'POST',
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ query, useLegacySql: false }),
+    }
+  );
+  const data = await res.json();
+  if (!res.ok) {
+    const msg = JSON.stringify(data);
+    const err = new Error(`BigQuery DML failed: ${msg}`);
+    err.streamingBuffer = /streaming buffer/i.test(msg);
+    throw err;
+  }
+  if (!data.jobComplete) throw new Error('DML did not complete in time');
+  return Number(data.numDmlAffectedRows || 0);
+}
+
 // ---------- Cortex Identity: roles + capabilities (cached) ----------
 
 // Legacy role -> capability packages, used only if identity.user_access
@@ -216,6 +239,7 @@ async function getPerms(env, email) {
       can_write: hasCap(u, 'budgets.edit'),
       is_admin: hasCap(u, '*'),
       can_history: hasCap(u, 'budgets.history') || hasCap(u, '*'),
+      can_delete: hasCap(u, 'budgets.delete'),
     };
   } catch (e) {
     const isFallbackAdmin = FALLBACK_ADMINS.includes(email);
@@ -227,6 +251,7 @@ async function getPerms(env, email) {
       can_write: isFallbackAdmin,
       is_admin: isFallbackAdmin,
       can_history: isFallbackAdmin,
+      can_delete: isFallbackAdmin,
       degraded: true,
     };
   }
@@ -355,6 +380,41 @@ async function handleHistory(env, url) {
   return json({ events });
 }
 
+// Admin-only hard delete of audit events. In this event-sourced model,
+// deleting an event also acts as an UNDO: budget_base_current falls back
+// to the previous event for that cell, or to the sheet value.
+// Rows still in BigQuery's streaming buffer (~90 min) cannot be deleted;
+// those requests return 409 with a clear retry message.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+async function handleDelete(request, env) {
+  const b = await request.json().catch(() => null);
+  const ids = b && Array.isArray(b.event_ids) ? b.event_ids : null;
+  if (!ids || !ids.length) return json({ error: 'event_ids array is required' }, 400);
+  if (ids.length > 100) return json({ error: 'Max 100 events per delete' }, 400);
+  for (const id of ids) {
+    if (typeof id !== 'string' || !UUID_RE.test(id)) {
+      return json({ error: `Invalid event_id: ${String(id).slice(0, 50)}` }, 400);
+    }
+  }
+  const inList = ids.map(id => `'${id}'`).join(',');
+  try {
+    const deleted = await bqDml(env, `
+      DELETE FROM \`${PROJECT}.${DATASET}.${TABLE}\`
+      WHERE event_id IN (${inList})
+    `);
+    return json({ deleted });
+  } catch (e) {
+    if (e.streamingBuffer) {
+      return json({
+        error: 'Some selected events are too recent to delete (BigQuery streaming buffer). Try again in about 90 minutes.',
+        streaming_buffer: true,
+      }, 409);
+    }
+    throw e;
+  }
+}
+
 export async function onRequest(context) {
   const { request, env } = context;
 
@@ -386,6 +446,13 @@ export async function onRequest(context) {
         return json({ error: 'Not authorized to edit budgets.' }, 403);
       }
       return await handleInsert(request, env, email);
+    }
+
+    if (request.method === 'DELETE') {
+      if (!perms.can_delete) {
+        return json({ error: 'Not authorized to delete budget events.' }, 403);
+      }
+      return await handleDelete(request, env);
     }
 
     if (request.method === 'GET') {

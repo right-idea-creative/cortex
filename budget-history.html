@@ -56,6 +56,38 @@ td.note { color:var(--c-text-2); max-width:280px; }
 .empty, .loading { padding:40px; text-align:center; color:var(--c-text-2); }
 .err { padding:30px; border:1px solid var(--c-border); border-radius:var(--c-radius);
   color:var(--c-danger-tx); background:var(--c-danger-bg); margin-top:16px; }
+
+/* ---- admin selection & delete ---- */
+th.selcol, td.selcol { display:none; width:34px; padding-right:0; }
+body.can-delete th.selcol, body.can-delete td.selcol { display:table-cell; }
+td.selcol input, th.selcol input { cursor:pointer; width:15px; height:15px; accent-color:#c62828; }
+tbody tr.selected td { background:#fdecea; }
+.delbar { display:none; position:sticky; bottom:16px; z-index:50; margin-top:14px;
+  background:#0d1b2a; color:#fff; border-radius:12px; padding:10px 16px;
+  align-items:center; gap:14px; box-shadow:0 8px 28px rgba(0,0,0,.28); }
+.delbar.show { display:flex; }
+.delbar .count { font-size:13px; font-weight:600; }
+.delbar .grow { flex:1; }
+.delbar button { font:inherit; font-size:13px; border-radius:8px; padding:7px 14px; cursor:pointer; border:0; }
+.delbar .ghost { background:transparent; color:rgba(255,255,255,.75); border:1px solid rgba(255,255,255,.25); }
+.delbar .danger { background:#c62828; color:#fff; font-weight:600; }
+.delbar .danger:disabled { opacity:.55; cursor:default; }
+.modal-back { display:none; position:fixed; inset:0; background:rgba(13,27,42,.5); z-index:200;
+  align-items:center; justify-content:center; padding:20px; }
+.modal-back.open { display:flex; }
+.modal { background:#fff; border-radius:14px; max-width:440px; width:100%; padding:22px 24px;
+  box-shadow:0 24px 60px rgba(0,0,0,.3); }
+.modal h2 { font-size:17px; margin:0 0 8px; color:#0d1b2a; }
+.modal p { font-size:13px; color:var(--c-text-2); margin:0 0 8px; }
+.modal .btns { display:flex; justify-content:flex-end; gap:8px; margin-top:16px; }
+.modal button { font:inherit; font-size:13px; border-radius:8px; padding:8px 16px; cursor:pointer;
+  border:1px solid var(--c-border-2); background:#fff; }
+.modal button.danger { background:#c62828; border-color:#c62828; color:#fff; font-weight:600; }
+.modal button:disabled { opacity:.55; cursor:default; }
+.toast { position:fixed; left:50%; bottom:24px; transform:translateX(-50%) translateY(80px);
+  background:#0d1b2a; color:#fff; padding:10px 18px; border-radius:10px; font-size:13px;
+  opacity:0; transition:all .25s; z-index:300; pointer-events:none; }
+.toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
 </style>
 </head>
 <body>
@@ -75,6 +107,7 @@ td.note { color:var(--c-text-2); max-width:280px; }
     <div class="scroll">
       <table>
         <thead><tr>
+          <th class="selcol"><input type="checkbox" id="selAll" aria-label="Select all"></th>
           <th>When (UTC)</th>
           <th>Client</th>
           <th>Channel</th>
@@ -84,16 +117,37 @@ td.note { color:var(--c-text-2); max-width:280px; }
           <th>Changed by</th>
           <th>Note</th>
         </tr></thead>
-        <tbody id="tbody"><tr><td colspan="8" class="loading">Loading change history…</td></tr></tbody>
+        <tbody id="tbody"><tr><td colspan="9" class="loading">Loading change history…</td></tr></tbody>
       </table>
     </div>
   </div>
   <div class="foot" id="foot"></div>
+
+  <div class="delbar" id="delbar">
+    <span class="count" id="delCount">0 selected</span>
+    <span class="grow"></span>
+    <button type="button" class="ghost" id="delClear">Clear</button>
+    <button type="button" class="danger" id="delOpen">Delete selected</button>
+  </div>
 </div>
+
+<div class="modal-back" id="dBack" role="dialog" aria-modal="true">
+  <div class="modal">
+    <h2>Delete <span id="dN">0</span> event(s)?</h2>
+    <p>This permanently removes the selected entries from the audit log.</p>
+    <p><b>Budget effect:</b> each affected cell reverts to its previous event, or to the AM Planner sheet value if no earlier event exists.</p>
+    <p class="muted" id="dHint"></p>
+    <div class="btns">
+      <button type="button" id="dCancel">Cancel</button>
+      <button type="button" class="danger" id="dConfirm">Delete permanently</button>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
 
 <script>
 const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-const STATE = { events: [], channel: "", user: "", q: "" };
+const STATE = { events: [], channel: "", user: "", q: "", canDelete: false, selected: new Set(), busy: false };
 const esc = s => String(s ?? "").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const fmtMoney = n => "$" + Number(n).toLocaleString(undefined,{maximumFractionDigits:2});
 
@@ -118,11 +172,12 @@ function render(){
   const rows = STATE.events.filter(passes);
   const tb = document.getElementById("tbody");
   if (!rows.length){
-    tb.innerHTML = `<tr><td colspan="8" class="empty">No events match this view.</td></tr>`;
+    tb.innerHTML = `<tr><td colspan="9" class="empty">No events match this view.</td></tr>`;
     document.getElementById("foot").textContent = "";
     return;
   }
-  tb.innerHTML = rows.map(e => `<tr>
+  tb.innerHTML = rows.map(e => `<tr data-id="${esc(e.event_id)}" class="${STATE.selected.has(e.event_id) ? "selected" : ""}">
+    <td class="selcol"><input type="checkbox" data-id="${esc(e.event_id)}" ${STATE.selected.has(e.event_id) ? "checked" : ""} aria-label="Select event"></td>
     <td class="when">${fmtWhen(e.changed_at)}</td>
     <td><b>${esc(e.client)}</b></td>
     <td><span class="pill ${esc(e.channel)}">${esc((e.channel||"").replace(/_/g," "))}</span></td>
@@ -134,6 +189,84 @@ function render(){
   </tr>`).join("");
   document.getElementById("foot").textContent =
     `Showing ${rows.length} of ${STATE.events.length} events (most recent first)`;
+  if (STATE.canDelete) {
+    tb.querySelectorAll('td.selcol input').forEach(cb => {
+      cb.addEventListener("change", () => toggleSel(cb.dataset.id, cb.checked));
+    });
+    syncSelAll(rows);
+  }
+  refreshDelbar();
+}
+
+// ---- admin selection & delete ----
+function toggleSel(id, on){
+  if (on) STATE.selected.add(id); else STATE.selected.delete(id);
+  const tr = document.querySelector(`tr[data-id="${CSS.escape(id)}"]`);
+  if (tr) tr.classList.toggle("selected", on);
+  syncSelAll(STATE.events.filter(passes));
+  refreshDelbar();
+}
+function syncSelAll(rows){
+  const all = document.getElementById("selAll");
+  if (!all) return;
+  const visible = rows.map(e => e.event_id);
+  const sel = visible.filter(id => STATE.selected.has(id)).length;
+  all.checked = visible.length > 0 && sel === visible.length;
+  all.indeterminate = sel > 0 && sel < visible.length;
+}
+function refreshDelbar(){
+  const n = STATE.selected.size;
+  document.getElementById("delCount").textContent = `${n} selected`;
+  document.getElementById("delbar").classList.toggle("show", STATE.canDelete && n > 0);
+}
+function showToast(msg){
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.classList.add("show");
+  setTimeout(()=> t.classList.remove("show"), 3200);
+}
+async function deleteSelected(){
+  if (STATE.busy || !STATE.selected.size) return;
+  STATE.busy = true;
+  const btn = document.getElementById("dConfirm");
+  btn.disabled = true; btn.textContent = "Deleting…";
+  const ids = [...STATE.selected];
+  try {
+    const res = await fetch("/api/budget-events", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ event_ids: ids })
+    });
+    const data = await res.json().catch(()=> ({}));
+    if (!res.ok) throw new Error(data.error || ("HTTP " + res.status));
+    STATE.events = STATE.events.filter(e => !STATE.selected.has(e.event_id));
+    STATE.selected.clear();
+    document.getElementById("dBack").classList.remove("open");
+    render();
+    showToast(`Deleted ${data.deleted} event(s). Affected cells reverted.`);
+  } catch (e) {
+    document.getElementById("dHint").textContent = e.message;
+  } finally {
+    STATE.busy = false;
+    btn.disabled = false; btn.textContent = "Delete permanently";
+  }
+}
+function wireDelete(){
+  document.body.classList.add("can-delete");
+  document.getElementById("selAll").addEventListener("change", ev => {
+    const rows = STATE.events.filter(passes);
+    rows.forEach(e => { if (ev.target.checked) STATE.selected.add(e.event_id); else STATE.selected.delete(e.event_id); });
+    render();
+  });
+  document.getElementById("delClear").addEventListener("click", () => { STATE.selected.clear(); render(); });
+  document.getElementById("delOpen").addEventListener("click", () => {
+    document.getElementById("dN").textContent = STATE.selected.size;
+    document.getElementById("dHint").textContent = "";
+    document.getElementById("dBack").classList.add("open");
+  });
+  document.getElementById("dCancel").addEventListener("click", () => {
+    if (!STATE.busy) document.getElementById("dBack").classList.remove("open");
+  });
+  document.getElementById("dConfirm").addEventListener("click", deleteSelected);
 }
 
 function wire(){
@@ -147,6 +280,11 @@ function wire(){
   fu.onchange = e => { STATE.user = e.target.value; render(); };
   document.getElementById("q").oninput = e => { STATE.q = e.target.value; render(); };
 }
+
+fetch("/api/budget-events?mode=perms", { cache: "no-store" })
+  .then(r => r.ok ? r.json() : null)
+  .then(p => { if (p && p.can_delete) { STATE.canDelete = true; wireDelete(); render(); } })
+  .catch(()=>{});
 
 fetch("/cdn-cgi/access/get-identity")
   .then(r => r.ok ? r.json() : null)
