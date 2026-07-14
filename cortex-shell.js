@@ -356,8 +356,29 @@
       });
   }
 
+  function injectFavicons() {
+    if (document.getElementById("cortex-favicons")) return;
+    var tags = [
+      ["link", { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" }],
+      ["link", { rel: "icon", type: "image/png", sizes: "32x32", href: "/favicon-32x32.png" }],
+      ["link", { rel: "icon", type: "image/png", sizes: "16x16", href: "/favicon-16x16.png" }],
+      ["link", { rel: "apple-touch-icon", sizes: "180x180", href: "/favicon-180x180.png" }],
+      ["link", { rel: "manifest", href: "/manifest.json" }],
+      ["meta", { name: "theme-color", content: "#0d1b2a" }]
+    ];
+    var marker = document.createElement("meta");
+    marker.id = "cortex-favicons";
+    document.head.appendChild(marker);
+    tags.forEach(function (t) {
+      var el = document.createElement(t[0]);
+      Object.keys(t[1]).forEach(function (k) { el.setAttribute(k, t[1][k]); });
+      document.head.appendChild(el);
+    });
+  }
+
   function init() {
     injectStyles();
+    injectFavicons();
     // Render immediately with safe defaults (admin-only links hidden),
     // then re-render once real permissions arrive.
     injectShell();
