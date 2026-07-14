@@ -1,5 +1,5 @@
 /* =====================================================================
-   cortex-shell.js — shared chrome for every Córtex OS page. (v2)
+   cortex-shell.js — shared chrome for every CORTEX OS page. (v2 — teal)
    Injects the top navigation (categorized dropdowns on desktop,
    hamburger drawer on mobile, role-aware links) and carries its own
    styles, so individual pages never hand-copy nav markup or CSS.
@@ -14,6 +14,11 @@
      - Links marked adminOnly only render for role=admin.
      - If HIDE_BUDGETS_FROM_VIEWERS is true, the whole Budgets
        category is hidden from users who can't write.
+
+   BRAND (teal identity):
+     --brand-bg      #0d0d12  (dark carbon — header/drawer/panels)
+     --brand-bg-nav  #14141b  (nav strip, one notch lighter)
+     --brand-teal    #00D4AA  (accent — active/hover)
    ===================================================================== */
 (function () {
   "use strict";
@@ -63,25 +68,26 @@
   // ---- Styles ----
   var CSS = '' +
     '.site-top{position:sticky;top:0;z-index:100;}' +
-    '.site-header{background:#0d1b2a;padding:0 32px;height:52px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 1px 0 rgba(255,255,255,.06);}' +
+    '.site-header{background:#0d0d12;padding:0 32px;height:52px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 1px 0 rgba(255,255,255,.06);}' +
     '.brand{display:flex;align-items:center;gap:10px;text-decoration:none;}' +
+    '.brand-mark{width:22px;height:22px;flex:0 0 auto;}' +
     '.brand-name{font-size:17px;font-weight:700;color:#fff;letter-spacing:-.3px;}' +
     '.brand-divider{color:rgba(255,255,255,.25);font-size:14px;}' +
     '.brand-sub{font-size:11px;color:rgba(255,255,255,.45);font-weight:500;}' +
 
     /* ---- Desktop nav ---- */
-    '.site-nav{background:#0f2236;padding:0 32px;display:flex;gap:2px;border-bottom:1px solid rgba(255,255,255,.07);}' +
+    '.site-nav{background:#14141b;padding:0 32px;display:flex;gap:2px;border-bottom:1px solid rgba(255,255,255,.07);}' +
     '.nav-link{color:rgba(255,255,255,.5);text-decoration:none;font-size:13px;font-weight:500;padding:11px 16px;border-bottom:2px solid transparent;transition:color .18s,border-color .18s;display:inline-flex;align-items:center;gap:6px;background:none;border-top:0;border-left:0;border-right:0;font-family:inherit;cursor:pointer;}' +
     '.nav-link:hover{color:rgba(255,255,255,.9);}' +
-    '.nav-link.active{color:#fff;border-bottom-color:#4285F4;}' +
+    '.nav-link.active{color:#fff;border-bottom-color:#00D4AA;}' +
     '.nav-dd{position:relative;}' +
     '.nav-dd .chev{width:8px;height:8px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:rotate(45deg) translateY(-2px);transition:transform .2s;margin-left:2px;}' +
     '.nav-dd.open .chev,.nav-dd:hover .chev{transform:rotate(225deg) translateY(2px);}' +
-    '.dd-panel{position:absolute;top:calc(100% + 1px);left:8px;min-width:200px;background:#0d1b2a;border:1px solid rgba(255,255,255,.09);border-radius:0 0 10px 10px;box-shadow:0 14px 34px rgba(0,0,0,.4);padding:6px;opacity:0;transform:translateY(8px);pointer-events:none;transition:opacity .18s ease,transform .18s ease;}' +
+    '.dd-panel{position:absolute;top:calc(100% + 1px);left:8px;min-width:200px;background:#0d0d12;border:1px solid rgba(255,255,255,.09);border-radius:0 0 10px 10px;box-shadow:0 14px 34px rgba(0,0,0,.5);padding:6px;opacity:0;transform:translateY(8px);pointer-events:none;transition:opacity .18s ease,transform .18s ease;}' +
     '.nav-dd.open .dd-panel,.nav-dd:hover .dd-panel{opacity:1;transform:translateY(0);pointer-events:auto;}' +
     '.dd-item{display:block;padding:9px 12px;border-radius:7px;color:rgba(255,255,255,.6);text-decoration:none;font-size:13px;font-weight:500;transition:background .14s,color .14s,padding-left .14s;}' +
-    '.dd-item:hover{background:rgba(66,133,244,.14);color:#fff;padding-left:16px;}' +
-    '.dd-item.active{color:#fff;background:rgba(66,133,244,.22);}' +
+    '.dd-item:hover{background:rgba(0,212,170,.14);color:#fff;padding-left:16px;}' +
+    '.dd-item.active{color:#fff;background:rgba(0,212,170,.22);}' +
 
     /* ---- Hamburger (hidden on desktop) ---- */
     '.nav-burger{display:none;background:none;border:0;cursor:pointer;padding:10px;margin-right:-10px;}' +
@@ -91,16 +97,17 @@
     '.nav-burger.open span:nth-child(3){transform:translateY(-7px) rotate(-45deg);}' +
 
     /* ---- Mobile drawer ---- */
-    '.nav-backdrop{position:fixed;inset:0;background:rgba(6,13,22,.55);opacity:0;pointer-events:none;transition:opacity .25s;z-index:998;}' +
+    '.nav-backdrop{position:fixed;inset:0;background:rgba(4,4,8,.6);opacity:0;pointer-events:none;transition:opacity .25s;z-index:998;}' +
     '.nav-backdrop.open{opacity:1;pointer-events:auto;}' +
-    '.nav-drawer{position:fixed;top:0;left:0;bottom:0;width:282px;max-width:82vw;background:#0d1b2a;z-index:999;transform:translateX(-102%);transition:transform .27s cubic-bezier(.3,.8,.3,1);display:flex;flex-direction:column;box-shadow:8px 0 32px rgba(0,0,0,.4);}' +
+    '.nav-drawer{position:fixed;top:0;left:0;bottom:0;width:282px;max-width:82vw;background:#0d0d12;z-index:999;transform:translateX(-102%);transition:transform .27s cubic-bezier(.3,.8,.3,1);display:flex;flex-direction:column;box-shadow:8px 0 32px rgba(0,0,0,.5);}' +
     '.nav-drawer.open{transform:translateX(0);}' +
-    '.drawer-head{padding:18px 20px;border-bottom:1px solid rgba(255,255,255,.08);}' +
+    '.drawer-head{padding:18px 20px;border-bottom:1px solid rgba(255,255,255,.08);display:flex;align-items:center;gap:9px;}' +
     '.drawer-head .brand-name{font-size:16px;}' +
+    '.drawer-head .brand-mark{width:20px;height:20px;}' +
     '.drawer-body{overflow-y:auto;padding:10px 12px 24px;flex:1;}' +
     '.drawer-link{display:block;padding:12px 12px;color:rgba(255,255,255,.65);text-decoration:none;font-size:14px;font-weight:500;border-radius:8px;transition:background .14s,color .14s;}' +
     '.drawer-link:hover{background:rgba(255,255,255,.06);color:#fff;}' +
-    '.drawer-link.active{background:rgba(66,133,244,.2);color:#fff;}' +
+    '.drawer-link.active{background:rgba(0,212,170,.2);color:#fff;}' +
     '.drawer-cat{margin-top:6px;}' +
     '.drawer-cat-btn{width:100%;display:flex;align-items:center;justify-content:space-between;background:none;border:0;cursor:pointer;padding:12px 12px;color:rgba(255,255,255,.85);font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;font-family:inherit;border-radius:8px;transition:background .14s;}' +
     '.drawer-cat-btn:hover{background:rgba(255,255,255,.05);}' +
@@ -115,17 +122,17 @@
       '.site-header{padding:0 20px;}' +
     '}' +
 
-    /* ---- n8n chat widget: position bottom-LEFT + Cortex theming ---- */
+    /* ---- n8n chat widget: position bottom-LEFT + Cortex teal theming ---- */
     ':root{' +
-      '--chat--color-primary:#1565c0;' +
-      '--chat--color-primary-shade-50:#125ab0;' +
-      '--chat--color-primary-shade-100:#0f4f9c;' +
-      '--chat--color-secondary:#0d1b2a;' +
-      '--chat--toggle--background:#1565c0;' +
-      '--chat--toggle--hover--background:#125ab0;' +
-      '--chat--toggle--active--background:#0f4f9c;' +
-      '--chat--toggle--color:#fff;' +
-      '--chat--header--background:#0d1b2a;' +
+      '--chat--color-primary:#00D4AA;' +
+      '--chat--color-primary-shade-50:#00c39c;' +
+      '--chat--color-primary-shade-100:#00b28f;' +
+      '--chat--color-secondary:#0d0d12;' +
+      '--chat--toggle--background:#00D4AA;' +
+      '--chat--toggle--hover--background:#00c39c;' +
+      '--chat--toggle--active--background:#00b28f;' +
+      '--chat--toggle--color:#0d0d12;' +
+      '--chat--header--background:#0d0d12;' +
       '--chat--header--color:#fff;' +
       '--chat--window--width:380px;' +
       '--chat--window--height:560px;' +
@@ -137,10 +144,16 @@
     '.n8n-chat .chat-window-toggle::after{' +
       'content:"";' +
       'width:26px;height:26px;' +
-      'background-color:var(--chat--toggle--color,#fff);' +
+      'background-color:var(--chat--toggle--color,#0d0d12);' +
       "-webkit-mask:url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"black\"><path d=\"M22 10V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v4a2 2 0 0 1 0 4v4a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-4a2 2 0 0 1 0-4zM13 5.5h-2v2h2zm0 5h-2v3h2zm0 6h-2v2h2z\"/></svg>') center/contain no-repeat;" +
       "mask:url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"black\"><path d=\"M22 10V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v4a2 2 0 0 1 0 4v4a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-4a2 2 0 0 1 0-4zM13 5.5h-2v2h2zm0 5h-2v3h2zm0 6h-2v2h2z\"/></svg>') center/contain no-repeat;" +
     '}';
+
+  // ---- Brand mark (inline SVG: teal C + chevron) ----
+  var MARK = '<svg class="brand-mark" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' +
+    '<path d="M23 9.5a9 9 0 1 0 0 13" stroke="#00D4AA" stroke-width="3.2" stroke-linecap="round"/>' +
+    '<circle cx="24.5" cy="16" r="2.4" fill="#00D4AA"/>' +
+    '</svg>';
 
   // ---- Permissions (role-aware links) ----
   var PERMS = { role: null, can_write: false, is_admin: false, loaded: false };
@@ -235,7 +248,8 @@
       '<div class="site-top">' +
         '<header class="site-header">' +
           '<a href="index.html" class="brand">' +
-            '<span class="brand-name">Córtex OS</span>' +
+            MARK +
+            '<span class="brand-name">CORTEX OS</span>' +
             '<span class="brand-divider">|</span>' +
             '<span class="brand-sub">Right Idea Media &amp; Creative</span>' +
           "</a>" +
@@ -245,7 +259,7 @@
       "</div>" +
       '<div class="nav-backdrop"></div>' +
       '<aside class="nav-drawer" aria-label="Navigation">' +
-        '<div class="drawer-head"><span class="brand-name">Córtex OS</span></div>' +
+        '<div class="drawer-head">' + MARK + '<span class="brand-name">CORTEX OS</span></div>' +
         '<div class="drawer-body">' + buildDrawer() + "</div>" +
       "</aside>"
     );
@@ -336,12 +350,12 @@
             mode: "window",
             showWelcomeScreen: false,
             initialMessages: [
-              "Hi! 👋 I'm the Córtex ticket assistant.",
+              "Hi! I'm the CORTEX ticket assistant.",
               "Tell me the client and what you need, and I'll open a ticket in Monday."
             ],
             i18n: {
               en: {
-                title: "Córtex Ticket Bot",
+                title: "CORTEX Ticket Bot",
                 subtitle: "Create a Monday ticket from any page.",
                 footer: "",
                 getStarted: "New ticket",
@@ -352,7 +366,7 @@
         }
       })
       .catch(function (e) {
-        if (window.console) console.warn("Córtex ticket bot failed to load:", e);
+        if (window.console) console.warn("CORTEX ticket bot failed to load:", e);
       });
   }
 

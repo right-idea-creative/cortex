@@ -3,162 +3,318 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Córtex OS — Right Idea Media & Creative</title>
+<title>CORTEX OS — Right Idea Media & Creative</title>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+:root {
+  --bg:        #0a0a0f;
+  --bg-soft:   #0d0d12;
+  --card:      #14141b;
+  --card-hover:#181820;
+  --line:      rgba(255,255,255,.08);
+  --line-soft: rgba(255,255,255,.06);
+  --teal:      #00D4AA;
+  --teal-dim:  rgba(0,212,170,.14);
+  --text:      #f4f4f6;
+  --text-mid:  rgba(255,255,255,.62);
+  --text-low:  rgba(255,255,255,.40);
+}
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background: #f0f2f5;
-  color: #1a1a2e;
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
 }
 
 /* ── Site top (shared chrome) ── */
-/* Nav markup + styles now injected by /cortex-shell.js */
+/* Nav markup + styles injected by /cortex-shell.js */
 
 /* ── Hero ── */
 .hero {
-  background: linear-gradient(145deg, #0d1b2a 0%, #0f3460 60%, #1565c0 100%);
-  color: #fff;
+  position: relative;
+  overflow: hidden;
   text-align: center;
-  padding: 90px 32px 80px;
+  padding: 84px 32px 72px;
+  background:
+    radial-gradient(1100px 340px at 50% -40%, rgba(0,212,170,.16), transparent 70%),
+    linear-gradient(180deg, #0d0d12 0%, #0a0a0f 100%);
+  border-bottom: 1px solid var(--line-soft);
+}
+.hero-mark {
+  width: 52px; height: 52px;
+  margin: 0 auto 22px;
+  display: block;
 }
 .hero-eyebrow {
   font-size: 11px;
   font-weight: 700;
-  letter-spacing: 2px;
+  letter-spacing: 2.5px;
   text-transform: uppercase;
-  color: rgba(255,255,255,.4);
-  margin-bottom: 16px;
+  color: var(--teal);
+  margin-bottom: 14px;
 }
 .hero h1 {
-  font-size: 52px;
+  font-size: 50px;
   font-weight: 800;
   letter-spacing: -1.5px;
-  line-height: 1.05;
+  line-height: 1.04;
   margin-bottom: 12px;
+  color: #fff;
 }
-.hero h1 span { color: #64b5f6; }
+.hero h1 span { color: var(--teal); }
 .hero p {
   font-size: 15px;
-  color: rgba(255,255,255,.55);
+  color: var(--text-low);
   font-weight: 400;
 }
 
-/* ── Modules grid ── */
-.modules-section {
-  padding: 48px 32px 60px;
-  max-width: 1060px;
+/* ── Sections ── */
+.wrap {
+  max-width: 1080px;
   margin: 0 auto;
+  padding: 46px 32px 72px;
 }
-.modules-label {
+.cat {
+  margin-top: 44px;
+}
+.cat:first-child { margin-top: 0; }
+.cat-label {
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: .8px;
-  color: #9e9e9e;
-  margin-bottom: 18px;
+  letter-spacing: 1px;
+  color: var(--text-low);
+  margin-bottom: 16px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line-soft);
 }
-.modules-grid {
+
+/* ── Cards grid ── */
+.grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
+  gap: 14px;
 }
-@media (max-width: 780px) { .modules-grid { grid-template-columns: 1fr; } }
+@media (max-width: 860px) { .grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 560px) { .grid { grid-template-columns: 1fr; } }
 
-.module-card {
-  background: #fff;
-  border-radius: 12px;
-  padding: 28px 26px 24px;
+.card {
+  position: relative;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 22px 22px 20px;
   text-decoration: none;
   color: inherit;
-  box-shadow: 0 1px 4px rgba(0,0,0,.07);
-  border: 1px solid #e8eaed;
-  transition: transform .15s, box-shadow .15s, border-color .15s;
+  transition: transform .16s ease, border-color .16s ease, background .16s ease;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
+  min-height: 150px;
 }
-.module-card:hover {
+.card::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 16px; bottom: 16px;
+  width: 3px;
+  border-radius: 3px;
+  background: var(--teal);
+  opacity: 0;
+  transition: opacity .16s ease;
+}
+.card:hover {
   transform: translateY(-3px);
-  box-shadow: 0 8px 24px rgba(0,0,0,.11);
-  border-color: #c5d5f5;
+  border-color: rgba(0,212,170,.45);
+  background: var(--card-hover);
 }
-.module-icon {
-  width: 44px; height: 44px;
+.card:hover::before { opacity: 1; }
+
+.card-ico {
+  width: 40px; height: 40px;
   border-radius: 10px;
   display: flex; align-items: center; justify-content: center;
-  font-size: 20px;
+  background: var(--teal-dim);
+  color: var(--teal);
+  flex: 0 0 auto;
 }
-.module-card h2 { font-size: 15px; font-weight: 700; color: #1a1a2e; }
-.module-card p { font-size: 13px; color: #757575; line-height: 1.55; flex: 1; }
-.module-arrow {
+.card-ico svg { width: 20px; height: 20px; }
+.card h2 {
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: -.2px;
+}
+.card p {
+  font-size: 12.5px;
+  color: var(--text-mid);
+  line-height: 1.55;
+  flex: 1;
+}
+.card-go {
   font-size: 12px;
-  color: #bdbdbd;
+  color: var(--text-low);
   font-weight: 600;
-  margin-top: 4px;
-  transition: color .15s;
+  transition: color .16s ease;
 }
-.module-card:hover .module-arrow { color: #1565c0; }
+.card:hover .card-go { color: var(--teal); }
 
-.module-card.coming-soon { opacity: .65; cursor: default; pointer-events: none; }
-.module-card.coming-soon:hover { transform: none; box-shadow: 0 1px 4px rgba(0,0,0,.07); }
+/* ── Coming soon ── */
+.card.soon { opacity: .5; pointer-events: none; }
 .badge {
   display: inline-block;
-  font-size: 10px;
+  font-size: 9.5px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: .5px;
-  background: #f0f2f5;
-  color: #9e9e9e;
+  background: rgba(255,255,255,.07);
+  color: var(--text-low);
   border-radius: 4px;
   padding: 2px 6px;
   margin-left: 6px;
+  vertical-align: middle;
+}
+
+footer {
+  text-align: center;
+  padding: 30px 32px 48px;
+  color: var(--text-low);
+  font-size: 12px;
 }
 </style>
 </head>
 <body>
 
 <div class="hero">
+  <svg class="hero-mark" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <path d="M23 9.5a9 9 0 1 0 0 13" stroke="#00D4AA" stroke-width="3.2" stroke-linecap="round"/>
+    <circle cx="24.5" cy="16" r="2.4" fill="#00D4AA"/>
+  </svg>
   <div class="hero-eyebrow">Internal Operations Platform</div>
-  <h1>Córtex <span>OS</span></h1>
-  <p>Right Idea Media & Creative</p>
+  <h1>CORTEX <span>OS</span></h1>
+  <p>Right Idea Media &amp; Creative</p>
 </div>
 
-<div class="modules-section">
-  <div class="modules-label">Modules</div>
-  <div class="modules-grid">
+<div class="wrap">
 
-    <a href="call-tracking.html" class="module-card">
-      <div class="module-icon" style="background:#e8f0fe">📞</div>
-      <h2>Call Tracking</h2>
-      <p>Call volume, missed calls, channel attribution, and Google Ads cost-per-call across all active ODC clients.</p>
-      <div class="module-arrow">Open →</div>
-    </a>
+  <!-- ── Performance ── -->
+  <div class="cat">
+    <div class="cat-label">Performance</div>
+    <div class="grid">
 
-    <a href="ad-spend-pacing.html" class="module-card">
-      <div class="module-icon" style="background:#e8f5e9">📈</div>
-      <h2>Ad Spend Pacing</h2>
-      <p>Monthly budget pacing and catch-up recommendations by client and channel across Google Ads, LSA, Bing, Meta, and Nextdoor.</p>
-      <div class="module-arrow">Open →</div>
-    </a>
+      <a href="ad-spend-pacing.html" class="card">
+        <div class="card-ico">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="15 7 21 7 21 13"/></svg>
+        </div>
+        <h2>Ad Spend Pacing</h2>
+        <p>Monthly budget pacing and catch-up recommendations by client and channel across Google Ads, LSA, Bing, Meta, and Nextdoor.</p>
+        <div class="card-go">Open &rarr;</div>
+      </a>
 
-    <a href="triage.html" class="module-card">
-      <div class="module-icon" style="background:#fff3e0">🩺</div>
-      <h2>Campaign Triage</h2>
-      <p>Flag underperforming Google Ads campaigns by CPA, conversions, and chronic streaks across the ODC portfolio, with an AI diagnosis panel.</p>
-      <div class="module-arrow">Open →</div>
-    </a>
+      <a href="triage.html" class="card">
+        <div class="card-ico">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+        </div>
+        <h2>Campaign Triage</h2>
+        <p>Flag underperforming Google Ads campaigns by CPA, conversions, and chronic streaks across the ODC portfolio, with an AI diagnosis panel.</p>
+        <div class="card-go">Open &rarr;</div>
+      </a>
 
-    <a href="tickets.html" class="module-card">
-      <div class="module-icon" style="background:#fce4ec">🎫</div>
-      <h2>Tickets</h2>
-      <p>Submit digital requests and creative work orders through the AI assistant using slash commands.</p>
-      <div class="module-arrow">Open →</div>
-    </a>
+      <a href="call-tracking.html" class="card">
+        <div class="card-ico">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.9.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+        </div>
+        <h2>Call Tracking</h2>
+        <p>Call volume, missed calls, channel attribution, and Google Ads cost-per-call across all active ODC clients.</p>
+        <div class="card-go">Open &rarr;</div>
+      </a>
 
+    </div>
   </div>
+
+  <!-- ── Budgets ── -->
+  <div class="cat">
+    <div class="cat-label">Budgets</div>
+    <div class="grid">
+
+      <a href="budget-planning.html" class="card">
+        <div class="card-ico">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18"/><path d="M8 15h3"/></svg>
+        </div>
+        <h2>Budget Planning</h2>
+        <p>Edit committed budgets per client and channel, with automatic rollover and full change history. Each account manager edits their own portfolio.</p>
+        <div class="card-go">Open &rarr;</div>
+      </a>
+
+      <a href="budget-history.html" class="card">
+        <div class="card-ico">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l4 2"/></svg>
+        </div>
+        <h2>Budget History</h2>
+        <p>Append-only audit log of every committed-budget change: who changed what, when, and by how much.</p>
+        <div class="card-go">Open &rarr;</div>
+      </a>
+
+    </div>
+  </div>
+
+  <!-- ── Ops ── -->
+  <div class="cat">
+    <div class="cat-label">Ops</div>
+    <div class="grid">
+
+      <a href="tickets.html" class="card">
+        <div class="card-ico">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2z"/><path d="M13 5v2"/><path d="M13 17v2"/><path d="M13 11v2"/></svg>
+        </div>
+        <h2>Tickets</h2>
+        <p>Submit digital requests and creative work orders through the AI assistant using slash commands.</p>
+        <div class="card-go">Open &rarr;</div>
+      </a>
+
+      <a href="roadmap.html" class="card">
+        <div class="card-ico">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/></svg>
+        </div>
+        <h2>Roadmap</h2>
+        <p>Development roadmap and delivery status across the CORTEX platform.</p>
+        <div class="card-go">Open &rarr;</div>
+      </a>
+
+      <a href="strategy.html" class="card">
+        <div class="card-ico">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+        </div>
+        <h2>Strategy</h2>
+        <p>Account strategy notes and planning surface backed by the strategy data layer.</p>
+        <div class="card-go">Open &rarr;</div>
+      </a>
+
+      <a href="kpi.html" class="card">
+        <div class="card-ico">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        </div>
+        <h2>KPI Criteria</h2>
+        <p>The rule registry that powers account verdicts — plain-English criteria, versioned.</p>
+        <div class="card-go">Open &rarr;</div>
+      </a>
+
+      <a href="account-standard.html" class="card">
+        <div class="card-ico">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7.4-6.3-4.6L5.7 21 8 14 2 9.4h7.6z"/></svg>
+        </div>
+        <h2>Account Standard</h2>
+        <p>The compliance baseline every ODC account is measured against.</p>
+        <div class="card-go">Open &rarr;</div>
+      </a>
+
+    </div>
+  </div>
+
 </div>
+
+<footer>CORTEX OS &middot; Right Idea Media &amp; Creative</footer>
 
 <script src="/cortex-shell.js" defer></script>
 </body>
