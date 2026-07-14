@@ -186,6 +186,8 @@ td.editable:hover { background:#eaf2fd; box-shadow:inset 0 0 0 1px #b7d3f5; }
     <label>Period</label>
     <div class="inline">
       <select id="aMonth" style="flex:1"></select>
+      <span style="align-self:center;color:#8a8f98;font-size:12px;padding:0 2px">to</span>
+      <select id="aMonthTo" style="flex:1"></select>
       <label class="chk"><input type="checkbox" id="aAllMonths"> All 12 months</label>
     </div>
     <label for="aAmount">Amount ($) per month</label>
@@ -425,10 +427,16 @@ function openAdd(){
   // Channel dropdown: closed vocabulary from channels already in the data.
   $("aChannel").innerHTML = channelsInData()
     .map(ch=>`<option value="${esc(ch)}">${esc(ch.replace(/_/g," "))}</option>`).join("");
-  $("aMonth").innerHTML = MONTH_NAMES
+  const monthOpts = MONTH_NAMES
     .map((n,i)=>`<option value="${i+1}">${n}</option>`).join("");
+  $("aMonth").innerHTML = monthOpts;
+  $("aMonthTo").innerHTML = monthOpts;
+  // Default: from the current month through December — the most common
+  // intent when onboarding a new budget line mid-year.
   $("aMonth").value = String(new Date().getMonth()+1);
-  $("aAllMonths").checked = false; $("aMonth").disabled = false;
+  $("aMonthTo").value = "12";
+  $("aAllMonths").checked = false;
+  $("aMonth").disabled = false; $("aMonthTo").disabled = false;
   $("aAmount").value = ""; $("aNote").value = "";
   $("aErr").style.display = "none"; $("aHint").style.display = "none";
   $("aSave").disabled = false; $("aSave").textContent = "Add line";
@@ -468,9 +476,19 @@ async function saveAdd(){
     errBox.textContent="A note is required — briefly explain why this line is being added.";
     errBox.style.display="block"; return; }
 
-  const months = $("aAllMonths").checked
-    ? [1,2,3,4,5,6,7,8,9,10,11,12]
-    : [Number($("aMonth").value)];
+  let months;
+  if($("aAllMonths").checked){
+    months = [1,2,3,4,5,6,7,8,9,10,11,12];
+  } else {
+    const from = Number($("aMonth").value);
+    const to   = Number($("aMonthTo").value);
+    if(to < from){
+      errBox.textContent = "End month must be the same as or after the start month.";
+      errBox.style.display = "block"; return;
+    }
+    months = [];
+    for(let m = from; m <= to; m++) months.push(m);
+  }
   const year = Number(STATE.data.summary.year);
 
   ADD.busy = true;
@@ -573,7 +591,10 @@ function wire(){
   });
   $("aClientNew").addEventListener("input", updateAddHint);
   $("aChannel").addEventListener("change", updateAddHint);
-  $("aAllMonths").addEventListener("change", ()=>{ $("aMonth").disabled = $("aAllMonths").checked; });
+  $("aAllMonths").addEventListener("change", ()=>{
+    const off = $("aAllMonths").checked;
+    $("aMonth").disabled = off; $("aMonthTo").disabled = off;
+  });
   document.addEventListener("keydown", e=>{ if(e.key==="Escape"){ closeEdit(); closeAdd(); } });
 }
 
