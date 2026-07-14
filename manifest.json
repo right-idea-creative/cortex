@@ -1,11 +1,11 @@
 {
-  "name": "Córtex OS — Right Idea Media & Creative",
-  "short_name": "Córtex OS",
-  "description": "Decision Engine for Marketing Teams",
+  "name": "CORTEX OS",
+  "short_name": "CORTEX",
+  "description": "Operating System for Right Idea Media & Creative",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0d1b2a",
-  "theme_color": "#0d1b2a",
+  "background_color": "#0A0A0F",
+  "theme_color": "#00D4AA",
   "icons": [
     {
       "src": "/favicon-192x192.png",

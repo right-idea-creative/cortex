@@ -1,21 +1,36 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#0f2236"/>
-      <stop offset="1" stop-color="#0d1b2a"/>
+    <linearGradient id="favGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00E5B8"/>
+      <stop offset="100%" stop-color="#00D4AA"/>
     </linearGradient>
   </defs>
-  <rect width="512" height="512" rx="104" fill="url(#bg)"/>
-  <!-- neural node motif: center node connected to 4 satellites -->
-  <g stroke="#4285F4" stroke-width="26" stroke-linecap="round">
-    <line x1="256" y1="256" x2="150" y2="150"/>
-    <line x1="256" y1="256" x2="362" y2="150"/>
-    <line x1="256" y1="256" x2="150" y2="362"/>
-    <line x1="256" y1="256" x2="362" y2="362"/>
-  </g>
-  <circle cx="256" cy="256" r="62" fill="#64b5f6"/>
-  <circle cx="150" cy="150" r="40" fill="#4285F4"/>
-  <circle cx="362" cy="150" r="40" fill="#4285F4"/>
-  <circle cx="150" cy="362" r="40" fill="#4285F4"/>
-  <circle cx="362" cy="362" r="40" fill="#4285F4"/>
+
+  <!-- Background circle (para que se vea bien en cualquier fondo de pestaña) -->
+  <circle cx="32" cy="32" r="30" fill="#0A0A0F" stroke="#00D4AA" stroke-width="1.5"/>
+
+  <!-- Simplified "C" formed by terminal prompt -->
+  <!-- Outer arc -->
+  <path d="M 32 12 
+           A 20 20 0 1 0 32 52
+           L 32 44
+           A 12 12 0 1 1 32 20
+           Z" 
+        fill="url(#favGrad)"/>
+
+  <!-- Prompt angle (>) -->
+  <path d="M 38 24 L 48 32 L 38 40" 
+        fill="none" 
+        stroke="#00D4AA" 
+        stroke-width="3" 
+        stroke-linecap="round" 
+        stroke-linejoin="round"/>
+
+  <!-- Cursor dot (simplified from bar for tiny sizes) -->
+  <circle cx="43" cy="48" r="3" fill="#00D4AA">
+    <animate attributeName="opacity" values="1;0.2;1" dur="1.2s" repeatCount="indefinite"/>
+  </circle>
+
+  <!-- Center dot (the "core") -->
+  <circle cx="32" cy="32" r="3" fill="#0A0A0F"/>
 </svg>
