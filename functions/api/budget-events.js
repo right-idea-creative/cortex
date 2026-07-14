@@ -4,11 +4,13 @@
 // with OAuth2 signed via Web Crypto. Authorization is enforced server-side
 // using the Cloudflare Access identity header (cannot be spoofed by the client).
 //
-// ROLES are read dynamically from `budget.am_directory` (cached ~5 min):
-//   role = 'admin'  -> can write + view history
-//   role = 'editor' -> can write
-//   role = 'viewer' -> read-only UI (no write, no history)
-// Manage access by editing that table — no redeploy needed.
+// ACCESS is read dynamically from `identity.user_access` (cached ~5 min):
+//   capability 'budgets.view'    -> read budget data (mode=data)
+//   capability 'budgets.edit'    -> insert events (POST)
+//   capability 'budgets.history' -> read the audit log (GET)
+//   capability '*'               -> everything (admin)
+// Manage access by editing identity.users / identity.roles — no redeploy.
+// Falls back to budget.am_directory during the migration window.
 //
 // POST /api/budget-events              -> insert event   (editors + admins)
 // GET  /api/budget-events              -> event history  (admins only)
@@ -20,8 +22,9 @@
 const PROJECT = 'rightidea-cortex';
 const DATASET = 'budget';
 const TABLE = 'budget_events';
-const DIRECTORY_TABLE = 'am_directory';
-const ROLES_TTL_SECONDS = 300; // re-read am_directory every 5 minutes
+const IDENTITY_VIEW = 'identity.user_access';   // Cortex Identity (roles + capabilities)
+const LEGACY_DIRECTORY = 'budget.am_directory'; // fallback during migration
+const ROLES_TTL_SECONDS = 300; // re-read identity every 5 minutes
 
 // Safety net: if the roles query ever fails, these emails keep working
 // so the system can never lock out its own admin.
@@ -134,50 +137,96 @@ async function bqQuery(env, query, maxResults = 1000) {
   const fields = (data.schema && data.schema.fields || []).map(f => f.name);
   return (data.rows || []).map(r => {
     const o = {};
-    r.f.forEach((cell, i) => { o[fields[i]] = cell.v; });
+    r.f.forEach((cell, i) => {
+      o[fields[i]] = Array.isArray(cell.v) ? cell.v.map(x => x.v) : cell.v;
+    });
     return o;
   });
 }
 
-// ---------- Roles from am_directory (cached) ----------
+// ---------- Cortex Identity: roles + capabilities (cached) ----------
 
-let rolesCache = { map: null, exp: 0 };
+// Legacy role -> capability packages, used only if identity.user_access
+// is unreachable (e.g. missing IAM) during the migration window.
+const LEGACY_CAPS = {
+  admin:  ['*'],
+  editor: ['performance.view','budgets.view','budgets.edit','tickets.use','kpi.view','accounts.view'],
+  viewer: ['performance.view','budgets.view','tickets.use','kpi.view','accounts.view'],
+};
 
-async function getRoles(env) {
+let accessCache = { map: null, exp: 0 };
+
+async function getAccessMap(env) {
   const now = Math.floor(Date.now() / 1000);
-  if (rolesCache.map && rolesCache.exp > now) return rolesCache.map;
-
-  const rows = await bqQuery(env, `
-    SELECT LOWER(TRIM(email)) AS email, LOWER(TRIM(role)) AS role
-    FROM \`${PROJECT}.${DATASET}.${DIRECTORY_TABLE}\`
-    WHERE active = TRUE
-    QUALIFY ROW_NUMBER() OVER (PARTITION BY email ORDER BY updated_at DESC) = 1
-  `, 200);
+  if (accessCache.map && accessCache.exp > now) return accessCache.map;
 
   const map = {};
-  for (const r of rows) map[r.email] = r.role;
-  rolesCache = { map, exp: now + ROLES_TTL_SECONDS };
+  try {
+    const rows = await bqQuery(env, `
+      SELECT LOWER(TRIM(email)) AS email, role, display_name, job_title,
+             avatar_url, capabilities
+      FROM \`${PROJECT}.${IDENTITY_VIEW}\`
+    `, 500);
+    for (const r of rows) {
+      map[r.email] = {
+        role: r.role || null,
+        display_name: r.display_name || null,
+        job_title: r.job_title || null,
+        avatar_url: r.avatar_url || null,
+        capabilities: r.capabilities || [],
+      };
+    }
+  } catch (e) {
+    // Identity unreachable -> legacy directory with mapped packages.
+    const rows = await bqQuery(env, `
+      SELECT LOWER(TRIM(email)) AS email, LOWER(TRIM(role)) AS role
+      FROM \`${PROJECT}.${LEGACY_DIRECTORY}\`
+      WHERE active = TRUE
+      QUALIFY ROW_NUMBER() OVER (PARTITION BY email ORDER BY updated_at DESC) = 1
+    `, 200);
+    for (const r of rows) {
+      map[r.email] = {
+        role: r.role, display_name: null, job_title: null, avatar_url: null,
+        capabilities: LEGACY_CAPS[r.role] || [],
+      };
+    }
+  }
+  accessCache = { map, exp: now + ROLES_TTL_SECONDS };
   return map;
+}
+
+function capSet(u) { return (u && u.capabilities) || []; }
+function hasCap(u, cap) {
+  const caps = capSet(u);
+  return caps.includes('*') || caps.includes(cap);
 }
 
 async function getPerms(env, email) {
   try {
-    const roles = await getRoles(env);
-    const role = roles[email] || null;
+    const map = await getAccessMap(env);
+    const u = map[email] || null;
     return {
       email: email || null,
-      role,
-      can_write: role === 'editor' || role === 'admin',
-      is_admin: role === 'admin',
+      role: u ? u.role : null,
+      display_name: u ? u.display_name : null,
+      job_title: u ? u.job_title : null,
+      avatar_url: u ? u.avatar_url : null,
+      capabilities: capSet(u),
+      // Legacy fields kept so already-deployed pages keep working untouched:
+      can_write: hasCap(u, 'budgets.edit'),
+      is_admin: hasCap(u, '*'),
+      can_history: hasCap(u, 'budgets.history') || hasCap(u, '*'),
     };
   } catch (e) {
-    // Directory unreachable: fall back so admins are never locked out.
     const isFallbackAdmin = FALLBACK_ADMINS.includes(email);
     return {
       email: email || null,
       role: isFallbackAdmin ? 'admin' : null,
+      display_name: null, job_title: null, avatar_url: null,
+      capabilities: isFallbackAdmin ? ['*'] : [],
       can_write: isFallbackAdmin,
       is_admin: isFallbackAdmin,
+      can_history: isFallbackAdmin,
       degraded: true,
     };
   }
@@ -247,10 +296,6 @@ async function handleInsert(request, env, email) {
 // GET ?mode=data -> { summary:{year,clients,lines,total_committed}, items:[...] }
 // Served from budget_base_current (sheet base + latest events overlay), so
 // AM edits are reflected on the next page load.
-
-// Flip together with the shell flag when leadership confirms viewers
-// must not see budget data. true = only editors/admins can read.
-const HIDE_BUDGETS_FROM_VIEWERS = false;
 
 async function handleData(env) {
   const year = new Date().getUTCFullYear();
@@ -330,7 +375,7 @@ export async function onRequest(context) {
 
     // Budget planning table data (replaces the public n8n webhook).
     if (request.method === 'GET' && url.searchParams.get('mode') === 'data') {
-      if (HIDE_BUDGETS_FROM_VIEWERS && !perms.can_write) {
+      if (!perms.capabilities.includes('*') && !perms.capabilities.includes('budgets.view')) {
         return json({ error: 'Not authorized to view budget data.' }, 403);
       }
       return await handleData(env);
@@ -344,7 +389,7 @@ export async function onRequest(context) {
     }
 
     if (request.method === 'GET') {
-      if (!perms.is_admin) {
+      if (!perms.can_history) {
         return json({ error: 'Not authorized to view change history.' }, 403);
       }
       return await handleHistory(env, url);
