@@ -23,6 +23,7 @@
 const PROJECT = 'rightidea-cortex';
 const DATASET = 'budget';
 const TABLE = 'budget_events';
+const TOMBSTONES = 'event_tombstones'; // soft-delete markers (instant, no streaming-buffer limits)
 const IDENTITY_VIEW = 'identity.user_access';   // Cortex Identity (roles + capabilities)
 const LEGACY_DIRECTORY = 'budget.am_directory'; // fallback during migration
 const ROLES_TTL_SECONDS = 300; // re-read identity every 5 minutes
@@ -371,23 +372,25 @@ async function handleHistory(env, url) {
   if (limit > 1000) limit = 1000;
 
   const events = await bqQuery(env, `
-    SELECT event_id, client, channel, year, month, amount, alloc_type,
-           event_type, changed_by, changed_at, note
-    FROM \`${PROJECT}.${DATASET}.${TABLE}\`
-    ORDER BY changed_at DESC
+    SELECT e.event_id, e.client, e.channel, e.year, e.month, e.amount, e.alloc_type,
+           e.event_type, e.changed_by, e.changed_at, e.note
+    FROM \`${PROJECT}.${DATASET}.${TABLE}\` e
+    LEFT JOIN \`${PROJECT}.${DATASET}.${TOMBSTONES}\` t USING (event_id)
+    WHERE t.event_id IS NULL
+    ORDER BY e.changed_at DESC
     LIMIT ${limit}
   `, limit);
   return json({ events });
 }
 
-// Admin-only hard delete of audit events. In this event-sourced model,
-// deleting an event also acts as an UNDO: budget_base_current falls back
-// to the previous event for that cell, or to the sheet value.
-// Rows still in BigQuery's streaming buffer (~90 min) cannot be deleted;
-// those requests return 409 with a clear retry message.
+// Admin-only soft delete of audit events via tombstones.
+// Instead of physical DML (blocked ~90 min by BigQuery's streaming buffer),
+// we insert a tombstone row per event. budget_base_current and the history
+// endpoint exclude tombstoned events, so the effect is immediate:
+// each affected cell reverts to its previous event or the sheet value.
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-async function handleDelete(request, env) {
+async function handleDelete(request, env, email) {
   const b = await request.json().catch(() => null);
   const ids = b && Array.isArray(b.event_ids) ? b.event_ids : null;
   if (!ids || !ids.length) return json({ error: 'event_ids array is required' }, 400);
@@ -397,22 +400,28 @@ async function handleDelete(request, env) {
       return json({ error: `Invalid event_id: ${String(id).slice(0, 50)}` }, 400);
     }
   }
-  const inList = ids.map(id => `'${id}'`).join(',');
-  try {
-    const deleted = await bqDml(env, `
-      DELETE FROM \`${PROJECT}.${DATASET}.${TABLE}\`
-      WHERE event_id IN (${inList})
-    `);
-    return json({ deleted });
-  } catch (e) {
-    if (e.streamingBuffer) {
-      return json({
-        error: 'Some selected events are too recent to delete (BigQuery streaming buffer). Try again in about 90 minutes.',
-        streaming_buffer: true,
-      }, 409);
+
+  const now = new Date().toISOString();
+  const rows = ids.map(id => ({
+    insertId: `ts-${id}`, // dedupe: re-deleting the same event is a no-op
+    json: { event_id: id, deleted_by: email, deleted_at: now },
+  }));
+
+  const token = await getAccessToken(env);
+  const res = await fetch(
+    `https://bigquery.googleapis.com/bigquery/v2/projects/${PROJECT}/datasets/${DATASET}/tables/${TOMBSTONES}/insertAll`,
+    {
+      method: 'POST',
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ rows }),
     }
-    throw e;
+  );
+  const data = await res.json();
+  if (!res.ok) return json({ error: 'BigQuery request failed', detail: data }, 502);
+  if (data.insertErrors && data.insertErrors.length) {
+    return json({ error: 'BigQuery rejected some tombstones', detail: data.insertErrors }, 502);
   }
+  return json({ deleted: ids.length });
 }
 
 export async function onRequest(context) {
@@ -452,7 +461,7 @@ export async function onRequest(context) {
       if (!perms.can_delete) {
         return json({ error: 'Not authorized to delete budget events.' }, 403);
       }
-      return await handleDelete(request, env);
+      return await handleDelete(request, env, email);
     }
 
     if (request.method === 'GET') {
