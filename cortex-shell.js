@@ -10,10 +10,12 @@
    ADD A PAGE: edit the NAV array below — once — and every page
    picks it up automatically.
 
-   ROLES: the shell asks /api/budget-events?mode=perms once.
-     - Links marked adminOnly only render for role=admin.
-     - If HIDE_BUDGETS_FROM_VIEWERS is true, the whole Budgets
-       category is hidden from users who can't write.
+   ACCESS (Cortex Identity): the shell asks /api/budget-events?mode=perms
+   once and gates every link by capability:
+     - Each NAV link/category declares cap: "<capability>".
+     - A user sees a link if their capabilities include it, or "*".
+     - Manage access in BigQuery (identity.users / identity.roles) —
+       no shell changes or deploys needed.
 
    BRAND (teal identity):
      --brand-bg      #0d0d12  (dark carbon — header/drawer/panels)
@@ -23,46 +25,50 @@
 (function () {
   "use strict";
 
-  // ---- Feature flags ----
-  // Flip to true when leadership confirms viewers must not see budgets.
-  var HIDE_BUDGETS_FROM_VIEWERS = false;
-
   // ---- Ticket bot (n8n hosted chat widget) ----
   var BOT_WEBHOOK_URL = "https://naterimc.app.n8n.cloud/webhook/80464afc-47e2-4cd9-9164-1f2a9aac272e/chat";
   var BOT_CSS_URL     = "https://cdn.jsdelivr.net/npm/@n8n/chat/dist/style.css";
   var BOT_JS_URL      = "https://cdn.jsdelivr.net/npm/@n8n/chat/dist/chat.bundle.es.js";
 
   // ---- Single source of truth for the nav. ----
-  // Top-level items can be direct links {label, href} or categories
-  // {label, items:[{label, href, adminOnly?}], gated?}.
+  // Top-level items can be direct links {label, href, cap?} or categories
+  // {label, items:[{label, href, cap?}]}. cap = capability required to
+  // see the link (from identity.user_access). No cap = visible to all.
   var NAV = [
     { label: "Home", href: "index.html" },
     {
       label: "Performance",
       items: [
-        { label: "Ad Spend Pacing", href: "ad-spend-pacing.html" },
-        { label: "Campaign Triage", href: "triage.html" },
-        { label: "Call Tracking",   href: "call-tracking.html" }
+        { label: "Ad Spend Pacing", href: "ad-spend-pacing.html", cap: "performance.view" },
+        { label: "Campaign Triage", href: "triage.html",          cap: "performance.view" },
+        { label: "Call Tracking",   href: "call-tracking.html",   cap: "performance.view" }
       ]
     },
     {
       label: "Budgets",
-      gated: true, // hidden from viewers when HIDE_BUDGETS_FROM_VIEWERS is on
       items: [
-        { label: "Budget Planning", href: "budget-planning.html" },
-        { label: "Budget History",  href: "budget-history.html", adminOnly: true }
+        { label: "Budget Planning", href: "budget-planning.html", cap: "budgets.view" },
+        { label: "Budget History",  href: "budget-history.html",  cap: "budgets.history" }
       ]
     },
     {
       label: "Ops",
       items: [
-        { label: "Tickets",          href: "tickets.html" },
-        { label: "Roadmap",          href: "roadmap.html" },
-        { label: "Strategy",         href: "strategy.html" },
-        { label: "KPI Criteria",     href: "kpi.html" },
-        { label: "Account Standard", href: "account-standard.html" }
+        { label: "Tickets",          href: "tickets.html",          cap: "tickets.use" },
+        { label: "Roadmap",          href: "roadmap.html",          cap: "roadmap.view" },
+        { label: "Strategy",         href: "strategy.html",         cap: "strategy.view" },
+        { label: "KPI Criteria",     href: "kpi.html",              cap: "kpi.view" },
+        { label: "Account Standard", href: "account-standard.html", cap: "accounts.view" }
       ]
     }
+  ];
+
+  // First render happens before perms arrive; assume the baseline package
+  // every current role has, so the nav doesn't flash empty. Sensitive links
+  // (budgets.history) stay hidden until real capabilities confirm them.
+  var DEFAULT_CAPS = [
+    "performance.view", "budgets.view", "tickets.use",
+    "roadmap.view", "strategy.view", "kpi.view", "accounts.view"
   ];
 
   // ---- Styles ----
@@ -154,8 +160,8 @@
     '<circle cx="24.5" cy="16" r="2.4" fill="#00D4AA"/>' +
     '</svg>';
 
-  // ---- Permissions (role-aware links) ----
-  var PERMS = { role: null, can_write: false, is_admin: false, loaded: false };
+  // ---- Permissions (capability-aware links) ----
+  var PERMS = { role: null, capabilities: DEFAULT_CAPS, loaded: false };
 
   function fetchPerms() {
     return fetch("/api/budget-events?mode=perms", { cache: "no-store" })
@@ -163,20 +169,22 @@
       .then(function (p) {
         if (p) {
           PERMS.role = p.role || null;
-          PERMS.can_write = !!p.can_write;
-          PERMS.is_admin = !!p.is_admin;
+          PERMS.capabilities = Array.isArray(p.capabilities) ? p.capabilities : [];
         }
         PERMS.loaded = true;
       })
       .catch(function () { PERMS.loaded = true; });
   }
 
+  function hasCap(cap) {
+    var caps = PERMS.capabilities || [];
+    return caps.indexOf("*") !== -1 || caps.indexOf(cap) !== -1;
+  }
   function linkVisible(link) {
-    if (link.adminOnly && !PERMS.is_admin) return false;
+    if (link.cap && !hasCap(link.cap)) return false;
     return true;
   }
   function categoryVisible(cat) {
-    if (cat.gated && HIDE_BUDGETS_FROM_VIEWERS && !PERMS.can_write) return false;
     return cat.items.some(linkVisible);
   }
 
