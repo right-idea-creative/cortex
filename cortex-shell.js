@@ -60,6 +60,12 @@
         { label: "KPI Criteria",     href: "kpi.html",              cap: "kpi.view" },
         { label: "Account Standard", href: "account-standard.html", cap: "accounts.view" }
       ]
+    },
+    {
+      label: "Admin",
+      items: [
+        { label: "Identity", href: "identity.html", cap: "admin.users" }
+      ]
     }
   ];
 
