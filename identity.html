@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Identity — CORTEX OS</title>
+<style>
+:root {
+  --c-bg:#f0f2f5; --c-surface:#fff; --c-border:#e3e6ea; --c-border-2:#cdd3da;
+  --c-text:#1a1a2e; --c-text-2:#5f6672; --c-muted:#9aa1ab;
+  --c-teal:#00b894; --c-teal-bg:#e6faf5;
+  --c-danger:#c62828; --c-danger-bg:#fdecea;
+  --c-radius:12px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--c-bg);color:var(--c-text);}
+.wrap{max-width:1180px;margin:0 auto;padding:28px 24px 80px;}
+h1{font-size:26px;font-weight:800;letter-spacing:-.4px;}
+.sub{font-size:13px;color:var(--c-text-2);margin:6px 0 24px;}
+h2{font-size:15px;font-weight:700;margin:34px 0 12px;}
+
+.card{background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--c-radius);overflow:hidden;}
+table{width:100%;border-collapse:collapse;font-size:13px;}
+th{Text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--c-muted);padding:12px 14px;border-bottom:1px solid var(--c-border);}
+td{padding:12px 14px;border-bottom:1px solid var(--c-border);vertical-align:top;}
+tbody tr:last-child td{border-bottom:0;}
+tbody tr:hover td{background:#fafbfc;}
+td.email{font-weight:600;white-space:nowrap;}
+td.email .name{display:block;font-weight:400;color:var(--c-text-2);font-size:12px;}
+td.inactive{opacity:.5;}
+
+select,input[type=text],input[type=email]{font:inherit;font-size:13px;padding:7px 10px;border:1px solid var(--c-border-2);border-radius:8px;background:#fff;color:var(--c-text);}
+select:focus,input:focus{outline:2px solid rgba(0,184,148,.35);border-color:var(--c-teal);}
+button{font:inherit;font-size:12.5px;padding:7px 12px;border-radius:8px;border:1px solid var(--c-border-2);background:#fff;cursor:pointer;color:var(--c-text);}
+button:hover{background:#f5f7f9;}
+button.primary{background:#0d0d12;border-color:#0d0d12;color:#fff;font-weight:600;}
+button.primary:hover{background:#1c1c26;}
+button.danger-ghost{color:var(--c-danger);border-color:#e8b4b0;}
+button.danger-ghost:hover{background:var(--c-danger-bg);}
+button:disabled{opacity:.5;cursor:default;}
+
+.caps{display:flex;flex-wrap:wrap;gap:5px;max-width:420px;}
+.chip{font-size:11px;padding:3px 8px;border-radius:20px;background:#eef1f4;color:var(--c-text-2);white-space:nowrap;}
+.chip.star{background:#0d0d12;color:#00D4AA;font-weight:700;}
+.chip.extra{background:var(--c-teal-bg);color:#00775f;border:1px solid #b8ecdd;}
+.chip.revoked{background:var(--c-danger-bg);color:var(--c-danger);text-decoration:line-through;border:1px solid #f2c9c5;}
+
+.rowactions{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
+.addbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:14px;border-bottom:1px solid var(--c-border);background:#fafbfc;}
+.addbar .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--c-muted);font-weight:700;margin-right:2px;}
+
+.grantbar{display:none;gap:6px;margin-top:8px;align-items:center;flex-wrap:wrap;}
+.grantbar.open{display:flex;}
+.grantbar input{width:190px;}
+
+.audit td{font-size:12.5px;}
+.audit .when{white-space:nowrap;color:var(--c-text-2);}
+.badge{display:inline-block;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;padding:2px 8px;border-radius:5px;}
+.badge.set_role{background:#e8f0fe;color:#1a56b8;}
+.badge.set_active{background:#fff3e0;color:#b26a00;}
+.badge.grant{background:var(--c-teal-bg);color:#00775f;}
+.badge.revoke{background:var(--c-danger-bg);color:var(--c-danger);}
+.badge.add_user{background:#f3e8fd;color:#7c3aed;}
+
+.state{padding:40px;text-align:center;color:var(--c-text-2);font-size:14px;}
+.err-box{padding:26px;border:1px solid var(--c-border);border-radius:var(--c-radius);color:var(--c-danger);background:var(--c-danger-bg);margin-top:16px;font-size:14px;}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(80px);background:#0d0d12;color:#fff;padding:10px 18px;border-radius:10px;font-size:13px;opacity:0;transition:all .25s;z-index:300;pointer-events:none;}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+@media(max-width:820px){.caps{max-width:220px;}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <h1>Identity</h1>
+  <div class="sub">Users, roles &amp; capabilities · changes take effect within ~5 minutes · every change is audited</div>
+
+  <div id="loading" class="state">Loading users…</div>
+  <div id="denied" class="err-box" style="display:none">You are not authorized to manage users.</div>
+
+  <div id="main" style="display:none">
+    <div class="card">
+      <div class="addbar">
+        <span class="lbl">Add user</span>
+        <input type="email" id="nEmail" placeholder="email@rightideacreative.net" style="width:250px">
+        <input type="text" id="nName" placeholder="Display name" style="width:170px">
+        <select id="nRole"></select>
+        <button class="primary" id="nAdd">Add</button>
+      </div>
+      <table>
+        <thead><tr>
+          <th>User</th><th>Role</th><th>Capabilities</th><th>Status</th><th>Actions</th>
+        </tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+
+    <h2>Change log</h2>
+    <div class="card audit">
+      <table>
+        <thead><tr><th>When (UTC)</th><th>Action</th><th>User</th><th>Detail</th><th>By</th></tr></thead>
+        <tbody id="audit"></tbody>
+      </table>
+      <div id="auditEmpty" class="state" style="display:none">No identity changes recorded yet.</div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+let STATE = { users: [], roles: [], events: [], busy: false };
+
+function showToast(msg){
+  const t = $("toast"); t.textContent = msg; t.classList.add("show");
+  setTimeout(()=> t.classList.remove("show"), 3000);
+}
+function roleCaps(role){
+  const r = STATE.roles.find(x => x.role === role);
+  return (r && r.capabilities) || [];
+}
+function fmtWhen(ts){
+  if (ts == null) return "";
+  let d = /^\d+(\.\d+)?$/.test(String(ts)) ? new Date(parseFloat(ts) * 1000) : new Date(ts);
+  if (isNaN(d)) return String(ts);
+  return d.toISOString().replace("T"," ").slice(0,19);
+}
+
+function render(){
+  const tb = $("rows");
+  tb.innerHTML = STATE.users.map(u => {
+    const base = roleCaps(u.role);
+    const extra = u.extra_capabilities || [];
+    const revoked = u.revoked_capabilities || [];
+    const chips =
+      base.map(c => `<span class="chip${c === "*" ? " star" : ""}${revoked.includes(c) ? " revoked" : ""}">${esc(c)}</span>`).join("") +
+      extra.filter(c => !base.includes(c)).map(c => `<span class="chip extra">+${esc(c)}</span>`).join("");
+    const active = u.active === true || u.active === "true";
+    const roleSel = `<select data-act="role" data-email="${esc(u.email)}">` +
+      STATE.roles.map(r => `<option value="${esc(r.role)}"${r.role === u.role ? " selected" : ""}>${esc(r.role)}</option>`).join("") +
+      "</select>";
+    return `<tr class="${active ? "" : "inactive-row"}">
+      <td class="email${active ? "" : " inactive"}">${esc(u.email)}
+        <span class="name">${esc(u.display_name || "")}${u.job_title ? " · " + esc(u.job_title) : ""}</span></td>
+      <td>${roleSel}</td>
+      <td><div class="caps">${chips}</div></td>
+      <td>${active
+        ? '<button data-act="deactivate" data-email="' + esc(u.email) + '" class="danger-ghost">Deactivate</button>'
+        : '<button data-act="activate" data-email="' + esc(u.email) + '">Activate</button>'}</td>
+      <td>
+        <div class="rowactions">
+          <button data-act="togglegrant" data-email="${esc(u.email)}">Grant / revoke…</button>
+        </div>
+        <div class="grantbar" id="g-${esc(u.email)}">
+          <input type="text" placeholder="capability (e.g. budgets.history)" id="gi-${esc(u.email)}">
+          <button data-act="grant" data-email="${esc(u.email)}">Grant</button>
+          <button data-act="revoke" data-email="${esc(u.email)}" class="danger-ghost">Revoke</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join("");
+
+  const ab = $("audit");
+  ab.innerHTML = STATE.events.map(e => {
+    let d = {};
+    try { d = JSON.parse(e.detail || "{}"); } catch(_){}
+    const detail = Object.entries(d).map(([k,v]) => `${k}: ${v}`).join(" · ");
+    return `<tr>
+      <td class="when">${fmtWhen(e.changed_at)}</td>
+      <td><span class="badge ${esc(e.action)}">${esc(e.action).replace("_"," ")}</span></td>
+      <td>${esc(e.target_email)}</td>
+      <td>${esc(detail)}</td>
+      <td>${esc(e.changed_by)}</td>
+    </tr>`;
+  }).join("");
+  $("auditEmpty").style.display = STATE.events.length ? "none" : "block";
+
+  wire();
+}
+
+async function api(method, body){
+  const res = await fetch("/api/identity", {
+    method,
+    headers: body ? { "Content-Type": "application/json" } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+    cache: "no-store",
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || ("HTTP " + res.status));
+  return data;
+}
+
+async function reload(){
+  const data = await api("GET");
+  STATE.users = data.users || [];
+  STATE.roles = data.roles || [];
+  STATE.events = data.events || [];
+  $("nRole").innerHTML = STATE.roles.map(r => `<option value="${esc(r.role)}">${esc(r.role)}</option>`).join("");
+  render();
+}
+
+async function change(body, okMsg){
+  if (STATE.busy) return;
+  STATE.busy = true;
+  try {
+    await api("POST", body);
+    await reload();
+    showToast(okMsg);
+  } catch (e) {
+    showToast("Error: " + e.message);
+  } finally {
+    STATE.busy = false;
+  }
+}
+
+function wire(){
+  document.querySelectorAll('select[data-act="role"]').forEach(sel => {
+    sel.addEventListener("change", () => {
+      const email = sel.dataset.email, role = sel.value;
+      if (!confirm(`Change role of ${email} to "${role}"?`)) { reload(); return; }
+      change({ action: "set_role", email, role }, `Role updated: ${email} → ${role}`);
+    });
+  });
+  document.querySelectorAll("button[data-act]").forEach(btn => {
+    const act = btn.dataset.act, email = btn.dataset.email;
+    if (act === "deactivate") btn.onclick = () => {
+      if (!confirm(`Deactivate ${email}? They will lose all Cortex capabilities (Access login is separate).`)) return;
+      change({ action: "set_active", email, active: false }, `${email} deactivated`);
+    };
+    if (act === "activate") btn.onclick = () =>
+      change({ action: "set_active", email, active: true }, `${email} activated`);
+    if (act === "togglegrant") btn.onclick = () =>
+      document.getElementById("g-" + email).classList.toggle("open");
+    if (act === "grant" || act === "revoke") btn.onclick = () => {
+      const cap = document.getElementById("gi-" + email).value.trim().toLowerCase();
+      if (!cap) { showToast("Type a capability first"); return; }
+      if (!confirm(`${act === "grant" ? "Grant" : "Revoke"} "${cap}" ${act === "grant" ? "to" : "from"} ${email}?`)) return;
+      change({ action: act, email, capability: cap },
+        `${cap} ${act === "grant" ? "granted to" : "revoked from"} ${email}`);
+    };
+  });
+}
+
+$("nAdd").addEventListener("click", () => {
+  const email = $("nEmail").value.trim().toLowerCase();
+  const name = $("nName").value.trim();
+  const role = $("nRole").value;
+  if (!email) { showToast("Email is required"); return; }
+  change({ action: "add_user", email, display_name: name, role }, `${email} added as ${role}`)
+    .then(() => { $("nEmail").value = ""; $("nName").value = ""; });
+});
+
+reload()
+  .then(() => { $("loading").style.display = "none"; $("main").style.display = "block"; })
+  .catch(e => {
+    $("loading").style.display = "none";
+    $("denied").style.display = "block";
+    if (!/authorized/i.test(e.message)) $("denied").textContent = "Error: " + e.message;
+  });
+</script>
+
+<script src="/cortex-shell.js" defer></script>
+</body>
+</html>
