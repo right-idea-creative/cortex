@@ -190,3 +190,29 @@ Current instances:
 - `other_channels_live` still physically contains "Meta Ads" rows (the Sheet was not cleaned), but both spend views filter them out. Cleaning the Sheet is P-OPS-10.
 - **Applies to TWO views** (same as ADR-010 / L-020): both `actual_spend_all` and `actual_spend_mtd` were swapped to read Meta from `meta_spend_daily` and exclude it from the Sheet branch, in the same session.
 - A client can have **different ids per channel** and dirty ids in the Sheet. Daytona surfaced with three ids: LSA `7490097466` (crosswalk), a bad Sheet id `2758529924464379`, and the real Meta id `1414845413594090`. Verify channel ids against `client_crosswalk` before carving a view. (LEARNINGS L-021; relates to P-CARRY-04.)
+
+---
+
+## ADR-012: Identity v5 — capability-based access control replaces the fixed editor/viewer/admin model
+
+**Date:** 2026-07-14
+**Status:** Active. Supersedes the `am_directory` role model from the Budget Editor's first version (session 2026-07-05/06). `am_directory` is kept as a legacy fallback, not deleted.
+
+**Decision:** Permissions across Cortex are now modeled as **capabilities** (fine-grained strings like `budgets.view`, `budgets.edit`, `budgets.delete`, `budgets.history`, `kpi.view`, `accounts.view`, `admin.console`) attached to **roles**, with optional **per-user overrides**. Three new BigQuery tables in a new dataset, `identity`:
+
+- `identity.roles` — one row per role (`admin`, `executive`, `account_manager`, `analyst`, `developer`, `client`), each with a `capabilities` array and a description. `admin` holds the wildcard `["*"]`.
+- `identity.users` — one row per person: email, display name, job title, **`monday_am_name`** (the same bridge concept as `am_directory`, carried forward), assigned `role`, plus `extra_capabilities` and `revoked_capabilities` arrays for per-person exceptions to their role's default set, and `active`.
+- `identity.user_access` — the resolved view/table consumers read: per email, the effective capability set (role capabilities ± overrides).
+
+**Why this replaces the fixed role model:** the original `am_directory` (editor/viewer/admin) could not express partial permissions — e.g. "sees budget history but cannot delete an entry," or "an analyst who should also see budgets without becoming a full editor." Capabilities decompose "can do X" into individually grantable/revocable strings, and the `extra_capabilities`/`revoked_capabilities` columns give per-person exceptions without inventing a new role for every edge case.
+
+**Why six roles, not three:** `admin` (platform owner, wildcard), `executive` (leadership — full visibility + budget edit, e.g. Nate), `account_manager` (AMs — edit their own portfolio), `analyst` (read-only operational staff — e.g. Martin, Wendy, Juanes), `developer` (engineering/tooling access), `client` (future — scoped external dashboard, capability `client.dashboard`, not yet wired to any UI). The `developer` and `client` roles exist for known near-term needs (freelancers, future client-facing views) even though nothing consumes them yet.
+
+**Why `am_directory` is kept, not dropped:** the write path (`functions/api/budget-events.js`) reads `identity.user_access` first and falls back to `budget.am_directory` if the lookup misses. This avoids a hard cutover — if `identity.*` has a gap for some user, the old table still covers them. `am_directory` is not actively maintained going forward; `identity.users` is the source of truth. Retiring `am_directory` entirely is a future cleanup once `identity.*` has run uneventfully for a while (see PENDING).
+
+**Consequences / notes:**
+- **The shell (`cortex-shell.js`) now gates the nav by capability**, not by a hardcoded `adminOnly`/`gated` flag pair. Shell v3 reads the caller's capabilities and shows/hides nav items and categories accordingly (e.g. `budgets.history` visible only to roles that carry it — executives and admins by default).
+- **Soft-delete via tombstones.** A `budgets.delete` capability was added (admin/executive only) allowing an event in `budget_events` to be marked deleted. This does **not** violate the append-only principle (L-020/ADR from the Budget Editor): deletion is a tombstone flag on the row, not a physical DELETE, and it avoids BigQuery's streaming-buffer deletion limits (a plain `DELETE` can fail or lag on very recently streamed rows; a tombstone write does not).
+- **Recurring bug pattern:** `identity.users` was found duplicated for one user (`juanes.morales@...`, 2 identical rows, same `updated_at`) — the same failure mode as the `budget.am_directory` duplication earlier in the day (session 2026-07-14, RJ Nelson/Eli incident). Both were caused by a non-idempotent seed (`INSERT` re-run instead of `CREATE OR REPLACE ... SELECT DISTINCT`/`ROW_NUMBER`). See LEARNINGS L-022.
+- Budget Planning gained a **month-range add** (From–To, defaulting to current month through December) instead of one-month-at-a-time entry, reducing repetitive data entry when setting up a client's remaining-year budget.
+

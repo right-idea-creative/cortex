@@ -215,3 +215,28 @@ Combined with `INFORMATION_SCHEMA.TABLES` to inspect table DDLs, this gives a co
 **Mistake / near-miss (session 2026-07-05):** Before swapping the Meta slot in `actual_spend_all`, an account-universe check (Sheet "Meta Ads" ids vs the API table) flagged one id in the Sheet that the API didn't have: `2758529924464379`. First hypothesis (a Savannah typo, `...378` vs `...379`) was **wrong** — it was ODC Daytona Beach, a real client, simply not assigned to the System User. Worse, the crosswalk knew Daytona under a **third** id, `7490097466`, which turned out to be its **LSA** id (181 live LSA rows) — so a naive `UPDATE` of that crosswalk row to the Meta id would have broken Daytona's LSA reporting. The fix was an **INSERT** of a new crosswalk row for the Meta id (`1414845413594090`, `canonical_client="ODC Daytona Beach"`), giving Daytona one crosswalk row per channel.
 
 **Rule:** Before carving a channel out of the Sheet into an API view, run the id-universe check: which Sheet ids for that channel are missing from the API table. For each mismatch, do NOT assume typo or dead account — confirm the account name and whether it's a real client not yet assigned to the System User. And **never `UPDATE` a crosswalk id in place** to fix one channel: ids are per-channel (a client has different ids in Meta / LSA / Nextdoor / Bing), so overwriting one breaks another channel. INSERT a new per-channel row instead. This is the live, recurring form of P-CARRY-04 (the crosswalk needs per-channel ids that a rebuild wipes).
+
+---
+
+## L-022: Non-idempotent seed scripts silently duplicate identity/permission tables — this has now happened twice
+
+**Mistake (recurring, session 2026-07-14):** Two separate permission tables — `budget.am_directory` (all 7 seed rows duplicated) and later `identity.users` (one user, `juanes.morales@...`, duplicated) — both broke because a seed script used `INSERT` (or was re-run) instead of an idempotent write. In both cases the symptom was identical: the affected user's role/capability lookup returned 2 rows instead of 1, and the write path silently misbehaved (a user reported "it won't let me edit" with no error surfaced).
+
+**Rule:** any table that seeds identity, roles, or permissions must be written with an idempotent pattern from day one — `CREATE OR REPLACE TABLE ... AS SELECT` (full replace) or a `MERGE` keyed on the natural key (email). Never a bare `INSERT` that assumes "this only runs once." If a duplicate is suspected, the fast diagnostic is:
+```sql
+SELECT email, COUNT(*) FROM `dataset.table` GROUP BY email ORDER BY 2 DESC;
+```
+and the fix, if `updated_at` or another non-key column can differ between the duplicate rows (so a plain `SELECT DISTINCT` won't collapse them):
+```sql
+CREATE OR REPLACE TABLE `dataset.table` AS
+SELECT * EXCEPT(rn) FROM (
+  SELECT *, ROW_NUMBER() OVER (PARTITION BY email ORDER BY updated_at DESC) AS rn
+  FROM `dataset.table`
+) WHERE rn = 1;
+```
+
+## L-023: Tombstones (soft-delete) satisfy "append-only" without violating it — and sidestep BigQuery's streaming-buffer DELETE limits
+
+**Context (session 2026-07-14):** The Budget Editor's event log (`budget_events`) is append-only by design (rollover work, ADR-011/012) — corrections are new rows, never UPDATEs. When an admin-delete capability was added (`budgets.delete`, for removing a mistaken entry from the audit history), a plain `DELETE FROM budget_events WHERE event_id = ...` was considered and rejected for two reasons: (1) it mutates history, which is exactly what append-only exists to prevent; (2) BigQuery cannot reliably `DELETE` rows that are still in the streaming buffer (very recently inserted rows), so a delete attempted shortly after the write it targets can simply fail or silently no-op.
+
+**Rule:** "delete" in an append-only system should be a **tombstone** — a flag (or a new row marking the target `event_id` as deleted) that every read path filters out, not a physical removal. This preserves full history (an admin's deletion is itself an auditable action), avoids the streaming-buffer limitation entirely (tombstone writes are just more appends), and keeps the system's core invariant (nothing is ever mutated or physically removed) intact even when the UI needs to expose something that behaves like deletion.
