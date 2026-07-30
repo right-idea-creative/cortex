@@ -58,19 +58,24 @@ tr.clk:hover { background:#f7f9fc; cursor:pointer; }
 tbody tr:last-child td { border-bottom:none; }
 
 /* ── Status pills ── */
+/* Coherent scale (Q3 2026): over = red family, under = amber/orange family, on-track = green.
+   Intensity encodes severity: full > moderate. */
 .pill { font-size:11px; padding:3px 10px; border-radius:20px; font-weight:700; display:inline-block; white-space:nowrap; }
-.p-ok{ background:#d9ead3; color:#274e13; } .p-warn{ background:#f6b26b; color:#783f04; } .p-dang{ background:#ea4335; color:#fff; }
-.p-warn-mod{ background:#ffe599; color:#7f6000; } .p-dang-mod{ background:#d9ead3; color:#38761d; }
+.p-ok       { background:#d9ead3; color:#274e13; }   /* on track — green */
+.p-dang     { background:#ea4335; color:#fff; }       /* overspending — strong red */
+.p-dang-mod { background:#f4cccc; color:#990000; }    /* moderate overspending — light red (was green) */
+.p-warn-mod { background:#ffe599; color:#7f6000; }    /* moderate underspending — light amber */
+.p-warn     { background:#f6b26b; color:#783f04; }    /* underspending — orange */
 
 /* ── Channel chips ── */
 .chips { display:flex; gap:5px; flex-wrap:wrap; }
 .chip { font-size:11px; font-weight:600; padding:2px 8px; border-radius:6px; border:1px solid; white-space:nowrap; }
-.c-ok{ background:#e6f4ea; color:#137333; border-color:#b7e1c2; }
-.c-warn{ background:#fef7e0; color:#a15c00; border-color:#f3dca0; }
-.c-dang{ background:#fce8e6; color:#c5221f; border-color:#f2c3bf; }
-.c-warn-mod{ background:#fff7df; color:#7f6000; border-color:#ffe08a; }
-.c-dang-mod{ background:#eaf3e3; color:#38761d; border-color:#cfe3bf; }
-.c-idle{ background:#fafbfc; color:#d3d6da; border-color:#eef0f2; }   /* very very light grey */
+.c-ok       { background:#e6f4ea; color:#137333; border-color:#b7e1c2; }   /* on track — green */
+.c-dang     { background:#fce8e6; color:#c5221f; border-color:#f2c3bf; }   /* overspending — strong red */
+.c-dang-mod { background:#fadbd8; color:#a61c00; border-color:#f2b8b2; }   /* moderate overspending — light red (was green) */
+.c-warn-mod { background:#fff7df; color:#7f6000; border-color:#ffe08a; }   /* moderate underspending — light amber */
+.c-warn     { background:#fce8b2; color:#8a5a00; border-color:#f5d488; }   /* underspending — stronger amber/orange */
+.c-idle     { background:#fafbfc; color:#d3d6da; border-color:#eef0f2; }   /* no activity — grey */
 
 .back { font-size:13px; color:#1565c0; cursor:pointer; display:inline-block; margin-bottom:10px; font-weight:600; }
 .detail-head { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
@@ -84,6 +89,24 @@ tbody tr:last-child td { border-bottom:none; }
 .note { font-size:12px; color:#9e9e9e; margin:8px 2px 0; line-height:1.5; }
 .legend { display:flex; gap:14px; flex-wrap:wrap; font-size:12px; color:#757575; margin:12px 2px 0; align-items:center; }
 .legend .chip { cursor:default; }
+
+/* ── Info tooltip (issue 6 clarification) ── */
+.info { position:relative; display:inline-flex; align-items:center; justify-content:center;
+  width:14px; height:14px; margin-left:5px; border-radius:50%; background:#c7ccd1; color:#fff;
+  font-size:10px; font-weight:700; cursor:help; vertical-align:middle; font-style:normal;
+  text-transform:none; letter-spacing:0; }
+.info::after { content:attr(data-tip); position:absolute; bottom:calc(100% + 8px); left:50%;
+  transform:translateX(-50%); width:230px; background:#0d1b2a; color:#fff; padding:9px 11px;
+  border-radius:8px; font-size:11.5px; font-weight:400; line-height:1.45; text-align:left;
+  letter-spacing:.1px; opacity:0; visibility:hidden; transition:opacity .14s; z-index:50;
+  box-shadow:0 4px 14px rgba(0,0,0,.22); pointer-events:none; white-space:normal; }
+.info::before { content:''; position:absolute; bottom:calc(100% + 3px); left:50%;
+  transform:translateX(-50%); border:5px solid transparent; border-top-color:#0d1b2a;
+  opacity:0; visibility:hidden; transition:opacity .14s; z-index:50; }
+.info:hover::after, .info:hover::before { opacity:1; visibility:visible; }
+/* right-align the tooltip when the icon sits in a right-aligned / last column */
+th.num .info::after, .detail-head .info::after { left:auto; right:0; transform:none; }
+th.num .info::before, .detail-head .info::before { left:auto; right:5px; transform:none; }
 
 .state { padding:60px 16px; text-align:center; color:#757575; }
 .state .big { font-size:16px; color:#1a1a2e; margin-bottom:6px; font-weight:600; }
@@ -223,6 +246,8 @@ let ROWS = [];
 let ASOF = (new Date()).getMonth() + 1;
 let DIMS = { days_in_month:30, days_elapsed:1, days_remaining:29, current_month:ASOF };
 let FILTERS = { source:"all", status:"all", am:"all", q:"", channel:"all" };
+let CURRENT_CLIENT = null;   /* Issue 3: null = overview view; string = client-detail view.
+                                Lets the month selector re-render the view you're actually in. */
 
 const view = document.getElementById('view');
 const asofSel = document.getElementById('asof');
@@ -230,7 +255,12 @@ const asofSel = document.getElementById('asof');
 function buildMonthSelect(){
   asofSel.innerHTML='';
   MONTHS.forEach((m,i)=>{ const o=document.createElement('option'); o.value=i+1; o.textContent=m; if(i+1===ASOF)o.selected=true; asofSel.appendChild(o); });
-  asofSel.onchange=()=>{ ASOF=+asofSel.value; renderOverview(); };
+  asofSel.onchange=()=>{
+    ASOF=+asofSel.value;
+    /* Issue 3: stay in whatever view you're in when switching months. */
+    if(CURRENT_CLIENT) renderClient(CURRENT_CLIENT);
+    else renderOverview();
+  };
 }
 
 function showState(html){ view.innerHTML='<div class="state">'+html+'</div>'; }
@@ -333,10 +363,32 @@ function catchupForMonth(client,asof){
   const y=yearPacing(client,asof);
   return (y.monthsLeft+1)>0 ? (-y.ytdVar)/(y.monthsLeft+1) : 0;
 }
+
+/* ── Issue 1 + 6: the account-level verdict ──
+   Status must be measured against the CORRECTION-ADJUSTED TARGET (committed +
+   catch-up) for the current month — i.e. what we're actually trying to spend —
+   NOT the raw committed. For non-current months there's no catch-up concept,
+   so we fall back to committed. Returns {target, status, paceRatio}. */
+function accountStatus(client){
+  const m=monthPacing(client,ASOF);
+  const isCur=(ASOF===DIMS.current_month);
+  const cu=isCur?catchupForMonth(client,ASOF):0;
+  const target=m.committed+cu;                         /* the real number we pace against */
+  const pace=paceRatioOf(target, m.actual, ASOF);
+  const status=statusOf(pace, target, m.actual);
+  return { target, status, paceRatio:pace, committed:m.committed, actual:m.actual, catchup:cu };
+}
 function dailyRec(committed, spentMtd, catchup){
   const target=committed+catchup;
   const left=Math.max(0, target-spentMtd);
-  return left/Math.max(1, DIMS.days_remaining);
+  /* Issue 8: today is still a spendable day, so include it in the divisor.
+     days_remaining (from pacing_api) = days_in_month - days_elapsed, which
+     EXCLUDES today. We add 1 so the remaining budget is spread across today
+     plus the days left. NOTE: if actual/spent_mtd ever migrates to
+     "through yesterday" (issue 9), revisit this — the divisor would then need
+     to count today onward without the +1 double-count. */
+  const daysToSpend=Math.max(1, DIMS.days_remaining + 1);
+  return left/daysToSpend;
 }
 function sumMtd(client){ let s=0; for(const r of rowsFor(client)) if(r.month===ASOF) s+=r.spent_mtd; return s; }
 function shareCatchup(totalCatchup, chans, row){
@@ -357,7 +409,7 @@ function passesFilter(client){
     if(mc.committed<=0 && mc.actual<=0) return false;   // no spend/budget in this channel -> hide
   }
   if(FILTERS.status!=='all'){
-    const m=monthPacing(client,ASOF,FILTERS.channel), s=statusOf(paceRatioOf(m.committed,m.actual,ASOF),m.committed,m.actual);
+    const s=accountStatus(client).status;   /* Issue 1: filter by the same account verdict shown in the table */
     if(FILTERS.status==='over' && s!=='dang') return false;
     if(FILTERS.status==='over-mod' && s!=='dang-mod') return false;
     if(FILTERS.status==='ontrack' && s!=='ok') return false;
@@ -422,9 +474,10 @@ function applySearch(){
 
 /* ---------- overview ---------- */
 function renderOverview(){
+  CURRENT_CLIENT = null;   /* Issue 3: we're in the overview now */
   const cs=clients().filter(passesFilter);
   let tc=0,ta=0; const rows=cs.map(c=>{ const m=monthPacing(c,ASOF,FILTERS.channel); tc+=m.committed; ta+=m.actual; return {c,m}; });
-  const onTrack=rows.filter(r=>statusOf(paceRatioOf(r.m.committed,r.m.actual,ASOF),r.m.committed,r.m.actual)==='ok').length;
+  const onTrack=rows.filter(r=>accountStatus(r.c).status==='ok').length;
 
   let h=renderFiltersBar();
   h+='<div class="cards">';
@@ -435,14 +488,19 @@ function renderOverview(){
   h+='</div>';
 
   h+='<div class="panel"><table><thead><tr>'
-    +'<th></th><th>Client</th><th>Channels</th><th class="num">Committed</th><th class="num">Actual</th>'
-    +'<th class="num">Variance</th><th class="num">Pacing</th><th class="num">Rec. $/day</th><th>Status</th><th></th>'
+    +'<th></th><th>Client</th><th>Channels<i class="info" data-tip="How each channel is pacing on its own. Diagnostic, not an alert \u2014 the Status column is the account verdict.">i</i></th><th class="num">Committed</th><th class="num">Actual</th>'
+    +'<th class="num">Variance</th><th class="num">Pacing</th><th class="num">Rec. $/day</th><th>Status<i class="info" data-tip="One verdict per account, measured against the correction-adjusted target \u2014 not per channel.">i</i></th><th></th>'
     +'</tr></thead><tbody>';
   for(const {c,m} of rows){
     const chans=channelRows(c,ASOF);
     const chips=chans.map(chip).join(' ');
-    const s=statusOf(paceRatioOf(m.committed,m.actual,ASOF),m.committed,m.actual);
-    const col=Math.abs(m.variance)<1?'':(m.variance>0?'color:#c5221f':'color:#a15c00');
+    const as=accountStatus(c);          /* Issue 1: verdict + target vs correction-adjusted target */
+    const s=as.status;
+    /* Issue 1: variance & pacing in the row measure against the same target as the status,
+       so the whole row tells one story (current month uses target; other months use committed). */
+    const rowVar=as.actual-as.target;
+    const rowPct=as.target?as.actual/as.target:0;
+    const col=Math.abs(rowVar)<1?'':(rowVar>0?'color:#c5221f':'color:#a15c00');
     let rec='&mdash;';
     if(ASOF===DIMS.current_month && FILTERS.channel==='all'){
       const cu=catchupForMonth(c,ASOF);
@@ -454,8 +512,8 @@ function renderOverview(){
       +'<td><div class="chips">'+chips+'</div></td>'
       +'<td class="num">'+fmt(m.committed)+'</td>'
       +'<td class="num">'+fmt(m.actual)+'</td>'
-      +'<td class="num" style="'+col+'">'+(m.variance>=0?'+':'')+fmt(m.variance)+'</td>'
-      +'<td class="num">'+(m.committed?pct(m.pct):'&mdash;')+'</td>'
+      +'<td class="num" style="'+col+'">'+(rowVar>=0?'+':'')+fmt(rowVar)+'</td>'
+      +'<td class="num">'+(as.target?pct(rowPct):'&mdash;')+'</td>'
       +'<td class="num">'+rec+'</td>'
       +'<td><span class="pill '+pillClass(s)+'">'+statusLabel(s)+'</span></td>'
       +'<td><button class="agentbtn" data-agent="'+encodeURIComponent(c)+'">Agent</button></td></tr>';
@@ -465,8 +523,8 @@ function renderOverview(){
     +'<span class="chip c-dang-mod">Moderate Overspending</span><span class="chip c-warn-mod">Moderate Underspending</span>'
     +'<span class="chip c-warn">Underspending</span>'
     +'<span class="chip c-dang">Overspending / spend w/ no budget</span><span class="chip c-idle">No budget &amp; no spend</span></div>';
-  h+='<p class="note">Channel chips are colored by each channel\u2019s own pacing; the Status column reflects the whole client. '
-    +'Rec. $/day is catch-up aware (uses month-to-date spend, days remaining, and the year correction).</p>';
+  h+='<p class="note">Channel chips are colored by each channel\u2019s own pacing (diagnostic \u2014 not alerts); the Status column is the account verdict, measured against the correction-adjusted target. '
+    +'Rec. $/day is catch-up aware (uses month-to-date spend, days remaining including today, and the year correction).</p>';
 
   view.innerHTML=h;
   wireFilters();
@@ -481,47 +539,72 @@ function renderOverview(){
 
 /* ---------- client detail ---------- */
 function renderClient(client){
+  CURRENT_CLIENT = client;   /* Issue 3: we're viewing this client now */
   const m=monthPacing(client,ASOF), y=yearPacing(client,ASOF), chans=channelRows(client,ASOF);
   const isCur=(ASOF===DIMS.current_month);
   const cu=catchupForMonth(client,ASOF);
-  const s=statusOf(paceRatioOf(m.committed,m.actual,ASOF),m.committed,m.actual);
+  const s=accountStatus(client).status;   /* Issue 1: verdict vs correction-adjusted target */
 
   let h='<span class="back" id="back">&larr; All clients</span>';
   h+='<div class="detail-head"><h2>'+client+'</h2><span class="pill '+pillClass(s)+'">'+statusLabel(s)+'</span>'
+    +'<i class="info" data-tip="One verdict per account, measured against the correction-adjusted target \u2014 not per channel.">i</i>'
     +'<span style="color:#9e9e9e;font-size:13px;">'+MONTHS[ASOF-1]+'</span>'
     +'<button class="agentbtn" id="client-agent" style="margin-left:auto;">Agent</button>'
     +'<button class="tkbtn loading detail" id="client-tickets" data-tkid="'+(mondayIdFor(client)||'')+'" disabled>…</button></div>';
   h+='<div class="detail-sub">'+sourceLabelFor(client)+' &middot; AM: '+amFor(client)+'</div>';
 
-  /* TABLE 1 — this month, by channel */
+  /* TABLE 1 — this month, by channel.
+     Issue 6: no per-channel Status column (channel committed isn't a real
+     per-platform budget, so a per-channel verdict is noise).
+     Issue 2: new "Target" column = committed + that channel's share of the
+     catch-up. Narrative order: Committed -> Catch-up -> Target -> Actual -> Pacing. */
   h+='<div class="panel"><div class="panel-h">This Month &mdash; Pacing by Channel</div><table><thead><tr>'
-    +'<th>Channel</th><th class="num">Committed</th><th class="num">Actual</th>'
-    +'<th class="num">Variance</th><th class="num">Pacing</th>'
-    + (isCur?'<th class="num">Spent MTD</th><th class="num">Rec. $/day</th>':'')
-    +'<th>Status</th></tr></thead><tbody>';
+    +'<th>Channel</th><th class="num">Committed</th>'
+    + (isCur?'<th class="num">Catch-up</th><th class="num">Target<i class="info" data-tip="Committed plus this channel\u2019s share of the catch-up (split by committed weight). This is the real number we\u2019re pacing against. Channels with no committed budget show a $0 target even if they spent.">i</i></th>':'')
+    +'<th class="num">Actual</th>'
+    +'<th class="num">Variance</th><th class="num">Pacing<i class="info" data-tip="Actual vs Target' + (isCur?' (correction-adjusted)':'')+', time-prorated for the current month.">i</i></th>'
+    + (isCur?'<th class="num">Spent MTD</th><th class="num">Rec. $/day<i class="info" data-tip="Per channel: the catch-up is split across channels by committed weight (a channel with more committed budget absorbs more of the correction), then spread over the days left including today. The account total is the sum.">i</i></th>':'')
+    +'</tr></thead><tbody>';
   for(const r of chans){
     const idle=(r.committed<=0&&r.actual<=0);
-    const col=Math.abs(r.variance)<1?'':(r.variance>0?'color:#c5221f':'color:#a15c00');
+    /* Issue 2: per-channel target = committed + share of catch-up (current month only). */
+    const chShare=isCur?shareCatchup(cu,chans,r):0;
+    const chTarget=r.committed+chShare;
+    /* Issue 1/2: variance and pacing measured against the target, not raw committed. */
+    const baseline=isCur?chTarget:r.committed;
+    const chVar=r.actual-baseline;
+    const chPct=baseline?r.actual/baseline:0;
+    const col=Math.abs(chVar)<1?'':(chVar>0?'color:#c5221f':'color:#a15c00');
     let rec='&mdash;';
-    if(isCur && !idle){ rec=fmt(dailyRec(r.committed, r.spent_mtd, shareCatchup(cu,chans,r))); }
+    if(isCur && !idle){ rec=fmt(dailyRec(r.committed, r.spent_mtd, chShare)); }
     h+='<tr'+(idle?' class="muted-row"':'')+'>'
       +'<td><strong>'+(CH_LABEL[r.channel]||r.channel)+'</strong></td>'
       +'<td class="num">'+fmt(r.committed)+'</td>'
+      + (isCur?('<td class="num" style="'+(Math.abs(chShare)<1?'':(chShare>0?'color:#a15c00':'color:#c5221f'))+'">'+(idle?'&mdash;':(chShare>=0?'+':'')+fmt(chShare))+'</td><td class="num"><strong>'+(idle?'&mdash;':fmt(chTarget))+'</strong></td>'):'')
       +'<td class="num">'+fmt(r.actual)+'</td>'
-      +'<td class="num" style="'+col+'">'+(idle?'&mdash;':(r.variance>=0?'+':'')+fmt(r.variance))+'</td>'
-      +'<td class="num">'+(r.committed?pct(r.pct):(idle?'&mdash;':'no budget'))+'</td>'
+      +'<td class="num" style="'+col+'">'+(idle?'&mdash;':(chVar>=0?'+':'')+fmt(chVar))+'</td>'
+      +'<td class="num">'+(baseline?pct(chPct):(idle?'&mdash;':'no budget'))+'</td>'
       + (isCur?('<td class="num">'+(idle?'&mdash;':fmt(r.spent_mtd))+'</td><td class="num">'+rec+'</td>'):'')
-      +'<td><span class="chip '+chipCls(r.status)+'">'+(idle?'No activity':statusLabel(r.status))+'</span></td>'
       +'</tr>';
   }
+  const adjustedTotal=isCur?(m.committed+cu):m.committed;
+  const totVar=m.actual-adjustedTotal;
+  const totPct=adjustedTotal?m.actual/adjustedTotal:0;
   const totalRec = isCur? fmt(dailyRec(m.committed, sumMtd(client), cu)) : '&mdash;';
+  const totCol=Math.abs(totVar)<1?'':(totVar>0?'color:#c5221f':'color:#a15c00');
   h+='<tr><td><strong>Total</strong></td><td class="num"><strong>'+fmt(m.committed)+'</strong></td>'
+    + (isCur?('<td class="num"><strong style="'+(Math.abs(cu)<1?'':(cu>0?'color:#a15c00':'color:#c5221f'))+'">'+(cu>=0?'+':'')+fmt(cu)+'</strong></td><td class="num"><strong>'+fmt(adjustedTotal)+'</strong></td>'):'')
     +'<td class="num"><strong>'+fmt(m.actual)+'</strong></td>'
-    +'<td class="num"><strong>'+(m.variance>=0?'+':'')+fmt(m.variance)+'</strong></td>'
-    +'<td class="num"><strong>'+(m.committed?pct(m.pct):'&mdash;')+'</strong></td>'
+    +'<td class="num" style="'+totCol+'"><strong>'+(totVar>=0?'+':'')+fmt(totVar)+'</strong></td>'
+    +'<td class="num"><strong>'+(adjustedTotal?pct(totPct):'&mdash;')+'</strong></td>'
     + (isCur?('<td class="num"><strong>'+fmt(sumMtd(client))+'</strong></td><td class="num"><strong>'+totalRec+'</strong></td>'):'')
-    +'<td></td></tr>';
+    +'</tr>';
   h+='</tbody></table></div>';
+  /* Issue 6: clarification note so nobody mistakes channel chips for per-channel alerts. */
+  h+='<p class="note"><strong>Status</strong> is the account-level verdict, measured against the correction-adjusted target (what you\u2019re actually trying to spend this month). '
+    +'Channel chips in the overview show how each channel is pacing individually \u2014 they\u2019re diagnostic, not alerts. '
+    +'A channel can run hot or cold without the account being off track, because budget is fungible across channels. '
+    +'The <em>Target</em> column above splits the catch-up across channels by committed weight; channels with no committed budget show a $0 target even if they spent.</p>';
 
   /* TABLE 2 — correction breakout */
   if(isCur){
