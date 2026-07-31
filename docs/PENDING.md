@@ -1,5 +1,82 @@
 # Cortex OS — Pending Items
 
+## Added 2026-07-30 (late) — two new projects scoped for their own sessions
+
+### P-ALERT-01 — Campaign-health alert system (Juanes / analysts' request)
+
+**What they asked for (Google Chat, Digital Team, 2026-07-28):** alerts when a campaign
+breaks. Seven triggers requested:
+1. No spend in 3 days
+2. Overspend +10% for the week vs actual budget
+3. Campaign status "Not eligible" / "All Ads disapproved"
+4. Advertiser Verification pending or failed
+5. Landing page / URL problems ("Destino no válido", "URL final no válida", "URL disapproved: Destination mismatch")
+6. Phone number problems ("Phone number disapproved", "Unverified phone number")
+Plus Sebas's own priority: **campaigns that pause without anyone knowing** (e.g. paused
+because a credit card was declined).
+
+**Data audit — partial, done this session (this is half the first-phase work):**
+- The Google Ads Data Transfer (`raw_google_ads`, MCC `6118198619`) has the **full tree**:
+  `ads_Campaign`, `ads_Ad`, `ads_Asset`, `ads_CampaignAsset`, `ads_Customer`, `ads_Budget`,
+  `ads_LandingPageStats`, plus partitioned `p_ads_*` daily tables. Most triggers have a
+  candidate table.
+- **Confirmed viable now:** `ads_Campaign` has `campaign_status` (ENABLED/PAUSED/REMOVED)
+  and `campaign_serving_status` (SERVING/SUSPENDED/ENDED). Real values checked on latest
+  partition. **The gold trigger: `campaign_status='ENABLED' AND campaign_serving_status='SUSPENDED'`**
+  = the AM wants it running, Google blocked it, they don't know. (Latest snapshot: 1 such
+  campaign; 7 PAUSED+SUSPENDED, 5 REMOVED+SUSPENDED.)
+- **Triggers 1 & 2 (no spend / overspend):** trivial — come from pacing data already in use
+  (`p_ads_CampaignBasicStats` → `spend_daily_unified`).
+- **Key limitation found:** `campaign_status='PAUSED'` does NOT tell you WHY it paused —
+  manual pause vs card-declined look identical at campaign level. The pause *reason* (card,
+  billing) is account/billing-level, not campaign-level. `SUSPENDED` is the closest signal
+  ("blocked") but doesn't say "by the card". The declined-card trigger may need `ads_Customer`
+  / `ads_Budget` billing fields (unaudited) or the Google Ads API directly — may not be
+  available via Data Transfer at all. **Set expectations: "campaign is blocked/paused and you
+  didn't know" is achievable and 10x better than finding out a week later; "paused *because
+  of the card* specifically" may not be.**
+
+**Still to audit (first task of the alert session — we know WHICH tables to look at):**
+- `ads_Ad` → does it carry `policy_approval_status` / disapproval reasons? (triggers 3, 5)
+- `ads_Asset` / `ads_CampaignAsset` → call assets, phone-number approval status? (trigger 6)
+- `ads_Customer` → advertiser verification status? (trigger 4)
+- `ads_Budget` / `ads_Customer` → any billing / payment / account-status field? (declined card)
+
+**Design decision (pending, Sebas's stated direction):**
+- Alerts must **live in Cortex**, not email (too noisy, ignored) and not chat (lost in
+  scroll). Persistent, stateful, visible.
+- Open question: Cortex-native alert entity (with its own new/in-progress/resolved state,
+  shown as a dashboard/popup) **vs** feeding Monday to create tickets (assign to the right
+  person, or a pool of alert tickets surfaced in Cortex). **Recommendation on record:**
+  start **Cortex-native** (Cortex already renders tickets via the pacing Monday-tickets
+  module; a native alert entity avoids replicating the "Monday boards go to die" problem —
+  the same adoption risk flagged for Linear). Add Monday integration later only if adoption
+  needs it. Adapt to how tickets are created either way.
+- Adoption is the real risk, not the tech: **whatever is built has to actually get used.**
+
+**Scope note:** this is its own project / session. Do NOT start building mid-another-session.
+First phase = finish the data audit above, then design triggers only for what has data.
+
+### P-AGENT-01 — Cortex knowledge agent (Sebas's idea, separate from alerts)
+
+**What it is:** an agent that answers pointed questions about how Cortex works — e.g. "how
+is the budget calculated", "why does this client show a $0 target", the committed/rollover
+logic — reading the Share Brain, and getting richer as `/docs` grows. This is the
+"brain of Cortex OS" already sketched (phases 0–3: knowledge audit → Claude Project sandbox
+→ Cloud Run + read-only tools like `query_bigquery`/`search_docs`/`get_monday_tickets` →
+write actions with confirmation). Design principle: the agent never holds knowledge that
+isn't in git or a queryable source.
+
+**Explicitly NOT the same as P-ALERT-01.** This is a *knowledge/Q&A* assistant (you ask it
+things). Alerts are *detection/notification* (it tells you when something breaks). Juanes'
+request is P-ALERT-01, not this. Keep them separate — don't build the agent expecting it to
+solve the alerts, and don't let the alerts project balloon into the agent.
+
+**Status:** lower urgency than P-ALERT-01 (nobody is blocked on it; it's Sebas's initiative).
+Own session when the time comes. The Share Brain being current (as of this session) is the
+prerequisite that makes it feasible — the agent reads `/docs`, so doc quality = agent quality.
+
+
 ## Added 2026-07-30 (pacing session + Norfolk)
 
 ### 🔴 Structural — #1 priority (own dedicated session, not a mid-session patch)
