@@ -216,3 +216,36 @@ Current instances:
 - **Recurring bug pattern:** `identity.users` was found duplicated for one user (`juanes.morales@...`, 2 identical rows, same `updated_at`) — the same failure mode as the `budget.am_directory` duplication earlier in the day (session 2026-07-14, RJ Nelson/Eli incident). Both were caused by a non-idempotent seed (`INSERT` re-run instead of `CREATE OR REPLACE ... SELECT DISTINCT`/`ROW_NUMBER`). See LEARNINGS L-022.
 - Budget Planning gained a **month-range add** (From–To, defaulting to current month through December) instead of one-month-at-a-time entry, reducing repetitive data entry when setting up a client's remaining-year budget.
 
+
+---
+
+## ADR-013: Pages Functions authenticate to BigQuery directly via a service-account JWT signed with Web Crypto — no n8n intermediary needed
+
+**Date:** 2026-07-13/14
+**Status:** Active. This is the actual resolution of the "how does a Cloudflare Pages Function write to BigQuery" open question raised when the Budget Editor's write path was first designed (session 2026-07-05/06) — at the time this was assessed as the harder of two options (the other being routing writes through n8n). It was built anyway and works.
+
+**Decision:** `functions/api/budget-events.js` and `functions/api/identity.js` hold a real GCP service-account key in the Cloudflare Pages secret **`GCP_SA_KEY`**, and sign a JWT (RS256, `crypto.subtle` / Web Crypto — no Node `crypto`, since Workers don't have it) in-request to exchange for a short-lived OAuth access token via `oauth2.googleapis.com/token`. That token authenticates direct calls to the BigQuery REST API (`bigquery/v2/projects/{project}/queries` for query + DML, `.../tables/{table}/insertAll` for streaming inserts). The token is cached in-memory per Worker isolate for its lifetime.
+
+**Corrects an earlier STATE.md claim.** STATE.md previously said "No GCP service-account key is present" in Cloudflare's env vars — that was true when written (2026-07-05) and is **no longer true**. `GCP_SA_KEY` is now bound to the Pages project and is load-bearing for both Budget Editor writes and the Identity admin panel.
+
+**Why this instead of routing through n8n:** avoids a dependency on Nate's personally-hosted n8n instance for a security/permissions-critical write path (identity changes, budget edits). Keeps the trust boundary self-contained: Cloudflare Access authenticates the human, the Pages Function's own service-account JWT authenticates to Google — no third external hop.
+
+**Caveats:**
+- The token cache lives per Worker isolate, not globally — occasional re-fetches across cold starts. Fine at admin-panel scale.
+- The real permission boundary is IAM (dataset/table-level grants on the service account), not the JWT's scope claim. Keep grants tight per table (`dataViewer` on the dataset + `dataEditor` scoped to the specific tables written).
+- **Candidate explanation for the `/kpi` 500 (P-TECH-17):** `kpi.js` may predate this pattern and use a different (broken) auth path. Worth checking whether porting it to the same pattern resolves it.
+
+## ADR-014: Identity Phase 3 — admin panel (`identity.html` + `/api/identity`) with a separate append-only audit trail
+
+**Date:** 2026-07-15
+**Status:** Active. Builds directly on ADR-012 (Identity v5 capability model).
+
+**Decision:** A full admin UI (`identity.html`) and backing API (`functions/api/identity.js`, gated to callers with `admin.users` or `*`) let an admin manage `identity.users` interactively: change a person's role, activate/deactivate them, grant or revoke an individual capability outside their role's defaults, or add a brand-new user. Every change is written to a **new, separate table, `identity.identity_events`** (append-only via `insertAll`) recording who changed what, on whom, and when — shown live in the panel's "Change log."
+
+**Why `identity.users` is mutable here, unlike `budget_events`:** this is a deliberate, different pattern from the Budget Editor's append-only log (ADR-011/L-023). `identity.users` holds **current state** (a person's role right now) and is updated in place with plain `UPDATE`s; `identity.identity_events` holds the **history** of how that state changed, as its own append-only side table. This is the conventional "current-state table + audit-log table" split, versus the Budget Editor's "the log IS the state" approach. Both are valid: use current-state when "what is true right now" must be one fast row (identity — permission checks happen on every request); use event-derivation when full point-in-time reconstruction drives the math (budget amounts — the rollover).
+
+**Consequences / notes:**
+- **Lockout guard:** a hardcoded `PROTECTED_ADMINS` list (currently just the platform owner's email) can never be demoted from `admin` or deactivated via this API, even by another admin, preventing an accidental self-lockout.
+- Capabilities are granted/revoked as free-text strings matching `modulo.accion` (e.g. `budgets.history`) — the wildcard `*` cannot be granted this way (regex excludes it); only `set_role -> admin` grants full access, and that path still respects the lockout guard.
+- The shell's Admin nav category links here, visible only to `admin.users`.
+- Same JWT-to-BigQuery-REST auth pattern as the Budget Editor's write path — see ADR-013.
