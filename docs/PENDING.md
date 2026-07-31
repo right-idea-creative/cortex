@@ -1,5 +1,21 @@
 # Cortex OS — Pending Items
 
+## Added 2026-07-30 (pacing session + Norfolk)
+
+### 🔴 Structural — #1 priority (own dedicated session, not a mid-session patch)
+
+- **P-TECH-19 — Complete the Sheet→Editor committed-budget migration.** `budget_base_current` = `COALESCE(latest_events, committed_budget_live)`. Only ~23% migrated: 20 clients on the editor, **67 still on the Google Sheet** (`committed_budget_live`, refreshed daily 05:00 from `raw_budget.committed_budget_long`). The Sheet is the live fallback for 77% of clients — do NOT remove it from the COALESCE until migration is done. Plan: migrate remaining clients into `budget_events`, then retire the Sheet leg. (See L-027.)
+- **P-TECH-20 — Unify client identity: resolve committed by `customer_id`, not name.** Actual joins by `customer_id` → crosswalk (robust); committed matches on client *name* as free text (fragile) — root cause of Norfolk desync (L-025) and will recur with any name-sharing client. Fix: join committed to the crosswalk by `customer_id` too, single identity source. Related to P-CARRY-04 (extend crosswalk with non-Google IDs natively). Do P-CARRY-04 as part of this.
+
+### Design decision (needs Nate + analysts)
+
+- **P-DESIGN-01 — Issue 9: `actual` real-time vs through-yesterday.** Analysts want spend-through-yesterday for pacing (today is incomplete, distorts the number). Metric-definition change: touches `spend_daily_unified`/`actual_spend_all` (filter `date < CURRENT_DATE`), and has chain effects — `days_elapsed` must stay consistent, and it interacts with the issue-8 `+1` in `dailyRec()`. Not superficial. Decide together before implementing.
+
+### Ops cleanup
+
+- **P-OPS-10 — Clean up the two Norfolk ghosts.** After the split, "ODC Norfolk" (Sheet) and "ODC Norfolk, VA" (old `budget_events` row) still show committed with $0 actual under old names the crosswalk no longer produces. Cleanup: tombstone the old "ODC Norfolk, VA" event via `event_tombstones` (SQL — editor has no tombstone UI), and remove/rename the "ODC Norfolk" Meta row in the Sheet. Also: Virginia's LSA has actual but no committed (assign a budget or leave — P-OPS-03 family).
+
+
 > **Purpose:** what's open, blocked, or waiting. Only live items. **Delete resolved items** — they belong in session logs, not here.
 
 > **Last updated:** 2026-07-14 (security fix, Budget Editor, Identity v5, rebrand)

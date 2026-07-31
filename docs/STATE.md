@@ -1,5 +1,31 @@
 # Cortex OS — Current State
 
+## Update (2026-07-30) — Pacing dashboard fixes shipped + Norfolk split + two structural findings
+
+**Pacing dashboard (`/ad-spend-pacing`) — 10 analyst-reported issues, 8 shipped, 1 deferred, 1 data.** Commits `aeb7b5b` + `fa5d8ef`, verified in production. Highlights:
+- **Status now measures against the correction-adjusted target** (`committed + catch-up`), not raw committed — new `accountStatus(client)` helper, applied at all four call sites (on-track count, overview pill, pacing filter, detail pill). Overview Variance/Pacing also moved to the target so each row is internally consistent. (Fixes the Buffalo "Overspending" false positive.)
+- **New per-channel Target column**; table narrative is now Committed → Catch-up → Target → Actual → Variance → Pacing. Per-channel target splits catch-up by committed weight.
+- **Per-channel Status removed** — status is account-level only. Channel chips stay colored as *diagnostic* (not alerts), explained via tooltips + a fixed note. Budget is fungible across channels.
+- Color scale refined (over = red family, under = amber/orange, on-track = green; intensity = severity). Rec/day now counts today (`days_remaining + 1`). Month-switch inside a client stays on the client (`CURRENT_CLIENT` state). Robust `.info` tooltips (`z-index:9999`, drop-down, right-aligned in numeric columns).
+- **Deferred (P-DESIGN-01):** issue 9, actual real-time vs through-yesterday — a metric-definition change with chain effects; decision with Nate + analysts.
+
+**Correction to the pacing-view description below.** Earlier notes describe `pacing_api` as joining `committed_budget_live` directly. In fact `pacing_api` reads **`budget_base_current`**, which is itself `COALESCE(latest_events, committed_budget_live)` — i.e. the Budget Editor overlay sits *underneath* pacing, with the Sheet as fallback. Status and the correction-adjusted target are **not** in the view — both are computed in the frontend JS.
+
+**Norfolk split (issue 5) — done.** "ODC Norfolk" was two accounts (Google+LSA `customer_id=6121123095`, Meta `customer_id=2303851373274229`) both mapping to one name. Fixed by two crosswalk `UPDATE`s → "ODC Norfolk, Virginia" and "ODC Norfolk, Nebraska"; actual spend separated instantly (all views). Committed re-created in the Budget Editor under the new names (editor has no rename function). Two harmless ghosts remain (old names, committed with $0 actual) — cleanup tracked as P-OPS-10.
+
+**Identity Phase 3 registered (was applied 07-15, documented only now).** ADR-013 (Pages Functions → BigQuery via `GCP_SA_KEY` JWT signed with Web Crypto; **corrects the earlier "no service-account key present" claim** — `GCP_SA_KEY` IS bound to Pages and is load-bearing), ADR-014 (`identity.html` + `/api/identity` admin panel, `identity.identity_events` append-only audit, `PROTECTED_ADMINS` lockout guard), L-024 (second unauthenticated path). See ARCHITECTURE.md / LEARNINGS.md.
+
+### ⚠ Two structural findings — #1 priority for a dedicated session (P-TECH-19, P-TECH-20)
+
+1. **The Sheet→Editor committed migration is only ~23% done, and the Sheet is still live.** `budget_base_current` = `COALESCE(latest_events, committed_budget_live)`. A `COUNT ... GROUP BY source`: **event (editor) = 20 clients / 142 rows; sheet (Google Sheet) = 67 clients / 1075 rows.** The Sheet is refreshed daily 05:00 by `committed_budget_live_refresh` and is the live fallback for 77% of clients — it is **not** obsolete. Do **not** drop the Sheet leg of the COALESCE until migration completes (would break 67 clients). (P-TECH-19.)
+
+2. **Committed and actual use different client-identity mechanisms.** Actual joins by `customer_id` → crosswalk (robust). Committed carries the client *name* as free text, joined by string equality (fragile). This is the root cause of Norfolk desyncing and will recur with any client sharing a name. Fix of record: resolve committed by `customer_id` against the crosswalk too (single identity source). (P-TECH-20, related to P-CARRY-04.)
+
+**Method note (L-026):** finding #1 was nearly acted on from a false premise ("Sheet is obsolete, migrate/drop it now") that would have broken 67 clients — one COUNT query prevented it. Measure before reacting.
+
+---
+
+
 > **Last updated:** 2026-07-14 (Cloudflare Access security fix, Budget Editor data layer + write path, Identity v5, teal rebrand)
 > **Updated by:** Claude (Sebas, work account)
 >
