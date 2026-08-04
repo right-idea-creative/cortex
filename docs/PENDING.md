@@ -1,5 +1,34 @@
 # Cortex OS — Pending Items
 
+### P-SEO-01 — SEO Agent (sibling system, repo `Seo-Agent`)
+
+**What it is:** a pipeline that generates and publishes SEO articles (Python, Claude + OpenAI,
+WordPress). External owner. **Decision:** lives in its own separate repo, integrates into
+Cortex via BigQuery — same "producer pushes to BQ directly" pattern as ADR-010 (Nextdoor API)
+and ADR-011 (Meta API), i.e. a sibling data producer, not a coupled module.
+
+**Open requests:**
+- **(a)** Fix QA cost attribution + add OpenAI text-generation tracking.
+- **(b)** Post-run sink to a new dataset `seo_content` with three tables: `articles_published`,
+  `qa_results`, `content_costs`.
+- **(c)** Use the crosswalk's `canonical_client` in `site.json` — **P-TECH-20 applies here**:
+  the SEO Agent would hit the exact same client-identity problem Norfolk exposed if it keys
+  on client name instead of resolving via the crosswalk. Unify identity from the start.
+- **(d)** Record `model` + `prompt version` on every row (traceability, same versioning
+  discipline used elsewhere).
+
+**What to import INTO Cortex from this work (reusable patterns for the LLM consumers coming
+next):**
+- **`llm_gateway`** — failover on 529 / rate-limit across providers.
+- **`budget_service`** — per-model cost tracking + a hard spend cap.
+These two patterns are needed by every upcoming LLM consumer: the knowledge agent (P-AGENT-01,
+"§8"), P-ALERT-01 if it uses an LLM for triage, and the SEO Agent itself. Build/extract them
+once, reuse across all three — don't reimplement per consumer.
+
+**Scope note:** external owner drives the repo; Cortex's side is the BQ integration + the two
+shared patterns. Own session/coordination when picked up.
+
+
 ## Added 2026-07-30 (late) — two new projects scoped for their own sessions
 
 ### P-ALERT-01 — Campaign-health alert system (Juanes / analysts' request)
