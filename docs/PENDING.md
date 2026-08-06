@@ -1,5 +1,43 @@
 # Cortex OS — Pending Items
 
+### P-SEC-01 — `cortex-bigquery` service account has 8 keys, 5 that never expire — audit and consolidate
+
+**Found 2026-08-05** during the MacBook migration. Listing the keys of
+`cortex-bigquery@rightidea-cortex.iam.gserviceaccount.com` returned **8 active keys, none
+disabled**, with these expirations:
+- `4629bed0…` exp 2027-04-06 (1 yr)
+- `c3fe03e2…` exp 2027-04-06 (1 yr)
+- `109ffe7d…` exp 2028-06-01
+- `3466cb3b…` exp **9999-12-31 (never)**
+- `51f10668…` exp **9999-12-31 (never)**
+- `162fe634…` exp **9999-12-31 (never)**
+- `26850ca6…` exp **9999-12-31 (never)** ← the one that was on the old MacBook's Desktop (`gcp-sa-key.json`, file deleted, machine wiped)
+- `c33c0326…` exp **9999-12-31 (never)**
+
+**Why this is real security debt:** eight downloaded keys means up to eight JSON files in
+unknown locations (machines, services, maybe pasted somewhere). Five never expire, which is
+exactly the "long-lived credential" pattern to avoid. Sebas's instinct during the migration
+("I don't think only I use this key") was correct — there are far more keys than one person's.
+
+**Constraint — do NOT revoke blind.** `cortex-bigquery` is the general BigQuery SA (STATE:
+"General BigQuery; Viewer on source Sheets"). Some of these keys may be in use by scheduled
+queries, Cloud Run Jobs, or the secondary Mac. Revoking a key that a live process uses breaks
+it. GCP lists the keys but not what uses each one — the audit is: check IAM/usage logs to map
+each `key_id` to a caller (IP/service), identify which are dead, then revoke the orphans and
+put expiration on any that must stay.
+
+**Plan:**
+1. Audit usage per key (Cloud Logging / IAM logs) — which `key_id` authenticated recently, from where.
+2. Identify dead keys (no recent use) → revoke.
+3. For keys that must stay, prefer replacing with short-lived auth (Workload Identity / ADC)
+   or at minimum set an expiration — kill the `9999-12-31` ones.
+4. Consolidate to the minimum necessary.
+
+**Related:** fits the credential-rotation debt already tracked — P-TECH-14 (Meta token
+exposed), P-TECH-02 (long-lived JSON key for the GitHub Actions SA, migrate to WIF/OIDC).
+This is the largest of the three. Priority: medium-high (security), own focused session.
+
+
 ### P-SEO-01 — SEO Agent (sibling system, repo `Seo-Agent`)
 
 **What it is:** a pipeline that generates and publishes SEO articles (Python, Claude + OpenAI,
@@ -34,57 +72,131 @@ shared patterns. Own session/coordination when picked up.
 ### P-ALERT-01 — Campaign-health alert system (Juanes / analysts' request)
 
 **What they asked for (Google Chat, Digital Team, 2026-07-28):** alerts when a campaign
-breaks. Seven triggers requested:
-1. No spend in 3 days
-2. Overspend +10% for the week vs actual budget
-3. Campaign status "Not eligible" / "All Ads disapproved"
-4. Advertiser Verification pending or failed
-5. Landing page / URL problems ("Destino no válido", "URL final no válida", "URL disapproved: Destination mismatch")
-6. Phone number problems ("Phone number disapproved", "Unverified phone number")
-Plus Sebas's own priority: **campaigns that pause without anyone knowing** (e.g. paused
-because a credit card was declined).
+breaks. Seven triggers + Sebas's two priorities. **Data audit COMPLETE (2026-08-03).**
+Every trigger mapped against the Google Ads Data Transfer (`raw_google_ads`, MCC
+`6118198619`). Two clean phases: Phase 1 = viable now via Data Transfer; Phase 2 = requires
+the Google Ads API directly, one integration unblocks all four. **Phase-2 access application
+is in flight as of 2026-08-05 — see status at the bottom.**
 
-**Data audit — partial, done this session (this is half the first-phase work):**
-- The Google Ads Data Transfer (`raw_google_ads`, MCC `6118198619`) has the **full tree**:
-  `ads_Campaign`, `ads_Ad`, `ads_Asset`, `ads_CampaignAsset`, `ads_Customer`, `ads_Budget`,
-  `ads_LandingPageStats`, plus partitioned `p_ads_*` daily tables. Most triggers have a
-  candidate table.
-- **Confirmed viable now:** `ads_Campaign` has `campaign_status` (ENABLED/PAUSED/REMOVED)
-  and `campaign_serving_status` (SERVING/SUSPENDED/ENDED). Real values checked on latest
-  partition. **The gold trigger: `campaign_status='ENABLED' AND campaign_serving_status='SUSPENDED'`**
-  = the AM wants it running, Google blocked it, they don't know. (Latest snapshot: 1 such
-  campaign; 7 PAUSED+SUSPENDED, 5 REMOVED+SUSPENDED.)
-- **Triggers 1 & 2 (no spend / overspend):** trivial — come from pacing data already in use
-  (`p_ads_CampaignBasicStats` → `spend_daily_unified`).
-- **Key limitation found:** `campaign_status='PAUSED'` does NOT tell you WHY it paused —
-  manual pause vs card-declined look identical at campaign level. The pause *reason* (card,
-  billing) is account/billing-level, not campaign-level. `SUSPENDED` is the closest signal
-  ("blocked") but doesn't say "by the card". The declined-card trigger may need `ads_Customer`
-  / `ads_Budget` billing fields (unaudited) or the Google Ads API directly — may not be
-  available via Data Transfer at all. **Set expectations: "campaign is blocked/paused and you
-  didn't know" is achievable and 10x better than finding out a week later; "paused *because
-  of the card* specifically" may not be.**
+**Requested triggers:** (1) no spend 3 days, (2) overspend +10% weekly vs actual budget,
+(3) campaign "Not eligible" / ads disapproved, (4) advertiser verification pending/failed,
+(5) landing-page / URL problems ("Destino no válido", "URL disapproved: Destination
+mismatch"), (6) phone-number problems ("Phone number disapproved"), + Sebas: campaign
+paused without knowing (e.g. card declined).
 
-**Still to audit (first task of the alert session — we know WHICH tables to look at):**
-- `ads_Ad` → does it carry `policy_approval_status` / disapproval reasons? (triggers 3, 5)
-- `ads_Asset` / `ads_CampaignAsset` → call assets, phone-number approval status? (trigger 6)
-- `ads_Customer` → advertiser verification status? (trigger 4)
-- `ads_Budget` / `ads_Customer` → any billing / payment / account-status field? (declined card)
+---
 
-**Design decision (pending, Sebas's stated direction):**
-- Alerts must **live in Cortex**, not email (too noisy, ignored) and not chat (lost in
-  scroll). Persistent, stateful, visible.
-- Open question: Cortex-native alert entity (with its own new/in-progress/resolved state,
-  shown as a dashboard/popup) **vs** feeding Monday to create tickets (assign to the right
-  person, or a pool of alert tickets surfaced in Cortex). **Recommendation on record:**
-  start **Cortex-native** (Cortex already renders tickets via the pacing Monday-tickets
-  module; a native alert entity avoids replicating the "Monday boards go to die" problem —
-  the same adoption risk flagged for Linear). Add Monday integration later only if adoption
-  needs it. Adapt to how tickets are created either way.
-- Adoption is the real risk, not the tech: **whatever is built has to actually get used.**
+#### PHASE 1 — Viable NOW via Data Transfer (zero new dependencies)
 
-**Scope note:** this is its own project / session. Do NOT start building mid-another-session.
-First phase = finish the data audit above, then design triggers only for what has data.
+| Trigger | Condition | Source (verified) |
+| --- | --- | --- |
+| No spend 3 days | spend = 0 across 3 days | `p_ads_CampaignBasicStats` → `spend_daily_unified` (pacing) |
+| Overspend +10% | weekly actual > 110% of target | pacing data (already computed) |
+| Ads disapproved | `ad_group_ad_policy_summary_approval_status = 'DISAPPROVED'` **in ENABLED campaigns** | `ads_Ad` × `ads_Campaign` |
+| **Campaign blocked** (Sebas priority) | `campaign_status='ENABLED' AND campaign_serving_status='SUSPENDED'` | `ads_Campaign` |
+| **Bonus** (not requested): budget-capped | daily spend ≈ `campaign_budget_amount_micros` (limited by budget) | `ads_Budget` + spend |
+
+**Verified real values (latest partition, 2026-08-03):**
+- `ad_group_ad_policy_summary_approval_status`: APPROVED_LIMITED 2866, APPROVED 2309,
+  **DISAPPROVED 1038**, UNKNOWN 283, AREA_OF_INTEREST_ONLY 128. → **1,038 disapproved ads
+  right now.** Alert must cross with `ads_Campaign` ENABLED, else it drowns Juanes in
+  irrelevant paused/removed ads.
+- `campaign_status` × `campaign_serving_status`: 1 ENABLED+SUSPENDED, 7 PAUSED+SUSPENDED,
+  5 REMOVED+SUSPENDED. ENABLED+SUSPENDED is the gold trigger.
+- Channel mix: SEARCH 503 / DISPLAY 50 / PERFORMANCE_MAX 37 / LOCAL_SERVICES 24 / VIDEO 24
+  — clients are ~77% Search (relevant to Phase 2).
+
+---
+
+#### PHASE 2 — Requires the Google Ads API directly (one integration unblocks all four)
+
+Data Transfer does NOT expose these — confirmed by exhaustive column/table search:
+
+| Trigger | Why Data Transfer can't do it (verified) |
+| --- | --- |
+| Advertiser verification (4) | No `verif`/`identity` column anywhere in `raw_google_ads` (query `[]`). `ads_Customer` has only id, currency, name, manager, test_account, time_zone, auto_tagging. |
+| Phone/call disapproved (6) | `ads_Asset` has only `asset_type` (CALL = 1343 assets exist, no approval). `ads_CampaignAsset` policy/status search `[]`. |
+| Card declined / billing (Sebas) | No `billing`/`payment`/`account_budget` **table** exists (query `[]`). `ads_Budget.campaign_budget_status` is the budget object status, NOT payment. |
+| URL disapproval *reason* (5) | `ads_Ad` has only `..._approval_status` (aggregate), no `policy_topic_entries` — know it's DISAPPROVED, not that it's the URL. |
+
+**Evidence Phase 2 is feasible:** `ads_AssetGroupAsset` (Performance Max) DOES carry the
+full trio (`..._approval_status`, `..._policy_topic_entries`, `..._review_status`). Google
+exposes approval + reason; the Data Transfer just ships it for PMax asset groups and not
+regular ads/call assets. The API returns `policy_topic_entries` for regular resources too.
+BUT PMax is only 37 of 655 campaigns (~6%) — real coverage needs the API.
+
+**What Phase 2 needs (one integration → all four triggers):**
+1. **Google Ads API developer token at the MCC, Basic Access level** — Test-level token
+   already exists; Basic Access requires Google's approval (external dependency).
+2. **OAuth** — client ID/secret + refresh token with MCC access.
+3. **A Cloud Run Job** querying via **GAQL**, writing to BQ — same pattern as ADR-010/011
+   and the scoped Bing pipeline. Not new architecture.
+4. **GAQL resources per trigger:** `customer` identity verification (4);
+   `asset.policy_summary` (6); `BillingSetup`/`AccountBudget` (card); and
+   `ad_group_ad.policy_summary.policy_topic_entries` (URL reason, 5).
+
+**Shared-infra synergy:** the Phase-2 developer-token + Cloud Run Job + GAQL stack is the
+same infrastructure as the Bing/Microsoft Ads pipeline. Build once, reuse. (Parallels
+`llm_gateway`/`budget_service` for the LLM consumers.)
+
+---
+
+#### PHASE 2 — CURRENT STATUS (2026-08-05)
+
+**Blocked on Google's Basic Access approval. Nothing further to build until it lands.**
+
+- ✅ **Google Ads API enabled** on the project: `gcloud services enable googleads.googleapis.com` done.
+- ✅ **Developer token exists** in the MCC (611-819-8619) API Center, at **Test Account
+  Access** level — works only against test accounts, not production.
+- ✅ **Basic Access application SUBMITTED** — reference **`3-4822000041135`**. Standard
+  review ~5 business days (no guaranteed final decision in that window). Application declared
+  the tool as **read-only internal campaign-health monitoring** (design doc PDF submitted:
+  read-only, internal users only, GAQL/Cloud Run/BigQuery, campaign types Search/PMax/
+  Display/Local Services/Video, capability = Reporting only).
+- ✅ **Ravina Ranjan (`ravinaranjan@google.com`), our Google rep for the account**, was sent
+  the application reference to help expedite internally.
+- ❌ **Brand verification: ATTEMPTED AND ABANDONED — do NOT retry without reading this.**
+  Brand verification is Google's optional accelerator for Basic Access. It requires the OAuth
+  consent screen set to External / In production (done) AND passing a check that found **three
+  problems**, two of which are unsolvable for an internal tool:
+    1. The homepage `rightideacreative.com` "is not registered to your name" → fixable by
+       verifying the domain in Search Console (Scott manages the Right Idea site), but a
+       single fixed problem does not unblock — all three must pass.
+    2. "The homepage does not explain the purpose of the app" → would require putting Cortex
+       tool info on Right Idea's public homepage. Not applicable — Cortex is internal.
+    3. "The app name 'Cortex Bigquery' does not match the app name on your homepage" → same
+       root cause; the internal tool name won't match the agency's public site.
+  Problems 2 and 3 are structural: brand verification is built for public-facing apps, not
+  internal tools that reuse the agency domain. **Abandoned. The Basic Access application
+  proceeds on the normal timeline regardless.** See LEARNINGS L-028.
+- **OAuth consent screen left as External / In production** (harmless to Cortex — Cortex uses
+  service accounts, OAuth-user metrics showed zero traffic; and External is the right mode for
+  the Phase-2 refresh-token OAuth anyway). Not reverted to Internal on purpose.
+
+**Next step: wait for Google's decision on `3-4822000041135`.** When Basic Access is granted:
+create the OAuth client, generate a refresh token, build the Cloud Run Job with the GAQL
+queries above, sink to BQ, wire into the alert system. Until then, Phase 2 cannot be built
+(a Test-level token only hits test accounts).
+
+---
+
+#### Design decision (pending — Sebas's stated direction)
+
+- Alerts must **live in Cortex**, not email (noisy, ignored) and not chat (lost in scroll).
+- Cortex-native alert entity (own new/in-progress/resolved state, dashboard/popup) **vs**
+  feeding Monday tickets. **Recommendation on record:** start Cortex-native (avoids
+  replicating the "Monday boards go to die" problem — same adoption risk flagged for Linear);
+  add Monday later only if adoption needs it.
+- **Adoption is the real risk, not the tech.**
+
+#### Sequencing recommendation
+
+- **Phase 1 is a standalone deliverable** — five real, high-impact alerts (esp. 1,038
+  disapproved ads + ENABLED+SUSPENDED), zero external dependency. Ship first; proves the
+  system and drives adoption while Phase 2's token is in Google's queue.
+- **Phase 2** gated on the `3-4822000041135` approval. Scope alongside Bing (shared infra).
+- Do NOT promise Juanes all 8 up front — deliver Phase 1, set Phase 2 as "needs Google Ads
+  API integration, application in review."
 
 ### P-AGENT-01 — Cortex knowledge agent (Sebas's idea, separate from alerts)
 

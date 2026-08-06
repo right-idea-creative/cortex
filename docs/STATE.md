@@ -1,5 +1,35 @@
 # Cortex OS — Current State
 
+## Update (2026-08-05) — primary workstation migrated to MacBook Pro; Google Ads API access in flight
+
+**Workstation migration.** The primary dev machine is now a **MacBook Pro** (Apple Silicon).
+The old MacBook Air was wiped (Erase All Content and Settings) and handed off. Nothing unique
+was lost: the Cortex repo lives on GitHub (both `~/cortex` and the abandoned `~/Projects/cortex-nate`
+clone pointed at the same `right-idea-creative/cortex` origin, both clean). The Pro is set up
+from scratch — Homebrew, git, node, gcloud/bq, a **fresh SSH key** added to GitHub, and both
+GCP accounts re-authenticated (`digital@rightideacreative.net` active, `sebas.guzman@…` also
+credentialed). **Auth is via `gcloud auth login` + `gcloud auth application-default login`, NOT
+a local service-account key file** — the old Air had `~/Desktop/gcp-sa-key.json` (a
+`cortex-bigquery` key); it was deleted and the disk wiped, and the Pro deliberately does not
+carry an SA key file. Repo path on the Pro: `~/cortex`. Verified end-to-end (git push + `bq
+query` both work). Surfaced a security finding — see PENDING P-SEC-01 (that SA has 8 keys, 5
+never-expiring).
+
+**Google Ads API — Basic Access application in flight (P-ALERT-01 Phase 2).** The Google Ads
+API is now **enabled** on the project. A **Basic Access application** was submitted (ref
+`3-4822000041135`, ~5 business-day review) to unblock the four Phase-2 alert triggers that the
+Data Transfer can't provide (verification, phone/call approval, billing/card, URL disapproval
+reason). The MCC's developer token is currently Test-level; Basic Access requires Google's
+approval. Brand verification (the optional accelerator) was attempted and **abandoned** — it
+doesn't fit an internal tool on the agency domain (L-028). The OAuth consent screen was set to
+External / In production for that attempt and left there (harmless; Cortex uses service
+accounts). **Nothing further to build on Phase 2 until the token is approved.** Phase 1 (five
+Data-Transfer-based alerts, incl. 1,038 disapproved ads and ENABLED+SUSPENDED campaigns)
+remains buildable now with zero external dependency — see PENDING P-ALERT-01.
+
+---
+
+
 ## Update (2026-07-30) — Pacing dashboard fixes shipped + Norfolk split + two structural findings
 
 **Pacing dashboard (`/ad-spend-pacing`) — 10 analyst-reported issues, 8 shipped, 1 deferred, 1 data.** Commits `aeb7b5b` + `fa5d8ef`, verified in production. Highlights:

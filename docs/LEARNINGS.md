@@ -274,3 +274,33 @@ SELECT * EXCEPT(rn) FROM (
 **Context (session 2026-07-30):** `budget_base_current` = `COALESCE(latest_events, committed_budget_live)` with a `source` column marking each row `"event"` (Budget Editor, `budget_events`, has priority) or `"sheet"` (Google Sheet via `committed_budget_live`, the fallback). This is a deliberate migration bridge, not a bug: as AMs edit a client in the Budget Editor, that client's rows flip from "sheet" to "event". The Sheet stays live (`committed_budget_live_refresh`, daily 05:00, from `raw_budget.committed_budget_long`) until every client has migrated.
 
 **Rule:** before touching anything on the committed side, query `budget_base_current` with the `source` column to see which path a given client/channel/month takes. Never assume a client's committed is in the editor (or in the Sheet) — check `source`. And never remove the Sheet leg of the `COALESCE` until the migration is complete (P-TECH-19); today, only ~23% of clients are on the editor. The `budget_events` table is append-only and has no rename/tombstone UI, so correcting an editor-sourced name means adding new lines (which win by `changed_at DESC`) and later tombstoning the old event via `event_tombstones` (SQL, not the editor UI).
+
+---
+
+## L-028: Google Ads API brand verification does not fit an internal tool that reuses the agency domain — don't retry it
+
+**Context (2026-08-05):** while applying for Google Ads API **Basic Access** (to unblock
+P-ALERT-01 Phase 2), we tried the optional **brand verification** accelerator. It requires
+setting the OAuth consent screen to External / In production and then passes a check against
+the app's public presence. For our internal tool ("Cortex Bigquery", using the agency domain
+`rightideacreative.com`), the check returned three problems:
+1. The homepage is not registered to your name → fixable (verify the domain in Search
+   Console via whoever manages the site), but on its own does not unblock.
+2. The homepage does not explain the purpose of the app → would require putting internal-tool
+   info on the agency's public homepage.
+3. The app name does not match the name on the homepage → the internal tool name will never
+   match the agency's public site.
+
+**Rule:** brand verification is designed for **public-facing OAuth apps**, where app name,
+stated purpose, and verified domain are all public and aligned. It structurally does not fit
+an **internal tool** that borrows the company's public domain — problems (2) and (3) have no
+honest fix short of polluting the public site with internal-tool descriptions. When applying
+for Google Ads API access for an internal monitoring/reporting tool, **skip brand verification
+and take the standard review timeline** (≈5 business days), ideally with a Google account rep
+nudging it. The verification accelerator costs more effort than it saves in this case, and the
+standard application proceeds unaffected whether or not brand verification is attempted.
+
+**Corollary:** setting the consent screen to External / In production for this attempt is
+harmless to a project that authenticates via service accounts (Cortex's OAuth-user traffic
+was zero), and External is the correct mode for the refresh-token OAuth that Phase 2 will use
+anyway — so there's no need to revert it to Internal afterward.
