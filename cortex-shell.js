@@ -41,7 +41,8 @@
       items: [
         { label: "Ad Spend Pacing", href: "ad-spend-pacing.html", cap: "performance.view" },
         { label: "Campaign Triage", href: "triage.html",          cap: "performance.view" },
-        { label: "Call Tracking",   href: "call-tracking.html",   cap: "performance.view" }
+        { label: "Call Tracking",   href: "call-tracking.html",   cap: "performance.view" },
+        { label: "Alerts",          href: "alerts.html",          cap: "performance.view" }
       ]
     },
     {

@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Alerts — CORTEX OS</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: #f0f2f5;
+  color: #1a1a2e;
+}
+
+/* Nav injected by /cortex-shell.js */
+
+.page-head { background:#fff; border-bottom:1px solid #e8eaed; padding: 26px 32px 22px; }
+.page-head h1 { font-size: 26px; font-weight: 800; letter-spacing:-.5px; color:#0d1b2a; }
+.page-head p { font-size: 13px; color:#757575; margin-top: 4px; }
+
+.wrap { max-width: 1200px; margin: 0 auto; padding: 24px 32px 70px; }
+
+select, input {
+  font: inherit; font-size:13px; padding: 7px 11px; border: 1px solid #d4d7dc;
+  border-radius: 8px; background: #fff; color:#1a1a2e; cursor:pointer;
+}
+select:focus, input:focus { outline:none; border-color:#4285F4; }
+
+/* Filters */
+.filters { display:flex; gap:16px; flex-wrap:wrap; align-items:flex-end; margin: 0 0 20px; }
+.filters .fg { display:flex; flex-direction:column; gap:5px; }
+.filters .fg span { font-size:11px; font-weight:700; color:#9e9e9e; text-transform:uppercase; letter-spacing:.5px; }
+.filters .fg select, .filters .fg input { height:38px; padding:0 12px; font-size:13px; color:#0d1b2a;
+  background:#fff; border:1px solid #d4d7dc; border-radius:8px; min-width:150px; box-shadow:0 1px 2px rgba(0,0,0,.04);
+  appearance:auto; outline:none; }
+
+/* Cards (counts) */
+.cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:14px; margin: 0 0 22px; }
+.card { background:#fff; border:1px solid #e8eaed; border-radius:12px; padding:16px 18px; box-shadow:0 1px 4px rgba(0,0,0,.05); }
+.card .lbl { font-size:12px; color:#9e9e9e; font-weight:600; text-transform:uppercase; letter-spacing:.4px; margin-bottom:6px; }
+.card .val { font-size:24px; font-weight:800; color:#0d1b2a; letter-spacing:-.5px; }
+.card .csub { font-size:12px; color:#9e9e9e; margin-top:2px; }
+.card.p0 .val { color:#ea4335; }
+.card.p1 .val { color:#f6b26b; }
+
+/* Panels / tables */
+.panel { background:#fff; border:1px solid #e8eaed; border-radius:12px; box-shadow:0 1px 4px rgba(0,0,0,.05); overflow:hidden; margin-bottom:18px; }
+.panel-h { font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:#9e9e9e; padding:14px 18px; display:flex; align-items:center; gap:8px; }
+.panel-h .cnt { background:#eef0f2; color:#5f6368; border-radius:20px; padding:1px 9px; font-size:11px; }
+table { width:100%; border-collapse:collapse; font-size:13px; }
+th,td { text-align:left; padding:11px 14px; border-bottom:1px solid #eef0f2; vertical-align:top; }
+th { color:#9e9e9e; font-weight:700; font-size:11px; text-transform:uppercase; letter-spacing:.4px; }
+tbody tr:last-child td { border-bottom:none; }
+tr:hover { background:#f7f9fc; }
+td .cn { font-weight:700; color:#0d1b2a; }
+td .sub { font-size:11px; color:#9e9e9e; margin-top:2px; }
+td.detail { color:#3c4043; max-width:460px; }
+
+/* Severity pills */
+.pill { font-size:11px; padding:3px 10px; border-radius:20px; font-weight:700; display:inline-block; white-space:nowrap; }
+.p-p0   { background:#ea4335; color:#fff; }
+.p-p1   { background:#f6b26b; color:#783f04; }
+/* AV pills */
+.av { font-size:10px; padding:2px 8px; border-radius:20px; font-weight:700; display:inline-block; white-space:nowrap; }
+.av-ok    { background:#d9ead3; color:#274e13; }
+.av-no    { background:#f4cccc; color:#990000; }
+.av-prog  { background:#ffe599; color:#7f6000; }
+.av-stuck { background:#fce5cd; color:#b45309; }
+.av-na    { background:#eef0f2; color:#9e9e9e; }
+/* Type chips */
+.tc { font-size:10px; padding:2px 8px; border-radius:6px; font-weight:700; display:inline-block; background:#e8eaed; color:#5f6368; white-space:nowrap; }
+
+/* States */
+.state { text-align:center; padding:70px 20px; color:#9e9e9e; }
+.state .big { font-size:16px; font-weight:700; color:#5f6368; margin-bottom:8px; }
+.spinner { width:26px; height:26px; border:3px solid #e0e0e0; border-top-color:#00D4AA; border-radius:50%; margin:0 auto 14px; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.retry { margin-top:14px; padding:8px 16px; border:1px solid #d4d7dc; border-radius:8px; background:#fff; cursor:pointer; font:inherit; font-size:13px; }
+.empty { text-align:center; padding:40px 20px; color:#9e9e9e; font-size:13px; }
+.refreshed { font-size:11px; color:#b0b3b8; text-align:right; margin-top:4px; }
+</style>
+</head>
+<body>
+
+<div class="page-head">
+  <h1>Alerts</h1>
+  <p>Campaign-health alerts across the portfolio. P0 = urgent (broken/blocked). P1 = attention (overspend, stopped spending).</p>
+</div>
+
+<div class="wrap">
+  <div class="cards" id="cards"></div>
+
+  <div class="filters">
+    <div class="fg"><span>Severity</span>
+      <select id="f-sev"><option value="all">All</option><option value="P0">P0 only</option><option value="P1">P1 only</option></select>
+    </div>
+    <div class="fg"><span>Type</span><select id="f-type"><option value="all">All types</option></select></div>
+    <div class="fg"><span>Account Manager</span><select id="f-am"><option value="all">All AMs</option></select></div>
+    <div class="fg"><span>Search</span><input id="f-q" type="text" placeholder="client or campaign…"></div>
+  </div>
+
+  <div id="view"></div>
+  <div class="refreshed" id="refreshed"></div>
+</div>
+
+<script>
+/* =====================================================================
+   DATA WIRING
+   DATA_URL : GET /api/alerts -> Cloudflare Pages Function (functions/api/alerts.js)
+   which queries BigQuery transformed.alerts_active and returns { rows, as_of }.
+   No n8n dependency — self-contained in the Cortex deploy.
+   Each row: alert_type, severity, source, customer_id, client_name,
+     account_manager, tier, sub_mcc, av_status, entity_id, entity_name,
+     detail, detected_at
+   ===================================================================== */
+const DATA_URL = "/api/alerts";   // Cloudflare Pages Function -> BigQuery alerts_active
+
+const TYPE_LABEL = {
+  campaign_suspended: "Campaign suspended",
+  ads_disapproved:    "Ads disapproved",
+  overspend:          "Overspend",
+  no_spend:           "Stopped spending"
+};
+const SEV_ORDER = { P0:0, P1:1, P2:2 };
+
+let ROWS = [];
+let FILTERS = { sev:"all", type:"all", am:"all", q:"" };
+
+const view = document.getElementById('view');
+
+function avPill(s){
+  if(!s) return '<span class="av av-na">no AV data</span>';
+  const k = s.toLowerCase();
+  if(k==='av approved') return '<span class="av av-ok">AV Approved</span>';
+  if(k==='no')          return '<span class="av av-no">No AV</span>';
+  if(k==='in progress') return '<span class="av av-prog">AV In Progress</span>';
+  if(k==='stuck')       return '<span class="av av-stuck">AV Stuck</span>';
+  return '<span class="av av-na">'+s+'</span>';
+}
+function sevPill(s){ return '<span class="pill p-'+(s||'').toLowerCase()+'">'+(s||'?')+'</span>'; }
+
+function showState(html){ view.innerHTML='<div class="state">'+html+'</div>'; }
+
+async function loadData(){
+  showState('<div class="spinner"></div>Loading alerts&hellip;');
+  try{
+    const res = await fetch(DATA_URL, {method:'GET'});
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const data = await res.json();
+    const rows = Array.isArray(data) ? data : (data.rows || data.data || []);
+    ROWS = (rows||[]).map(r=>({
+      alert_type: String(r.alert_type||''),
+      severity: String(r.severity||''),
+      source: String(r.source||''),
+      customer_id: r.customer_id!=null?String(r.customer_id):'',
+      client_name: r.client_name?String(r.client_name):null,
+      account_manager: r.account_manager?String(r.account_manager):'(Unassigned)',
+      tier: r.tier?String(r.tier):null,
+      sub_mcc: r.sub_mcc?String(r.sub_mcc):null,
+      av_status: r.av_status?String(r.av_status):null,
+      entity_id: r.entity_id!=null?String(r.entity_id):'',
+      entity_name: r.entity_name?String(r.entity_name):null,
+      detail: r.detail?String(r.detail):'',
+      detected_at: r.detected_at?String(r.detected_at):null
+    }));
+    buildFilters();
+    render();
+    const stamp = ROWS.length && ROWS[0].detected_at ? new Date(ROWS[0].detected_at).toLocaleString() : new Date().toLocaleString();
+    document.getElementById('refreshed').textContent = 'Data as of '+stamp;
+  }catch(err){
+    showState('<div class="big">Could not load alerts</div>'+err.message+
+      '<br><button class="retry" onclick="loadData()">Retry</button>');
+  }
+}
+
+function buildFilters(){
+  const types = [...new Set(ROWS.map(r=>r.alert_type))].sort();
+  const ams   = [...new Set(ROWS.map(r=>r.account_manager))].sort();
+  const tSel = document.getElementById('f-type');
+  const aSel = document.getElementById('f-am');
+  tSel.innerHTML = '<option value="all">All types</option>' +
+    types.map(t=>'<option value="'+t+'">'+(TYPE_LABEL[t]||t)+'</option>').join('');
+  aSel.innerHTML = '<option value="all">All AMs</option>' +
+    ams.map(a=>'<option value="'+a+'">'+a+'</option>').join('');
+  document.getElementById('f-sev').onchange  = e=>{ FILTERS.sev=e.target.value; render(); };
+  tSel.onchange = e=>{ FILTERS.type=e.target.value; render(); };
+  aSel.onchange = e=>{ FILTERS.am=e.target.value; render(); };
+  document.getElementById('f-q').oninput = e=>{ FILTERS.q=e.target.value.toLowerCase(); render(); };
+}
+
+function applyFilters(rows){
+  return rows.filter(r=>{
+    if(FILTERS.sev!=='all' && r.severity!==FILTERS.sev) return false;
+    if(FILTERS.type!=='all' && r.alert_type!==FILTERS.type) return false;
+    if(FILTERS.am!=='all' && r.account_manager!==FILTERS.am) return false;
+    if(FILTERS.q){
+      const hay = (r.client_name||'')+' '+(r.entity_name||'')+' '+r.customer_id;
+      if(hay.toLowerCase().indexOf(FILTERS.q)<0) return false;
+    }
+    return true;
+  });
+}
+
+function render(){
+  const rows = applyFilters(ROWS);
+  renderCards(ROWS);   /* cards always show full totals, not filtered */
+  if(rows.length===0){ view.innerHTML='<div class="panel"><div class="empty">No alerts match the current filters. 🎉</div></div>'; return; }
+
+  /* group by severity, P0 first */
+  const groups = {};
+  rows.forEach(r=>{ (groups[r.severity]=groups[r.severity]||[]).push(r); });
+  const sevKeys = Object.keys(groups).sort((a,b)=>(SEV_ORDER[a]??9)-(SEV_ORDER[b]??9));
+
+  view.innerHTML = sevKeys.map(sev=>{
+    const g = groups[sev].sort((a,b)=> (a.alert_type+ (a.client_name||'')).localeCompare(b.alert_type+(b.client_name||'')) );
+    const body = g.map(r=>`
+      <tr>
+        <td>${sevPill(r.severity)}</td>
+        <td><span class="tc">${TYPE_LABEL[r.alert_type]||r.alert_type}</span></td>
+        <td>
+          <div class="cn">${r.client_name || '('+r.customer_id+')'}</div>
+          <div class="sub">${r.account_manager}${r.tier?' · '+r.tier:''}${r.sub_mcc?' · '+r.sub_mcc:''}</div>
+        </td>
+        <td>${avPill(r.av_status)}</td>
+        <td class="detail">${r.detail}</td>
+      </tr>`).join('');
+    return `<div class="panel">
+      <div class="panel-h">${sev==='P0'?'P0 · Urgent':(sev==='P1'?'P1 · Attention':sev)}<span class="cnt">${g.length}</span></div>
+      <table>
+        <thead><tr><th>Sev</th><th>Type</th><th>Client</th><th>AV</th><th>Detail</th></tr></thead>
+        <tbody>${body}</tbody>
+      </table>
+    </div>`;
+  }).join('');
+}
+
+function renderCards(all){
+  const total = all.length;
+  const p0 = all.filter(r=>r.severity==='P0').length;
+  const p1 = all.filter(r=>r.severity==='P1').length;
+  const byType = {};
+  all.forEach(r=>{ byType[r.alert_type]=(byType[r.alert_type]||0)+1; });
+  const topType = Object.entries(byType).sort((a,b)=>b[1]-a[1])[0];
+  document.getElementById('cards').innerHTML = `
+    <div class="card"><div class="lbl">Total alerts</div><div class="val">${total}</div></div>
+    <div class="card p0"><div class="lbl">P0 · Urgent</div><div class="val">${p0}</div><div class="csub">broken / blocked</div></div>
+    <div class="card p1"><div class="lbl">P1 · Attention</div><div class="val">${p1}</div><div class="csub">overspend / stopped</div></div>
+    <div class="card"><div class="lbl">Most common</div><div class="val" style="font-size:16px">${topType?(TYPE_LABEL[topType[0]]||topType[0]):'—'}</div><div class="csub">${topType?topType[1]+' alerts':''}</div></div>`;
+}
+
+loadData();
+</script>
+
+<script src="/cortex-shell.js" defer></script>
+</body>
+</html>
