@@ -97,6 +97,14 @@ td.detail { color:#3c4043; max-width:460px; }
     </div>
     <div class="fg"><span>Type</span><select id="f-type"><option value="all">All types</option></select></div>
     <div class="fg"><span>Account Manager</span><select id="f-am"><option value="all">All AMs</option></select></div>
+    <div class="fg"><span>AV Status</span>
+      <select id="f-av">
+        <option value="all">All</option>
+        <option value="has">Has AV (Approved)</option>
+        <option value="no">No AV</option>
+        <option value="other">In Progress / Stuck</option>
+      </select>
+    </div>
     <div class="fg"><span>Search</span><input id="f-q" type="text" placeholder="client or campaign…"></div>
   </div>
 
@@ -125,7 +133,7 @@ const TYPE_LABEL = {
 const SEV_ORDER = { P0:0, P1:1, P2:2 };
 
 let ROWS = [];
-let FILTERS = { sev:"all", type:"all", am:"all", q:"" };
+let FILTERS = { sev:"all", type:"all", am:"all", av:"all", q:"" };
 
 const view = document.getElementById('view');
 
@@ -186,6 +194,7 @@ function buildFilters(){
   document.getElementById('f-sev').onchange  = e=>{ FILTERS.sev=e.target.value; render(); };
   tSel.onchange = e=>{ FILTERS.type=e.target.value; render(); };
   aSel.onchange = e=>{ FILTERS.am=e.target.value; render(); };
+  document.getElementById('f-av').onchange = e=>{ FILTERS.av=e.target.value; render(); };
   document.getElementById('f-q').oninput = e=>{ FILTERS.q=e.target.value.toLowerCase(); render(); };
 }
 
@@ -194,6 +203,13 @@ function applyFilters(rows){
     if(FILTERS.sev!=='all' && r.severity!==FILTERS.sev) return false;
     if(FILTERS.type!=='all' && r.alert_type!==FILTERS.type) return false;
     if(FILTERS.am!=='all' && r.account_manager!==FILTERS.am) return false;
+    if(FILTERS.av!=='all'){
+      const isApproved = (r.av_status||'').toLowerCase()==='av approved';
+      const isNo = (r.av_status||'').toLowerCase()==='no';
+      if(FILTERS.av==='has'   && !isApproved) return false;
+      if(FILTERS.av==='no'    && !isNo)       return false;
+      if(FILTERS.av==='other' && (isApproved||isNo)) return false;  // deja In Progress/Stuck/otros
+    }
     if(FILTERS.q){
       const hay = (r.client_name||'')+' '+(r.entity_name||'')+' '+r.customer_id;
       if(hay.toLowerCase().indexOf(FILTERS.q)<0) return false;
@@ -239,14 +255,12 @@ function renderCards(all){
   const total = all.length;
   const p0 = all.filter(r=>r.severity==='P0').length;
   const p1 = all.filter(r=>r.severity==='P1').length;
-  const byType = {};
-  all.forEach(r=>{ byType[r.alert_type]=(byType[r.alert_type]||0)+1; });
-  const topType = Object.entries(byType).sort((a,b)=>b[1]-a[1])[0];
+  const hasAv = all.filter(r=>(r.av_status||'').toLowerCase()==='av approved').length;
   document.getElementById('cards').innerHTML = `
     <div class="card"><div class="lbl">Total alerts</div><div class="val">${total}</div></div>
     <div class="card p0"><div class="lbl">P0 · Urgent</div><div class="val">${p0}</div><div class="csub">broken / blocked</div></div>
     <div class="card p1"><div class="lbl">P1 · Attention</div><div class="val">${p1}</div><div class="csub">overspend / stopped</div></div>
-    <div class="card"><div class="lbl">Most common</div><div class="val" style="font-size:16px">${topType?(TYPE_LABEL[topType[0]]||topType[0]):'—'}</div><div class="csub">${topType?topType[1]+' alerts':''}</div></div>`;
+    <div class="card"><div class="lbl">On AV accounts</div><div class="val" style="color:#137333">${hasAv}</div><div class="csub">verified — priority</div></div>`;
 }
 
 loadData();
