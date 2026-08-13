@@ -27,49 +27,83 @@ select, input {
 }
 select:focus, input:focus { outline:none; border-color:#4285F4; }
 
+/* Cards */
+.cards { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin: 0 0 22px; }
+@media(max-width:900px){ .cards { grid-template-columns:repeat(2,1fr); } }
+@media(max-width:480px){ .cards { grid-template-columns:1fr; } }
+
+.card { background:#fff; border:1px solid #e8eaed; border-radius:12px; padding:16px 18px; box-shadow:0 1px 4px rgba(0,0,0,.05); }
+.card .lbl { font-size:12px; color:#9e9e9e; font-weight:600; text-transform:uppercase; letter-spacing:.4px; margin-bottom:6px; }
+.card .val { font-size:28px; font-weight:800; color:#0d1b2a; letter-spacing:-.5px; }
+.card .csub { font-size:12px; color:#9e9e9e; margin-top:2px; }
+.card.p0 .val { color:#ea4335; }
+.card.p1 .val { color:#f6b26b; }
+.card.ok .val { color:#137333; }
+
 /* Filters */
-.filters { display:flex; gap:16px; flex-wrap:wrap; align-items:flex-end; margin: 0 0 20px; }
+.filters { display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; margin: 0 0 16px; }
 .filters .fg { display:flex; flex-direction:column; gap:5px; }
 .filters .fg span { font-size:11px; font-weight:700; color:#9e9e9e; text-transform:uppercase; letter-spacing:.5px; }
 .filters .fg select, .filters .fg input { height:38px; padding:0 12px; font-size:13px; color:#0d1b2a;
   background:#fff; border:1px solid #d4d7dc; border-radius:8px; min-width:150px; box-shadow:0 1px 2px rgba(0,0,0,.04);
   appearance:auto; outline:none; }
+.filters .fg input { min-width:180px; }
 
-/* Cards (counts) */
-.cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:14px; margin: 0 0 22px; }
-.card { background:#fff; border:1px solid #e8eaed; border-radius:12px; padding:16px 18px; box-shadow:0 1px 4px rgba(0,0,0,.05); }
-.card .lbl { font-size:12px; color:#9e9e9e; font-weight:600; text-transform:uppercase; letter-spacing:.4px; margin-bottom:6px; }
-.card .val { font-size:24px; font-weight:800; color:#0d1b2a; letter-spacing:-.5px; }
-.card .csub { font-size:12px; color:#9e9e9e; margin-top:2px; }
-.card.p0 .val { color:#ea4335; }
-.card.p1 .val { color:#f6b26b; }
+.clear-btn { font-size:13px; padding:8px 14px; border:1px solid #d4d7dc; border-radius:8px; background:#fff;
+  color:#5f6368; cursor:pointer; font:inherit; transition:all .15s ease; }
+.clear-btn:hover { color:#0d1b2a; border-color:#0d1b2a; }
+
+/* Toggle group */
+.toggle-row { display:flex; gap:8px; margin-bottom:18px; flex-wrap:wrap; }
+.toggle-btn { font-size:13px; padding:6px 14px; border:1px solid #d4d7dc; border-radius:8px; background:#fff;
+  color:#5f6368; cursor:pointer; font:inherit; transition:all .15s ease; }
+.toggle-btn:hover { border-color:#0d1b2a; color:#0d1b2a; }
+.toggle-btn.active { background:#0d1b2a; color:#fff; border-color:#0d1b2a; }
 
 /* Panels / tables */
 .panel { background:#fff; border:1px solid #e8eaed; border-radius:12px; box-shadow:0 1px 4px rgba(0,0,0,.05); overflow:hidden; margin-bottom:18px; }
-.panel-h { font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:#9e9e9e; padding:14px 18px; display:flex; align-items:center; gap:8px; }
-.panel-h .cnt { background:#eef0f2; color:#5f6368; border-radius:20px; padding:1px 9px; font-size:11px; }
+.panel.p0 { border-left:4px solid #ea4335; }
+.panel.p1 { border-left:4px solid #f6b26b; }
+.panel-h { font-size:14px; font-weight:700; padding:14px 18px; display:flex; align-items:center; gap:8px;
+  border-bottom:1px solid #eef0f2; }
+.panel-h .cnt { background:#eef0f2; color:#5f6368; border-radius:20px; padding:2px 10px; font-size:12px; font-weight:700; }
+
 table { width:100%; border-collapse:collapse; font-size:13px; }
-th,td { text-align:left; padding:11px 14px; border-bottom:1px solid #eef0f2; vertical-align:top; }
+th,td { text-align:left; padding:12px 16px; border-bottom:1px solid #eef0f2; vertical-align:top; }
 th { color:#9e9e9e; font-weight:700; font-size:11px; text-transform:uppercase; letter-spacing:.4px; }
 tbody tr:last-child td { border-bottom:none; }
 tr:hover { background:#f7f9fc; }
 td .cn { font-weight:700; color:#0d1b2a; }
 td .sub { font-size:11px; color:#9e9e9e; margin-top:2px; }
-td.detail { color:#3c4043; max-width:460px; }
+td .entity { font-size:11px; color:#5f6368; margin-top:2px; }
+td .detail-text { color:#3c4043; max-width:380px; line-height:1.45; }
+td .meta { font-size:11px; color:#b0b3b8; margin-top:4px; }
 
 /* Severity pills */
 .pill { font-size:11px; padding:3px 10px; border-radius:20px; font-weight:700; display:inline-block; white-space:nowrap; }
 .p-p0   { background:#ea4335; color:#fff; }
 .p-p1   { background:#f6b26b; color:#783f04; }
+
 /* AV pills */
-.av { font-size:10px; padding:2px 8px; border-radius:20px; font-weight:700; display:inline-block; white-space:nowrap; }
+.av { font-size:11px; padding:3px 10px; border-radius:20px; font-weight:700; display:inline-block; white-space:nowrap; }
 .av-ok    { background:#d9ead3; color:#274e13; }
 .av-no    { background:#f4cccc; color:#990000; }
 .av-prog  { background:#ffe599; color:#7f6000; }
 .av-stuck { background:#fce5cd; color:#b45309; }
 .av-na    { background:#eef0f2; color:#9e9e9e; }
+
 /* Type chips */
 .tc { font-size:10px; padding:2px 8px; border-radius:6px; font-weight:700; display:inline-block; background:#e8eaed; color:#5f6368; white-space:nowrap; }
+
+/* New badge */
+.badge-new { font-size:10px; padding:2px 6px; border-radius:4px; font-weight:700; background:#fce8e6; color:#c5221f; margin-left:6px; vertical-align:middle; }
+
+/* Actions */
+.actions { display:flex; gap:6px; opacity:0; transition:opacity .15s ease; }
+tr:hover .actions, tr:focus-within .actions { opacity:1; }
+.action-btn { font-size:12px; padding:5px 10px; border:1px solid #d4d7dc; border-radius:6px; background:#fff;
+  color:#5f6368; cursor:pointer; font:inherit; text-decoration:none; display:inline-block; transition:all .15s ease; }
+.action-btn:hover { color:#0d1b2a; border-color:#0d1b2a; }
 
 /* States */
 .state { text-align:center; padding:70px 20px; color:#9e9e9e; }
@@ -105,7 +139,14 @@ td.detail { color:#3c4043; max-width:460px; }
         <option value="other">In Progress / Stuck</option>
       </select>
     </div>
-    <div class="fg"><span>Search</span><input id="f-q" type="text" placeholder="client or campaign…"></div>
+    <div class="fg"><span>Search</span><input id="f-q" type="text" placeholder="client, campaign, or detail…"></div>
+    <button class="clear-btn" id="clear-btn" style="display:none;">Clear all</button>
+  </div>
+
+  <div class="toggle-row">
+    <button class="toggle-btn active" id="grp-sev" onclick="setGroup('severity')">Group by severity</button>
+    <button class="toggle-btn" id="grp-am" onclick="setGroup('am')">Group by AM</button>
+    <button class="toggle-btn" id="grp-type" onclick="setGroup('type')">Group by type</button>
   </div>
 
   <div id="view"></div>
@@ -117,12 +158,8 @@ td.detail { color:#3c4043; max-width:460px; }
    DATA WIRING
    DATA_URL : GET /api/alerts -> Cloudflare Pages Function (functions/api/alerts.js)
    which queries BigQuery transformed.alerts_active and returns { rows, as_of }.
-   No n8n dependency — self-contained in the Cortex deploy.
-   Each row: alert_type, severity, source, customer_id, client_name,
-     account_manager, tier, sub_mcc, av_status, entity_id, entity_name,
-     detail, detected_at
    ===================================================================== */
-const DATA_URL = "/api/alerts";   // Cloudflare Pages Function -> BigQuery alerts_active
+const DATA_URL = "/api/alerts";
 
 const TYPE_LABEL = {
   campaign_suspended: "Campaign suspended",
@@ -134,6 +171,7 @@ const SEV_ORDER = { P0:0, P1:1, P2:2 };
 
 let ROWS = [];
 let FILTERS = { sev:"all", type:"all", am:"all", av:"all", q:"" };
+let GROUP_BY = "severity";
 
 const view = document.getElementById('view');
 
@@ -141,12 +179,16 @@ function avPill(s){
   if(!s) return '<span class="av av-na">no AV data</span>';
   const k = s.toLowerCase();
   if(k==='av approved') return '<span class="av av-ok">AV Approved</span>';
-  if(k==='no')          return '<span class="av av-no">No AV</span>';
-  if(k==='in progress') return '<span class="av av-prog">AV In Progress</span>';
-  if(k==='stuck')       return '<span class="av av-stuck">AV Stuck</span>';
+  if(k==='no' || k==='no av') return '<span class="av av-no">No AV</span>';
+  if(k==='in progress') return '<span class="av av-prog">In Progress</span>';
+  if(k==='stuck')       return '<span class="av av-stuck">Stuck</span>';
   return '<span class="av av-na">'+s+'</span>';
 }
 function sevPill(s){ return '<span class="pill p-'+(s||'').toLowerCase()+'">'+(s||'?')+'</span>'; }
+function sourceLabel(s){ return s==='google_ads'?'Google Ads':(s==='meta'?'Meta':(s||'Other')); }
+function isNew(dt){ return dt ? ((new Date()-new Date(dt))/(1000*60*60))<24 : false; }
+function fmtDate(dt){ return dt ? new Date(dt).toLocaleDateString('en-US',{month:'short',day:'numeric'}) : '-'; }
+function fmtTime(dt){ return dt ? new Date(dt).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}) : ''; }
 
 function showState(html){ view.innerHTML='<div class="state">'+html+'</div>'; }
 
@@ -196,6 +238,15 @@ function buildFilters(){
   aSel.onchange = e=>{ FILTERS.am=e.target.value; render(); };
   document.getElementById('f-av').onchange = e=>{ FILTERS.av=e.target.value; render(); };
   document.getElementById('f-q').oninput = e=>{ FILTERS.q=e.target.value.toLowerCase(); render(); };
+  document.getElementById('clear-btn').onclick = ()=>{
+    FILTERS={sev:"all",type:"all",am:"all",av:"all",q:""};
+    document.getElementById('f-sev').value="all";
+    document.getElementById('f-type').value="all";
+    document.getElementById('f-am').value="all";
+    document.getElementById('f-av').value="all";
+    document.getElementById('f-q').value="";
+    render();
+  };
 }
 
 function applyFilters(rows){
@@ -205,62 +256,99 @@ function applyFilters(rows){
     if(FILTERS.am!=='all' && r.account_manager!==FILTERS.am) return false;
     if(FILTERS.av!=='all'){
       const isApproved = (r.av_status||'').toLowerCase()==='av approved';
-      const isNo = (r.av_status||'').toLowerCase()==='no';
+      const isNo = (r.av_status||'').toLowerCase()==='no' || (r.av_status||'').toLowerCase()==='no av';
       if(FILTERS.av==='has'   && !isApproved) return false;
       if(FILTERS.av==='no'    && !isNo)       return false;
-      if(FILTERS.av==='other' && (isApproved||isNo)) return false;  // deja In Progress/Stuck/otros
+      if(FILTERS.av==='other' && (isApproved||isNo)) return false;
     }
     if(FILTERS.q){
-      const hay = (r.client_name||'')+' '+(r.entity_name||'')+' '+r.customer_id;
+      const hay = (r.client_name||'')+' '+(r.entity_name||'')+' '+(r.detail||'')+' '+r.customer_id;
       if(hay.toLowerCase().indexOf(FILTERS.q)<0) return false;
     }
     return true;
   });
 }
 
-function render(){
-  const rows = applyFilters(ROWS);
-  renderCards(ROWS);   /* cards always show full totals, not filtered */
-  if(rows.length===0){ view.innerHTML='<div class="panel"><div class="empty">No alerts match the current filters. 🎉</div></div>'; return; }
-
-  /* group by severity, P0 first */
-  const groups = {};
-  rows.forEach(r=>{ (groups[r.severity]=groups[r.severity]||[]).push(r); });
-  const sevKeys = Object.keys(groups).sort((a,b)=>(SEV_ORDER[a]??9)-(SEV_ORDER[b]??9));
-
-  view.innerHTML = sevKeys.map(sev=>{
-    const g = groups[sev].sort((a,b)=> (a.alert_type+ (a.client_name||'')).localeCompare(b.alert_type+(b.client_name||'')) );
-    const body = g.map(r=>`
-      <tr>
-        <td>${sevPill(r.severity)}</td>
-        <td><span class="tc">${TYPE_LABEL[r.alert_type]||r.alert_type}</span></td>
-        <td>
-          <div class="cn">${r.client_name || '('+r.customer_id+')'}</div>
-          <div class="sub">${r.account_manager}${r.tier?' · '+r.tier:''}${r.sub_mcc?' · '+r.sub_mcc:''}</div>
-        </td>
-        <td>${avPill(r.av_status)}</td>
-        <td class="detail">${r.detail}</td>
-      </tr>`).join('');
-    return `<div class="panel">
-      <div class="panel-h">${sev==='P0'?'P0 · Urgent':(sev==='P1'?'P1 · Attention':sev)}<span class="cnt">${g.length}</span></div>
-      <table>
-        <thead><tr><th>Sev</th><th>Type</th><th>Client</th><th>AV</th><th>Detail</th></tr></thead>
-        <tbody>${body}</tbody>
-      </table>
-    </div>`;
-  }).join('');
+function setGroup(mode){
+  GROUP_BY = mode;
+  document.querySelectorAll('.toggle-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('grp-'+mode).classList.add('active');
+  render();
 }
 
-function renderCards(all){
-  const total = all.length;
-  const p0 = all.filter(r=>r.severity==='P0').length;
-  const p1 = all.filter(r=>r.severity==='P1').length;
-  const hasAv = all.filter(r=>(r.av_status||'').toLowerCase()==='av approved').length;
+function render(){
+  const rows = applyFilters(ROWS);
+  const isFiltered = FILTERS.sev!=='all'||FILTERS.type!=='all'||FILTERS.am!=='all'||FILTERS.av!=='all'||FILTERS.q!=='';
+  document.getElementById('clear-btn').style.display = isFiltered ? 'inline-block' : 'none';
+
+  // Cards: filtered totals when filtered, else global
+  const base = isFiltered ? rows : ROWS;
+  const total = base.length;
+  const p0 = base.filter(r=>r.severity==='P0').length;
+  const p1 = base.filter(r=>r.severity==='P1').length;
+  const hasAv = base.filter(r=>(r.av_status||'').toLowerCase()==='av approved').length;
   document.getElementById('cards').innerHTML = `
     <div class="card"><div class="lbl">Total alerts</div><div class="val">${total}</div></div>
     <div class="card p0"><div class="lbl">P0 · Urgent</div><div class="val">${p0}</div><div class="csub">broken / blocked</div></div>
     <div class="card p1"><div class="lbl">P1 · Attention</div><div class="val">${p1}</div><div class="csub">overspend / stopped</div></div>
-    <div class="card"><div class="lbl">On AV accounts</div><div class="val" style="color:#137333">${hasAv}</div><div class="csub">verified — priority</div></div>`;
+    <div class="card ok"><div class="lbl">On AV accounts</div><div class="val">${hasAv}</div><div class="csub">verified — priority</div></div>`;
+
+  if(rows.length===0){
+    view.innerHTML='<div class="panel"><div class="empty"><div class="big">No alerts match</div>Try adjusting filters or search.</div></div>';
+    return;
+  }
+
+  // Group
+  const groups = {};
+  rows.forEach(r=>{
+    let key;
+    if(GROUP_BY==='severity') key = r.severity;
+    else if(GROUP_BY==='am') key = r.account_manager;
+    else key = r.alert_type;
+    (groups[key]=groups[key]||[]).push(r);
+  });
+
+  let keys;
+  if(GROUP_BY==='severity') keys = Object.keys(groups).sort((a,b)=>(SEV_ORDER[a]??9)-(SEV_ORDER[b]??9));
+  else if(GROUP_BY==='am') keys = Object.keys(groups).sort();
+  else keys = Object.keys(groups).sort((a,b)=> (TYPE_LABEL[a]||a).localeCompare(TYPE_LABEL[b]||b));
+
+  view.innerHTML = keys.map(key=>{
+    const g = groups[key];
+    const sev = GROUP_BY==='severity' ? key : (g[0].severity||'P1');
+    const title = GROUP_BY==='severity' ? (key==='P0'?'P0 · Urgent':(key==='P1'?'P1 · Attention':key))
+      : (GROUP_BY==='am' ? key : (TYPE_LABEL[key]||key));
+    const body = g.map(r=>{
+      const n = isNew(r.detected_at);
+      const gadsLink = 'https://ads.google.com/aw/overview?ocid='+encodeURIComponent(r.customer_id);
+      return `<tr>
+        <td>${sevPill(r.severity)}</td>
+        <td><span class="tc">${TYPE_LABEL[r.alert_type]||r.alert_type}</span></td>
+        <td>
+          <div class="cn">${r.client_name || '('+r.customer_id+')'}${n?'<span class="badge-new">New</span>':''}</div>
+          <div class="sub">${r.account_manager}${r.tier?' · '+r.tier:''}${r.sub_mcc?' · '+r.sub_mcc:''}</div>
+          <div class="entity">${r.entity_name||''}</div>
+        </td>
+        <td>${avPill(r.av_status)}</td>
+        <td>
+          <div class="detail-text">${r.detail}</div>
+          <div class="meta">${sourceLabel(r.source)} · ${fmtDate(r.detected_at)} ${fmtTime(r.detected_at)}</div>
+        </td>
+        <td style="width:1px;white-space:nowrap;">
+          <div class="actions">
+            <a class="action-btn" href="${gadsLink}" target="_blank" rel="noopener">Open in Ads</a>
+          </div>
+        </td>
+      </tr>`;
+    }).join('');
+    return `<div class="panel ${sev.toLowerCase()}">
+      <div class="panel-h">${title}<span class="cnt">${g.length}</span></div>
+      <table>
+        <thead><tr><th>Sev</th><th>Type</th><th>Client</th><th>AV</th><th>Detail</th><th style="width:1px;">Actions</th></tr></thead>
+        <tbody>${body}</tbody>
+      </table>
+    </div>`;
+  }).join('');
 }
 
 loadData();
