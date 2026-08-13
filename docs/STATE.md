@@ -1,5 +1,73 @@
 # Cortex OS — Current State
 
+## Update (2026-08-13) — Campaign-health alert system COMPLETE and live (Phase 1 + Phase 2)
+
+**The full alert system is built, deployed, and autonomous.** Both phases of P-ALERT-01
+shipped in one extended session. Panel live at `cortex-cmv.pages.dev/alerts.html` (nav:
+Performance → Alerts). 7 of Juanes's 8 triggers are live; the 8th (advertiser verification)
+is not exposed by the Google Ads API and cannot be built. Today's live counts: ~96 alerts
+(ads_disapproved 44, phone_disapproved 31, overspend 13, url_disapproved 7, no_spend 1,
+campaign_suspended 0, billing_problem 0).
+
+**Google Ads API — CONNECTED (corrects the "in flight" status below).** The Basic Access
+application (`3-4822000041135`) was **rejected** — but that was good news: Google's reason was
+that the corporate entity *already* has an approved token, on MCC `746-209-1029` (RIMC Manager
+- ODC), at Basic Access level. No new token was needed. Auth is from the **Master MCC 611**
+(`login_customer_id=6118198619`) because `digital@` has direct access to 611 (the parent),
+which reaches all 91 child accounts by inheritance — `digital@` does NOT have direct access to
+746. API contact email on MCC 746 was changed from `nate.rutledge@` to `digital@` (Nate
+informed; the token was unused, no breakage). `test_connection.py` confirms 91 accounts
+accessible. The API is **v25** (`googleads.googleapis.com/v25`).
+
+**Credentials in Secret Manager (P-SEC-01 done right for this).** Four secrets hold the OAuth
+creds: `google-ads-developer-token`, `google-ads-client-id`, `google-ads-client-secret`,
+`google-ads-refresh-token`. The `google-ads.yaml` + `client_secret.json` files were **deleted**
+after loading — no plaintext creds on disk. All API code (test scripts + the pipeline) reads
+these secrets at runtime. Note: generating the refresh token required
+`OAUTHLIB_RELAX_TOKEN_SCOPE=1` (Google returned bigquery+adwords scopes because `digital@`
+already had BigQuery granted).
+
+**Phase 1 — five BigQuery views (Data Transfer + reference + pacing).** In dataset
+`transformed`: `alert_campaign_suspended` (ENABLED+SUSPENDED, excl LOCAL_SERVICES),
+`alert_ads_disapproved` (DISAPPROVED ads in ENABLED campaigns, grouped by campaign),
+`alert_overspend`, `alert_no_spend`. Common output schema (contract with the frontend):
+`alert_type, severity, source, customer_id, client_name, account_manager, tier, sub_mcc,
+av_status, entity_id, entity_name, detail, detected_at`. All IDs CAST to STRING so the UNION
+works. **AV logic (Nate, 2026-08-11):** AV does NOT decide *whether* to alert (spend is the
+trigger) — it decides how long a no-spend alert *persists*. Account WITH AV ('AV Approved') →
+alert persists indefinitely; WITHOUT AV → alert fades after ~3 extra days (becomes noise).
+`alert_no_spend` is **account-level** (reads `spend_combined`, which has history; the Data
+Transfer only keeps 1 day). `alert_overspend` was **rewritten** to read `budget.pacing_api`
+(native, live) instead of `transformed.pacing_calculations` (which reads a dead Google Sheet —
+see L below); overspend fires when projected end-of-month spend > committed × 1.10.
+
+**Phase 2 — Google Ads API pipeline + three views.** A **Cloud Run Job** `cortex-gads-ingest`
+(dir `google-ads-ingest/`, cloned from the `nextdoor-ingest` pattern) queries the API via GAQL
+across all accounts and writes three snapshot tables to `raw_google_ads`:
+`gads_ad_policy` (ad approval + disapproval REASON via `policy_topic_entries`),
+`gads_call_assets` (CALL asset approval), `gads_billing` (billing_setup + account_budget
+status). **Cloud Scheduler** `cortex-gads-daily` triggers it at 08:00 ET daily. The job reads
+the 4 secrets from Secret Manager via its own SA `cortex-gads-ingest@` (secretAccessor on the
+4 secrets + bigquery.dataEditor/jobUser). Three views read the latest snapshot:
+`alert_url_disapproved` (URL broken — `DESTINATION_NOT_WORKING`/`_NOT_ACCESSIBLE`, with the
+exact reason), `alert_phone_disapproved` (call assets DISAPPROVED), `alert_billing_problem`
+(billing/budget not APPROVED — closest the API gets to "card declined"). `alerts_active` now
+UNIONs all 7 views.
+
+**Frontend — `/api/alerts` Cloudflare Pages Function (no n8n).** The panel reads BigQuery
+directly via `functions/api/alerts.js`, which clones the identity.js auth pattern (JWT RS256 +
+Web Crypto, `GCP_SA_KEY` env var, SA `cortex-pages-writer`). This **deliberately cuts the n8n
+dependency** (P-CARRY-01) — n8n workflows are owned by Nate and can't be saved by others, which
+blocked duplicating the pacing webhook for alerts. The Function needed `drive.readonly` scope
+added (the overspend view chain touches Sheet-backed budget tables) and the SA needed READER on
+several datasets (`transformed`, `raw_google_ads`, `reference`, `raw_budget`, `budget`,
+`meta_ads_raw`, `ctm_data`) — granted via dataset ACL edit (`bq update --source`), since
+`bq add-iam-policy-binding` requires allowlisting. `alerts.html` has filters for
+severity/type/AM/**AV status** and a "On AV accounts" priority card.
+
+
+---
+
 ## Update (2026-08-05) — primary workstation migrated to MacBook Pro; Google Ads API access in flight
 
 **Workstation migration.** The primary dev machine is now a **MacBook Pro** (Apple Silicon).

@@ -75,8 +75,8 @@ shared patterns. Own session/coordination when picked up.
 breaks. Seven triggers + Sebas's two priorities. **Data audit COMPLETE (2026-08-03).**
 Every trigger mapped against the Google Ads Data Transfer (`raw_google_ads`, MCC
 `6118198619`). Two clean phases: Phase 1 = viable now via Data Transfer; Phase 2 = requires
-the Google Ads API directly, one integration unblocks all four. **Phase-2 access application
-is in flight as of 2026-08-05 — see status at the bottom.**
+the Google Ads API directly, one integration unblocks all four. **STATUS 2026-08-13: BUILT
+AND DEPLOYED — both phases live. See the resolved status block below and STATE.md 2026-08-13.**
 
 **Requested triggers:** (1) no spend 3 days, (2) overspend +10% weekly vs actual budget,
 (3) campaign "Not eligible" / ads disapproved, (4) advertiser verification pending/failed,
@@ -141,7 +141,29 @@ same infrastructure as the Bing/Microsoft Ads pipeline. Build once, reuse. (Para
 
 ---
 
-#### PHASE 2 — CURRENT STATUS (2026-08-05)
+#### PHASE 2 — RESOLVED (2026-08-13): BUILT AND DEPLOYED
+
+**The Basic Access application was REJECTED — and that was good news.** Google's reason: the
+corporate entity already holds an approved token, on MCC `746-209-1029` (RIMC Manager - ODC),
+at Basic Access level. No new token was needed. Auth is from **Master MCC 611**
+(`login_customer_id=6118198619`), which reaches all 91 child accounts by inheritance
+(`digital@` has direct access to 611, not to 746). API contact on MCC 746 moved to `digital@`.
+The API is **v25**. Creds in Secret Manager (4 secrets `google-ads-*`), yaml/json deleted.
+
+**Phase 2 shipped:** a Cloud Run Job `cortex-gads-ingest` (repo `google-ads-ingest/`, cloned
+from `nextdoor-ingest`) queries the API via GAQL daily (Scheduler `cortex-gads-daily`, 08:00
+ET) and writes 3 snapshot tables to `raw_google_ads`: `gads_ad_policy` (approval + REASON via
+policy_topic_entries), `gads_call_assets` (phone approval), `gads_billing` (billing/budget
+status). Three views read them: `alert_url_disapproved` (URL broken, with exact reason),
+`alert_phone_disapproved`, `alert_billing_problem`. All folded into `transformed.alerts_active`.
+
+**Trigger #4 (advertiser verification) is NOT built — cannot be.** `identity_verification` is
+not a queryable resource in Google Ads API v25 (GoogleAdsFieldService returns zero selectable
+fields). Verification shows in the UI but Google does not expose it in GAQL. AV status for
+alerts comes only from Monday's `client_mapping.av_status`. So the system covers **7 of 8
+triggers**. See LEARNINGS L-029.
+
+<details><summary>Historical: the pre-resolution "in flight" status (2026-08-05), kept for record</summary>
 
 **Blocked on Google's Basic Access approval. Nothing further to build until it lands.**
 
@@ -198,6 +220,8 @@ queries above, sink to BQ, wire into the alert system. Until then, Phase 2 canno
 - Do NOT promise Juanes all 8 up front — deliver Phase 1, set Phase 2 as "needs Google Ads
   API integration, application in review."
 
+</details>
+
 ### P-AGENT-01 — Cortex knowledge agent (Sebas's idea, separate from alerts)
 
 **What it is:** an agent that answers pointed questions about how Cortex works — e.g. "how
@@ -224,6 +248,22 @@ prerequisite that makes it feasible — the agent reads `/docs`, so doc quality 
 
 - **P-TECH-19 — Complete the Sheet→Editor committed-budget migration.** `budget_base_current` = `COALESCE(latest_events, committed_budget_live)`. Only ~23% migrated: 20 clients on the editor, **67 still on the Google Sheet** (`committed_budget_live`, refreshed daily 05:00 from `raw_budget.committed_budget_long`). The Sheet is the live fallback for 77% of clients — do NOT remove it from the COALESCE until migration is done. Plan: migrate remaining clients into `budget_events`, then retire the Sheet leg. (See L-027.)
 - **P-TECH-20 — Unify client identity: resolve committed by `customer_id`, not name.** Actual joins by `customer_id` → crosswalk (robust); committed matches on client *name* as free text (fragile) — root cause of Norfolk desync (L-025) and will recur with any name-sharing client. Fix: join committed to the crosswalk by `customer_id` too, single identity source. Related to P-CARRY-04 (extend crosswalk with non-Google IDs natively). Do P-CARRY-04 as part of this.
+
+- **P-TECH-21 — Campaign-level spend history (accumulate Data Transfer snapshots).**
+  `alert_no_spend` is account-level only: `ads_CampaignBasicStats` keeps 1 day and
+  `spend_combined` is account+platform grain. Juanes wants campaign granularity ("which
+  campaigns to optimize / which are broken"). Build `campaign_spend_history`: append the daily
+  Data Transfer snapshot (otherwise overwritten) into a growing table, enabling campaign-level
+  no-spend + trend alerts. History builds forward, not retroactive. Same pattern as the gads_*
+  snapshot tables.
+- **P-TECH-22 — Migrate overspend/pacing off the dead Google Sheet.**
+  `transformed.pacing_calculations` reads `raw_budget.budgets_normalized` (Sheet-backed, the
+  OLD planner, migrated to budget_events). That broke the Cloudflare Function (Drive creds
+  error) and may mean the pacing dashboard shows stale budget. `alert_overspend` was already
+  rewritten to `budget.pacing_api` (native, live). Broader fix: confirm the pacing dashboard
+  isn't still reading the dead Sheet via pacing_calculations, migrate it to pacing_api. Three
+  Sheet-backed tables remain in raw_budget: `committed_budget_long`, `other_channels_sheet`,
+  `planner_sheet` — all shared with `cortex-pages-writer@` as a stopgap. (See L-031.)
 
 ### Design decision (needs Nate + analysts)
 

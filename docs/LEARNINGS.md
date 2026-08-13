@@ -1,5 +1,47 @@
 # Cortex OS — Learnings
 
+LEARNINGS.md — new entries to append
+=====================================================================
+
+**L-029 — Advertiser verification is not in the Google Ads API (v25).** The `identity_verification`
+resource has zero selectable fields via GoogleAdsFieldService, and every field name tried was
+"Unrecognized". Verification status shows in the Ads UI but Google does not expose it in GAQL.
+The closest signals are `customer.status = SUSPENDED` (account blocked) and
+`billing_setup.status`. This kills Juanes's trigger #4 as originally specced. AV status for
+alerts comes only from the Monday-sourced `client_mapping.av_status`, not from the API.
+
+**L-030 — The Basic Access application was unnecessary; the token already existed.** Applying
+for a new API token was the wrong move — Google rejects duplicate applications because one
+corporate entity gets one token (here, on MCC 746). Lesson: before applying for API access,
+check whether a Manager account in the hierarchy already holds a productive token. Also: auth
+from the account you have DIRECT access to (Master 611), not the one that merely holds the token
+(746) — inheritance reaches the children.
+
+**L-031 — pacing_calculations reads a dead Google Sheet.** `transformed.pacing_calculations`
+depends on `raw_budget.budgets_normalized`, a Sheet-backed external table from the obsolete
+budget planner (migrated to budget_events). This surfaced only because a Cloudflare Function
+(service-account auth, no Drive scope) hit "Permission denied while getting Drive credentials"
+— a browser session masks it because the human user has Sheet access. Any BQ view feeding a
+service-account consumer must be traced to native tables; a Sheet-backed table deep in the
+dependency chain is invisible until a non-human identity queries it.
+
+**L-032 — Cloudflare Pages Function → BigQuery needs dataset-level READER, not just project
+jobUser.** `cortex-pages-writer` had project `bigquery.jobUser` (can run jobs) but querying a
+view failed with PERMISSION_DENIED until it got READER on every dataset in the view's dependency
+chain (transformed → raw_google_ads → reference → raw_budget → budget → ...). Errors surface one
+dataset at a time. `bq add-iam-policy-binding` is not available ("requires allowlisting"); use
+`bq show --format=prettyjson > ds.json`, append `{'role':'READER','userByEmail':...}`, `bq
+update --source ds.json`.
+
+**L-033 — Data Transfer vs API: for the shared fields, they're equivalent; the API earns its
+keep only on what the Transfer omits.** The Phase-1 alerts (suspended, disapproved, overspend,
+no-spend) came from the Data Transfer and would be identical from the API. The API was worth
+connecting only for the four fields the Transfer does NOT ship: disapproval REASON
+(policy_topic_entries) for regular ads, call-asset approval (phone), and billing status. Don't
+connect a heavy integration for data you already have — scope it to the genuinely missing
+fields.
+
+
 > **Purpose:** mistakes we already made, so no future instance burns hours making them again. Each entry should be short (1-3 sentences) plus a "what to do instead" line.
 
 > **When to add:** append to this file whenever a session ends with a "we should have known this" realization. If it's just a normal bug fix with no transferable lesson, it goes in the session log, not here.
