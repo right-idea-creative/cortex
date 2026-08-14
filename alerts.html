@@ -225,15 +225,6 @@ select:focus, input:focus { outline:none; border-color:#4285F4; }
 .cell-detail .d-text { color: #3c4043; line-height: 1.45; }
 .cell-detail .d-time { font-size: 11px; color: #b0b3b8; margin-top: 4px; }
 
-.cell-actions { white-space: nowrap; width: 1px; }
-.cell-actions a {
-  font-size: 12px; padding: 5px 10px; border-radius: 6px;
-  border: 1px solid #d4d7dc; background: #fff; color: #5f6368;
-  cursor: pointer; text-decoration: none; display: inline-block;
-  transition: all .12s ease; white-space: nowrap;
-}
-.cell-actions a:hover { color: #0d1b2a; border-color: #0d1b2a; }
-
 /* Pagination */
 .pager {
   display: flex; justify-content: space-between; align-items: center;
@@ -340,10 +331,6 @@ function fmtRelative(dt){
   if(h<24) return h+'h ago';
   const d = Math.floor(h/24);
   return d+'d ago';
-}
-function gadsUrl(cid){
-  if(cid) return 'https://ads.google.com/aw/overview?ocid='+encodeURIComponent(cid);
-  return 'https://ads.google.com';
 }
 
 async function loadData(){
@@ -532,7 +519,6 @@ function renderTable(rows){
 
   const body = pageRows.map(r=>{
     const n = isNew(r.detected_at);
-    const url = gadsUrl(r.customer_id);
     const avc = avClass(r.av_status);
     const avt = avText(r.av_status);
     return `<tr class="${r.severity.toLowerCase()}">
@@ -548,13 +534,12 @@ function renderTable(rows){
         <div class="d-text">${r.detail}</div>
         <div class="d-time">${fmtRelative(r.detected_at)} · ${fmtDate(r.detected_at)} ${fmtTime(r.detected_at)}</div>
       </td>
-      <td class="cell-actions"><a href="${url}" target="_blank" rel="noopener">Open account</a></td>
     </tr>`;
   }).join('');
 
   document.getElementById('table-view').innerHTML = `
     <table class="alert-table">
-      <thead><tr><th>Sev</th><th>Type</th><th>Client</th><th>AV</th><th>Detail</th><th>Action</th></tr></thead>
+      <thead><tr><th>Sev</th><th>Type</th><th>Client</th><th>AV</th><th>Detail</th></tr></thead>
       <tbody>${body}</tbody>
     </table>`;
 
@@ -581,7 +566,7 @@ function render(){
   document.getElementById('clear-btn').classList.toggle('show', isFiltered);
 
   renderMetrics(rows);
-  renderSidebar(ROWS); // sidebar always shows global breakdown
+  renderSidebar(ROWS);
   renderTable(rows);
 }
 
