@@ -345,8 +345,7 @@ function fmtRelative(dt){
   return d+'d ago';
 }
 
-function gadsUrl(cid, eid){
-  // Try direct campaign link if we have entity_id that looks like a campaign
+function gadsUrl(cid){
   if(cid) return 'https://ads.google.com/aw/overview?ocid='+encodeURIComponent(cid);
   return 'https://ads.google.com';
 }
@@ -476,7 +475,7 @@ function avText(s){
 
 function renderCard(r){
   const n = isNew(r.detected_at);
-  const url = gadsUrl(r.customer_id, r.entity_id);
+  const url = gadsUrl(r.customer_id);
   const avc = avClass(r.av_status);
   const avt = avText(r.av_status);
   return `<div class="alert-card ${r.severity.toLowerCase()}">
@@ -499,7 +498,6 @@ function renderCard(r){
       <div class="card-time">${fmtRelative(r.detected_at)} · ${fmtDate(r.detected_at)}</div>
       <div class="card-actions">
         <a href="${url}" target="_blank" rel="noopener">Open account</a>
-        <button class="primary" onclick="alert('Detail: '+${JSON.stringify(r.detail).replace(/"/g,\'\\\"\')})">Details</button>
       </div>
     </div>
   </div>`;
@@ -518,7 +516,6 @@ function render(){
     return;
   }
 
-  // Sort: P0 first, then by detected_at desc (newest first)
   rows.sort((a,b)=>{
     const sa = SEV_ORDER[a.severity] ?? 9;
     const sb = SEV_ORDER[b.severity] ?? 9;
@@ -526,12 +523,10 @@ function render(){
     return new Date(b.detected_at||0) - new Date(a.detected_at||0);
   });
 
-  // Pagination
   const totalPages = Math.ceil(rows.length / PER_PAGE);
   const start = (PAGE-1) * PER_PAGE;
   const pageRows = rows.slice(start, start + PER_PAGE);
 
-  // Group by severity for visual sections
   const groups = {};
   pageRows.forEach(r=>{ (groups[r.severity]=groups[r.severity]||[]).push(r); });
   const sevKeys = Object.keys(groups).sort((a,b)=>(SEV_ORDER[a]??9)-(SEV_ORDER[b]??9));
@@ -548,7 +543,6 @@ function render(){
       <div class="${containerClass}">${cards}</div>`;
   }).join('');
 
-  // Pagination controls
   const pg = document.getElementById('pagination');
   if(totalPages > 1){
     pg.style.display = 'flex';
