@@ -13,13 +13,11 @@ body {
   color: #1a1a2e;
 }
 
-/* Nav injected by /cortex-shell.js */
-
-.page-head { background:#fff; border-bottom:1px solid #e8eaed; padding: 26px 32px 22px; }
-.page-head h1 { font-size: 26px; font-weight: 800; letter-spacing:-.5px; color:#0d1b2a; }
+.page-head { background:#fff; border-bottom:1px solid #e8eaed; padding: 24px 32px 20px; }
+.page-head h1 { font-size: 24px; font-weight: 800; letter-spacing:-.5px; color:#0d1b2a; }
 .page-head p { font-size: 13px; color:#757575; margin-top: 4px; }
 
-.wrap { max-width: 1200px; margin: 0 auto; padding: 24px 32px 70px; }
+.wrap { max-width: 1400px; margin: 0 auto; padding: 24px 32px 70px; }
 
 select, input {
   font: inherit; font-size:13px; padding: 7px 11px; border: 1px solid #d4d7dc;
@@ -27,138 +25,292 @@ select, input {
 }
 select:focus, input:focus { outline:none; border-color:#4285F4; }
 
-/* Cards */
-.cards { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin: 0 0 22px; }
-@media(max-width:900px){ .cards { grid-template-columns:repeat(2,1fr); } }
-@media(max-width:480px){ .cards { grid-template-columns:1fr; } }
+/* ===== TOP METRICS BAR ===== */
+.metrics-bar {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-bottom: 24px;
+}
+@media(max-width:900px){ .metrics-bar { grid-template-columns: repeat(2, 1fr); } }
+@media(max-width:480px){ .metrics-bar { grid-template-columns: 1fr; } }
 
-.card { background:#fff; border:1px solid #e8eaed; border-radius:12px; padding:16px 18px; box-shadow:0 1px 4px rgba(0,0,0,.05); }
-.card .lbl { font-size:12px; color:#9e9e9e; font-weight:600; text-transform:uppercase; letter-spacing:.4px; margin-bottom:6px; }
-.card .val { font-size:28px; font-weight:800; color:#0d1b2a; letter-spacing:-.5px; }
-.card .csub { font-size:12px; color:#9e9e9e; margin-top:2px; }
-.card.p0 .val { color:#ea4335; }
-.card.p1 .val { color:#f6b26b; }
-.card.ok .val { color:#137333; }
+.metric {
+  background: #fff;
+  border: 1px solid #e8eaed;
+  border-radius: 12px;
+  padding: 18px 20px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.04);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.metric-icon {
+  width: 44px; height: 44px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px; flex-shrink: 0;
+}
+.metric-icon.red { background: #fce8e6; }
+.metric-icon.orange { background: #fef3e8; }
+.metric-icon.green { background: #e6f4ea; }
+.metric-icon.gray { background: #f1f3f4; }
 
-/* Filters */
-.filters { display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; margin: 0 0 16px; }
-.filters .fg { display:flex; flex-direction:column; gap:5px; }
-.filters .fg span { font-size:11px; font-weight:700; color:#9e9e9e; text-transform:uppercase; letter-spacing:.5px; }
-.filters .fg select, .filters .fg input { height:38px; padding:0 12px; font-size:13px; color:#0d1b2a;
-  background:#fff; border:1px solid #d4d7dc; border-radius:8px; min-width:150px; box-shadow:0 1px 2px rgba(0,0,0,.04);
-  appearance:auto; outline:none; }
-.filters .fg input { min-width:180px; }
+.metric-body { flex: 1; }
+.metric-body .lbl { font-size: 12px; color: #9e9e9e; font-weight: 600; text-transform: uppercase; letter-spacing: .4px; }
+.metric-body .val { font-size: 28px; font-weight: 800; color: #0d1b2a; letter-spacing: -1px; line-height: 1.1; margin-top: 2px; }
+.metric-body .sub { font-size: 12px; color: #9e9e9e; margin-top: 2px; }
+.metric.p0 .val { color: #c5221f; }
+.metric.p1 .val { color: #b06000; }
+.metric.ok .val { color: #137333; }
 
-.clear-btn { font-size:13px; padding:8px 14px; border:1px solid #d4d7dc; border-radius:8px; background:#fff;
-  color:#5f6368; cursor:pointer; font:inherit; transition:all .15s ease; }
-.clear-btn:hover { color:#0d1b2a; border-color:#0d1b2a; }
+/* ===== FILTERS BAR ===== */
+.filters-bar {
+  background: #fff;
+  border: 1px solid #e8eaed;
+  border-radius: 12px;
+  padding: 14px 18px;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  margin-bottom: 20px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.04);
+}
+.filters-bar .fg { display: flex; flex-direction: column; gap: 4px; }
+.filters-bar .fg label { font-size: 11px; font-weight: 700; color: #9e9e9e; text-transform: uppercase; letter-spacing: .5px; }
+.filters-bar .fg select, .filters-bar .fg input {
+  height: 36px; padding: 0 10px; font-size: 13px; color: #0d1b2a;
+  background: #fff; border: 1px solid #d4d7dc; border-radius: 8px;
+  min-width: 140px; outline: none;
+}
+.filters-bar .fg input { min-width: 200px; }
 
-/* Toggle group */
-.toggle-row { display:flex; gap:8px; margin-bottom:18px; flex-wrap:wrap; }
-.toggle-btn { font-size:13px; padding:6px 14px; border:1px solid #d4d7dc; border-radius:8px; background:#fff;
-  color:#5f6368; cursor:pointer; font:inherit; transition:all .15s ease; }
-.toggle-btn:hover { border-color:#0d1b2a; color:#0d1b2a; }
-.toggle-btn.active { background:#0d1b2a; color:#fff; border-color:#0d1b2a; }
+.btn {
+  font: inherit; font-size: 13px; padding: 8px 14px; border-radius: 8px;
+  cursor: pointer; border: 1px solid #d4d7dc; background: #fff; color: #5f6368;
+  transition: all .15s ease; height: 36px;
+}
+.btn:hover { color: #0d1b2a; border-color: #0d1b2a; }
+.btn.active { background: #0d1b2a; color: #fff; border-color: #0d1b2a; }
+.btn.danger { background: #c5221f; color: #fff; border-color: #c5221f; }
+.btn.danger:hover { background: #a50e0e; }
 
-/* Panels / tables */
-.panel { background:#fff; border:1px solid #e8eaed; border-radius:12px; box-shadow:0 1px 4px rgba(0,0,0,.05); overflow:hidden; margin-bottom:18px; }
-.panel.p0 { border-left:4px solid #ea4335; }
-.panel.p1 { border-left:4px solid #f6b26b; }
-.panel-h { font-size:14px; font-weight:700; padding:14px 18px; display:flex; align-items:center; gap:8px;
-  border-bottom:1px solid #eef0f2; }
-.panel-h .cnt { background:#eef0f2; color:#5f6368; border-radius:20px; padding:2px 10px; font-size:12px; font-weight:700; }
+.view-toggle { display: flex; gap: 0; margin-left: auto; }
+.view-toggle .btn { border-radius: 0; }
+.view-toggle .btn:first-child { border-radius: 8px 0 0 8px; border-right: none; }
+.view-toggle .btn:last-child { border-radius: 0 8px 8px 0; }
 
-table { width:100%; border-collapse:collapse; font-size:13px; }
-th,td { text-align:left; padding:12px 16px; border-bottom:1px solid #eef0f2; vertical-align:top; }
-th { color:#9e9e9e; font-weight:700; font-size:11px; text-transform:uppercase; letter-spacing:.4px; }
-tbody tr:last-child td { border-bottom:none; }
-tr:hover { background:#f7f9fc; }
-td .cn { font-weight:700; color:#0d1b2a; }
-td .sub { font-size:11px; color:#9e9e9e; margin-top:2px; }
-td .entity { font-size:11px; color:#5f6368; margin-top:2px; }
-td .detail-text { color:#3c4043; max-width:380px; line-height:1.45; }
-td .meta { font-size:11px; color:#b0b3b8; margin-top:4px; }
+/* ===== SECTION HEADERS ===== */
+.sect-header {
+  display: flex; align-items: center; gap: 10px;
+  margin: 28px 0 14px;
+}
+.sect-header .dot {
+  width: 10px; height: 10px; border-radius: 50%;
+}
+.sect-header .dot.p0 { background: #c5221f; }
+.sect-header .dot.p1 { background: #f6b26b; }
+.sect-header h2 {
+  font-size: 15px; font-weight: 700; color: #0d1b2a;
+  text-transform: uppercase; letter-spacing: .5px;
+}
+.sect-header .count {
+  background: #eef0f2; color: #5f6368;
+  border-radius: 20px; padding: 2px 10px;
+  font-size: 12px; font-weight: 700;
+}
 
-/* Severity pills */
-.pill { font-size:11px; padding:3px 10px; border-radius:20px; font-weight:700; display:inline-block; white-space:nowrap; }
-.p-p0   { background:#ea4335; color:#fff; }
-.p-p1   { background:#f6b26b; color:#783f04; }
+/* ===== ALERT CARDS GRID ===== */
+.alert-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+@media(max-width:1100px){ .alert-grid { grid-template-columns: repeat(2, 1fr); } }
+@media(max-width:640px){ .alert-grid { grid-template-columns: 1fr; } }
 
-/* AV pills */
-.av { font-size:11px; padding:3px 10px; border-radius:20px; font-weight:700; display:inline-block; white-space:nowrap; }
-.av-ok    { background:#d9ead3; color:#274e13; }
-.av-no    { background:#f4cccc; color:#990000; }
-.av-prog  { background:#ffe599; color:#7f6000; }
-.av-stuck { background:#fce5cd; color:#b45309; }
-.av-na    { background:#eef0f2; color:#9e9e9e; }
+.alert-card {
+  background: #fff;
+  border: 1px solid #e8eaed;
+  border-radius: 12px;
+  padding: 0;
+  box-shadow: 0 1px 3px rgba(0,0,0,.04);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+.alert-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,.08);
+}
+.alert-card.p0 { border-top: 4px solid #c5221f; }
+.alert-card.p1 { border-top: 4px solid #f6b26b; }
 
-/* Type chips */
-.tc { font-size:10px; padding:2px 8px; border-radius:6px; font-weight:700; display:inline-block; background:#e8eaed; color:#5f6368; white-space:nowrap; }
+.card-top {
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid #f1f3f4;
+  display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;
+}
+.card-client {
+  font-size: 15px; font-weight: 700; color: #0d1b2a;
+  line-height: 1.3;
+}
+.card-client .new-badge {
+  font-size: 10px; padding: 2px 6px; border-radius: 4px;
+  font-weight: 700; background: #fce8e6; color: #c5221f;
+  margin-left: 6px; vertical-align: middle;
+}
+.card-meta {
+  font-size: 12px; color: #9e9e9e; margin-top: 4px;
+}
+.card-sev {
+  font-size: 11px; padding: 3px 10px; border-radius: 20px;
+  font-weight: 700; white-space: nowrap;
+}
+.card-sev.p0 { background: #fce8e6; color: #c5221f; }
+.card-sev.p1 { background: #fef3e8; color: #b06000; }
 
-/* New badge */
-.badge-new { font-size:10px; padding:2px 6px; border-radius:4px; font-weight:700; background:#fce8e6; color:#c5221f; margin-left:6px; vertical-align:middle; }
+.card-body {
+  padding: 12px 16px;
+  flex: 1;
+}
+.card-type-row {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
+}
+.card-type {
+  font-size: 11px; padding: 3px 10px; border-radius: 6px;
+  font-weight: 700; background: #e8eaed; color: #5f6368;
+}
+.card-av {
+  font-size: 11px; padding: 3px 10px; border-radius: 20px;
+  font-weight: 700;
+}
+.card-av.ok { background: #e6f4ea; color: #137333; }
+.card-av.no { background: #fce8e6; color: #c5221f; }
+.card-av.prog { background: #fef3e8; color: #b06000; }
+.card-av.stuck { background: #fce5cd; color: #b45309; }
 
-/* Actions */
-.actions { display:flex; gap:6px; opacity:0; transition:opacity .15s ease; }
-tr:hover .actions, tr:focus-within .actions { opacity:1; }
-.action-btn { font-size:12px; padding:5px 10px; border:1px solid #d4d7dc; border-radius:6px; background:#fff;
-  color:#5f6368; cursor:pointer; font:inherit; text-decoration:none; display:inline-block; transition:all .15s ease; }
-.action-btn:hover { color:#0d1b2a; border-color:#0d1b2a; }
+.card-detail {
+  font-size: 13px; color: #3c4043; line-height: 1.5;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.card-entity {
+  font-size: 12px; color: #5f6368; margin-top: 8px;
+  font-style: italic;
+}
 
-/* States */
+.card-footer {
+  padding: 10px 16px 14px;
+  border-top: 1px solid #f1f3f4;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.card-time {
+  font-size: 11px; color: #b0b3b8;
+}
+.card-actions { display: flex; gap: 6px; }
+.card-actions a, .card-actions button {
+  font-size: 12px; padding: 5px 10px; border-radius: 6px;
+  border: 1px solid #d4d7dc; background: #fff; color: #5f6368;
+  cursor: pointer; text-decoration: none; font: inherit;
+  transition: all .15s ease;
+}
+.card-actions a:hover, .card-actions button:hover {
+  color: #0d1b2a; border-color: #0d1b2a;
+}
+.card-actions .primary {
+  background: #0d1b2a; color: #fff; border-color: #0d1b2a;
+}
+.card-actions .primary:hover { background: #1a2d3d; }
+
+/* ===== LIST VIEW ===== */
+.alert-list .alert-card {
+  flex-direction: row;
+  align-items: stretch;
+}
+.alert-list .alert-card.p0 { border-top: none; border-left: 4px solid #c5221f; }
+.alert-list .alert-card.p1 { border-top: none; border-left: 4px solid #f6b26b; }
+.alert-list .card-top {
+  border-bottom: none; border-right: 1px solid #f1f3f4;
+  min-width: 260px; flex-direction: column; justify-content: center;
+}
+.alert-list .card-body { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+.alert-list .card-footer {
+  border-top: none; border-left: 1px solid #f1f3f4;
+  flex-direction: column; justify-content: center; min-width: 140px; gap: 8px;
+}
+@media(max-width:900px){
+  .alert-list .alert-card { flex-direction: column; }
+  .alert-list .card-top { border-right: none; border-bottom: 1px solid #f1f3f4; }
+  .alert-list .card-footer { border-left: none; border-top: 1px solid #f1f3f4; flex-direction: row; }
+}
+
+/* ===== STATES ===== */
 .state { text-align:center; padding:70px 20px; color:#9e9e9e; }
 .state .big { font-size:16px; font-weight:700; color:#5f6368; margin-bottom:8px; }
 .spinner { width:26px; height:26px; border:3px solid #e0e0e0; border-top-color:#00D4AA; border-radius:50%; margin:0 auto 14px; animation:spin .8s linear infinite; }
 @keyframes spin { to { transform:rotate(360deg); } }
 .retry { margin-top:14px; padding:8px 16px; border:1px solid #d4d7dc; border-radius:8px; background:#fff; cursor:pointer; font:inherit; font-size:13px; }
 .empty { text-align:center; padding:40px 20px; color:#9e9e9e; font-size:13px; }
-.refreshed { font-size:11px; color:#b0b3b8; text-align:right; margin-top:4px; }
+.refreshed { font-size:11px; color:#b0b3b8; text-align:right; margin-top:8px; }
+
+/* ===== PAGINATION ===== */
+.pagination {
+  display: flex; justify-content: center; gap: 8px; margin-top: 24px;
+}
+.pagination button {
+  font: inherit; font-size: 13px; padding: 8px 16px;
+  border: 1px solid #d4d7dc; border-radius: 8px;
+  background: #fff; color: #5f6368; cursor: pointer;
+}
+.pagination button:hover { border-color: #0d1b2a; color: #0d1b2a; }
+.pagination button:disabled { opacity: .4; cursor: not-allowed; }
+.pagination .page-info { font-size: 13px; color: #9e9e9e; padding: 8px 12px; }
 </style>
 </head>
 <body>
 
 <div class="page-head">
-  <h1>Alerts</h1>
-  <p>Campaign-health alerts across the portfolio. P0 = urgent (broken/blocked). P1 = attention (overspend, stopped spending).</p>
+  <h1>Alert Hub</h1>
+  <p>Campaign-health command center. P0 = urgent (broken/blocked). P1 = attention (overspend, stopped spending).</p>
 </div>
 
 <div class="wrap">
-  <div class="cards" id="cards"></div>
+  <!-- Metrics -->
+  <div class="metrics-bar" id="metrics"></div>
 
-  <div class="filters">
-    <div class="fg"><span>Severity</span>
+  <!-- Filters -->
+  <div class="filters-bar">
+    <div class="fg"><label>Severity</label>
       <select id="f-sev"><option value="all">All</option><option value="P0">P0 only</option><option value="P1">P1 only</option></select>
     </div>
-    <div class="fg"><span>Type</span><select id="f-type"><option value="all">All types</option></select></div>
-    <div class="fg"><span>Account Manager</span><select id="f-am"><option value="all">All AMs</option></select></div>
-    <div class="fg"><span>AV Status</span>
+    <div class="fg"><label>Type</label><select id="f-type"><option value="all">All types</option></select></div>
+    <div class="fg"><label>Account Manager</label><select id="f-am"><option value="all">All AMs</option></select></div>
+    <div class="fg"><label>AV Status</label>
       <select id="f-av">
         <option value="all">All</option>
-        <option value="has">Has AV (Approved)</option>
+        <option value="has">Has AV</option>
         <option value="no">No AV</option>
         <option value="other">In Progress / Stuck</option>
       </select>
     </div>
-    <div class="fg"><span>Search</span><input id="f-q" type="text" placeholder="client, campaign, or detail…"></div>
-    <button class="clear-btn" id="clear-btn" style="display:none;">Clear all</button>
+    <div class="fg"><label>Search</label><input id="f-q" type="text" placeholder="client, campaign, detail…"></div>
+    <button class="btn" id="clear-btn" style="display:none;">Clear all</button>
+
+    <div class="view-toggle">
+      <button class="btn active" id="v-grid" onclick="setView('grid')">Grid</button>
+      <button class="btn" id="v-list" onclick="setView('list')">List</button>
+    </div>
   </div>
 
-  <div class="toggle-row">
-    <button class="toggle-btn active" id="grp-sev" onclick="setGroup('severity')">Group by severity</button>
-    <button class="toggle-btn" id="grp-am" onclick="setGroup('am')">Group by AM</button>
-    <button class="toggle-btn" id="grp-type" onclick="setGroup('type')">Group by type</button>
-  </div>
-
+  <!-- Content -->
   <div id="view"></div>
+  <div class="pagination" id="pagination" style="display:none;"></div>
   <div class="refreshed" id="refreshed"></div>
 </div>
 
 <script>
-/* =====================================================================
-   DATA WIRING
-   DATA_URL : GET /api/alerts -> Cloudflare Pages Function (functions/api/alerts.js)
-   which queries BigQuery transformed.alerts_active and returns { rows, as_of }.
-   ===================================================================== */
 const DATA_URL = "/api/alerts";
 
 const TYPE_LABEL = {
@@ -167,33 +319,40 @@ const TYPE_LABEL = {
   overspend:          "Overspend",
   no_spend:           "Stopped spending"
 };
-const SEV_ORDER = { P0:0, P1:1, P2:2 };
+const TYPE_ICON = {
+  campaign_suspended: "&#9888;",
+  ads_disapproved:    "&#128683;",
+  overspend:          "&#128200;",
+  no_spend:           "&#128164;"
+};
+const SEV_ORDER = { P0:0, P1:1 };
 
 let ROWS = [];
 let FILTERS = { sev:"all", type:"all", am:"all", av:"all", q:"" };
-let GROUP_BY = "severity";
+let VIEW_MODE = "grid";
+let PAGE = 1;
+const PER_PAGE = 18;
 
-const view = document.getElementById('view');
-
-function avPill(s){
-  if(!s) return '<span class="av av-na">no AV data</span>';
-  const k = s.toLowerCase();
-  if(k==='av approved') return '<span class="av av-ok">AV Approved</span>';
-  if(k==='no' || k==='no av') return '<span class="av av-no">No AV</span>';
-  if(k==='in progress') return '<span class="av av-prog">In Progress</span>';
-  if(k==='stuck')       return '<span class="av av-stuck">Stuck</span>';
-  return '<span class="av av-na">'+s+'</span>';
-}
-function sevPill(s){ return '<span class="pill p-'+(s||'').toLowerCase()+'">'+(s||'?')+'</span>'; }
-function sourceLabel(s){ return s==='google_ads'?'Google Ads':(s==='meta'?'Meta':(s||'Other')); }
 function isNew(dt){ return dt ? ((new Date()-new Date(dt))/(1000*60*60))<24 : false; }
 function fmtDate(dt){ return dt ? new Date(dt).toLocaleDateString('en-US',{month:'short',day:'numeric'}) : '-'; }
 function fmtTime(dt){ return dt ? new Date(dt).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}) : ''; }
+function fmtRelative(dt){
+  if(!dt) return '';
+  const h = Math.round((new Date()-new Date(dt))/(1000*60*60));
+  if(h<1) return 'just now';
+  if(h<24) return h+'h ago';
+  const d = Math.floor(h/24);
+  return d+'d ago';
+}
 
-function showState(html){ view.innerHTML='<div class="state">'+html+'</div>'; }
+function gadsUrl(cid, eid){
+  // Try direct campaign link if we have entity_id that looks like a campaign
+  if(cid) return 'https://ads.google.com/aw/overview?ocid='+encodeURIComponent(cid);
+  return 'https://ads.google.com';
+}
 
 async function loadData(){
-  showState('<div class="spinner"></div>Loading alerts&hellip;');
+  document.getElementById('view').innerHTML = '<div class="state"><div class="spinner"></div>Loading alerts&hellip;</div>';
   try{
     const res = await fetch(DATA_URL, {method:'GET'});
     if(!res.ok) throw new Error('HTTP '+res.status);
@@ -215,12 +374,12 @@ async function loadData(){
       detected_at: r.detected_at?String(r.detected_at):null
     }));
     buildFilters();
+    PAGE = 1;
     render();
     const stamp = ROWS.length && ROWS[0].detected_at ? new Date(ROWS[0].detected_at).toLocaleString() : new Date().toLocaleString();
     document.getElementById('refreshed').textContent = 'Data as of '+stamp;
   }catch(err){
-    showState('<div class="big">Could not load alerts</div>'+err.message+
-      '<br><button class="retry" onclick="loadData()">Retry</button>');
+    document.getElementById('view').innerHTML = '<div class="state"><div class="big">Could not load alerts</div>'+err.message+'<br><button class="retry" onclick="loadData()">Retry</button></div>';
   }
 }
 
@@ -229,15 +388,13 @@ function buildFilters(){
   const ams   = [...new Set(ROWS.map(r=>r.account_manager))].sort();
   const tSel = document.getElementById('f-type');
   const aSel = document.getElementById('f-am');
-  tSel.innerHTML = '<option value="all">All types</option>' +
-    types.map(t=>'<option value="'+t+'">'+(TYPE_LABEL[t]||t)+'</option>').join('');
-  aSel.innerHTML = '<option value="all">All AMs</option>' +
-    ams.map(a=>'<option value="'+a+'">'+a+'</option>').join('');
-  document.getElementById('f-sev').onchange  = e=>{ FILTERS.sev=e.target.value; render(); };
-  tSel.onchange = e=>{ FILTERS.type=e.target.value; render(); };
-  aSel.onchange = e=>{ FILTERS.am=e.target.value; render(); };
-  document.getElementById('f-av').onchange = e=>{ FILTERS.av=e.target.value; render(); };
-  document.getElementById('f-q').oninput = e=>{ FILTERS.q=e.target.value.toLowerCase(); render(); };
+  tSel.innerHTML = '<option value="all">All types</option>' + types.map(t=>'<option value="'+t+'">'+(TYPE_LABEL[t]||t)+'</option>').join('');
+  aSel.innerHTML = '<option value="all">All AMs</option>' + ams.map(a=>'<option value="'+a+'">'+a+'</option>').join('');
+  document.getElementById('f-sev').onchange = e=>{ FILTERS.sev=e.target.value; PAGE=1; render(); };
+  tSel.onchange = e=>{ FILTERS.type=e.target.value; PAGE=1; render(); };
+  aSel.onchange = e=>{ FILTERS.am=e.target.value; PAGE=1; render(); };
+  document.getElementById('f-av').onchange = e=>{ FILTERS.av=e.target.value; PAGE=1; render(); };
+  document.getElementById('f-q').oninput = e=>{ FILTERS.q=e.target.value.toLowerCase(); PAGE=1; render(); };
   document.getElementById('clear-btn').onclick = ()=>{
     FILTERS={sev:"all",type:"all",am:"all",av:"all",q:""};
     document.getElementById('f-sev').value="all";
@@ -245,7 +402,7 @@ function buildFilters(){
     document.getElementById('f-am').value="all";
     document.getElementById('f-av').value="all";
     document.getElementById('f-q').value="";
-    render();
+    PAGE=1; render();
   };
 }
 
@@ -257,23 +414,95 @@ function applyFilters(rows){
     if(FILTERS.av!=='all'){
       const isApproved = (r.av_status||'').toLowerCase()==='av approved';
       const isNo = (r.av_status||'').toLowerCase()==='no' || (r.av_status||'').toLowerCase()==='no av';
-      if(FILTERS.av==='has'   && !isApproved) return false;
-      if(FILTERS.av==='no'    && !isNo)       return false;
+      if(FILTERS.av==='has' && !isApproved) return false;
+      if(FILTERS.av==='no' && !isNo) return false;
       if(FILTERS.av==='other' && (isApproved||isNo)) return false;
     }
     if(FILTERS.q){
-      const hay = (r.client_name||'')+' '+(r.entity_name||'')+' '+(r.detail||'')+' '+r.customer_id;
+      const hay = (r.client_name||'')+' '+(r.entity_name||'')+' '+(r.detail||'')+' '+r.customer_id+' '+(r.account_manager||'');
       if(hay.toLowerCase().indexOf(FILTERS.q)<0) return false;
     }
     return true;
   });
 }
 
-function setGroup(mode){
-  GROUP_BY = mode;
-  document.querySelectorAll('.toggle-btn').forEach(b=>b.classList.remove('active'));
-  document.getElementById('grp-'+mode).classList.add('active');
+function setView(mode){
+  VIEW_MODE = mode;
+  document.querySelectorAll('.view-toggle .btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('v-'+mode).classList.add('active');
   render();
+}
+
+function renderMetrics(base){
+  const total = base.length;
+  const p0 = base.filter(r=>r.severity==='P0').length;
+  const p1 = base.filter(r=>r.severity==='P1').length;
+  const hasAv = base.filter(r=>(r.av_status||'').toLowerCase()==='av approved').length;
+  document.getElementById('metrics').innerHTML = `
+    <div class="metric">
+      <div class="metric-icon gray">&#128202;</div>
+      <div class="metric-body"><div class="lbl">Total alerts</div><div class="val">${total}</div></div>
+    </div>
+    <div class="metric p0">
+      <div class="metric-icon red">&#9888;</div>
+      <div class="metric-body"><div class="lbl">P0 · Urgent</div><div class="val">${p0}</div><div class="sub">broken / blocked</div></div>
+    </div>
+    <div class="metric p1">
+      <div class="metric-icon orange">&#128221;</div>
+      <div class="metric-body"><div class="lbl">P1 · Attention</div><div class="val">${p1}</div><div class="sub">overspend / stopped</div></div>
+    </div>
+    <div class="metric ok">
+      <div class="metric-icon green">&#9989;</div>
+      <div class="metric-body"><div class="lbl">On AV accounts</div><div class="val">${hasAv}</div><div class="sub">verified — priority</div></div>
+    </div>`;
+}
+
+function avClass(s){
+  const k = (s||'').toLowerCase();
+  if(k==='av approved') return 'ok';
+  if(k==='no' || k==='no av') return 'no';
+  if(k==='in progress') return 'prog';
+  if(k==='stuck') return 'stuck';
+  return '';
+}
+function avText(s){
+  const k = (s||'').toLowerCase();
+  if(k==='av approved') return 'AV Approved';
+  if(k==='no' || k==='no av') return 'No AV';
+  if(k==='in progress') return 'In Progress';
+  if(k==='stuck') return 'Stuck';
+  return s || 'no data';
+}
+
+function renderCard(r){
+  const n = isNew(r.detected_at);
+  const url = gadsUrl(r.customer_id, r.entity_id);
+  const avc = avClass(r.av_status);
+  const avt = avText(r.av_status);
+  return `<div class="alert-card ${r.severity.toLowerCase()}">
+    <div class="card-top">
+      <div>
+        <div class="card-client">${r.client_name || '('+r.customer_id+')'}${n?'<span class="new-badge">New</span>':''}</div>
+        <div class="card-meta">${r.account_manager}${r.tier?' · '+r.tier:''}${r.sub_mcc?' · '+r.sub_mcc:''}</div>
+      </div>
+      <div class="card-sev ${r.severity.toLowerCase()}">${r.severity}</div>
+    </div>
+    <div class="card-body">
+      <div class="card-type-row">
+        <span class="card-type">${TYPE_LABEL[r.alert_type]||r.alert_type}</span>
+        <span class="card-av ${avc}">${avt}</span>
+      </div>
+      <div class="card-detail">${r.detail}</div>
+      ${r.entity_name?'<div class="card-entity">'+r.entity_name+'</div>':''}
+    </div>
+    <div class="card-footer">
+      <div class="card-time">${fmtRelative(r.detected_at)} · ${fmtDate(r.detected_at)}</div>
+      <div class="card-actions">
+        <a href="${url}" target="_blank" rel="noopener">Open account</a>
+        <button class="primary" onclick="alert('Detail: '+${JSON.stringify(r.detail).replace(/"/g,\'\\\"\')})">Details</button>
+      </div>
+    </div>
+  </div>`;
 }
 
 function render(){
@@ -281,74 +510,55 @@ function render(){
   const isFiltered = FILTERS.sev!=='all'||FILTERS.type!=='all'||FILTERS.am!=='all'||FILTERS.av!=='all'||FILTERS.q!=='';
   document.getElementById('clear-btn').style.display = isFiltered ? 'inline-block' : 'none';
 
-  // Cards: filtered totals when filtered, else global
-  const base = isFiltered ? rows : ROWS;
-  const total = base.length;
-  const p0 = base.filter(r=>r.severity==='P0').length;
-  const p1 = base.filter(r=>r.severity==='P1').length;
-  const hasAv = base.filter(r=>(r.av_status||'').toLowerCase()==='av approved').length;
-  document.getElementById('cards').innerHTML = `
-    <div class="card"><div class="lbl">Total alerts</div><div class="val">${total}</div></div>
-    <div class="card p0"><div class="lbl">P0 · Urgent</div><div class="val">${p0}</div><div class="csub">broken / blocked</div></div>
-    <div class="card p1"><div class="lbl">P1 · Attention</div><div class="val">${p1}</div><div class="csub">overspend / stopped</div></div>
-    <div class="card ok"><div class="lbl">On AV accounts</div><div class="val">${hasAv}</div><div class="csub">verified — priority</div></div>`;
+  renderMetrics(isFiltered ? rows : ROWS);
 
   if(rows.length===0){
-    view.innerHTML='<div class="panel"><div class="empty"><div class="big">No alerts match</div>Try adjusting filters or search.</div></div>';
+    document.getElementById('view').innerHTML = '<div class="empty"><div class="big">No alerts match</div>Try adjusting filters or search.</div>';
+    document.getElementById('pagination').style.display = 'none';
     return;
   }
 
-  // Group
-  const groups = {};
-  rows.forEach(r=>{
-    let key;
-    if(GROUP_BY==='severity') key = r.severity;
-    else if(GROUP_BY==='am') key = r.account_manager;
-    else key = r.alert_type;
-    (groups[key]=groups[key]||[]).push(r);
+  // Sort: P0 first, then by detected_at desc (newest first)
+  rows.sort((a,b)=>{
+    const sa = SEV_ORDER[a.severity] ?? 9;
+    const sb = SEV_ORDER[b.severity] ?? 9;
+    if(sa !== sb) return sa - sb;
+    return new Date(b.detected_at||0) - new Date(a.detected_at||0);
   });
 
-  let keys;
-  if(GROUP_BY==='severity') keys = Object.keys(groups).sort((a,b)=>(SEV_ORDER[a]??9)-(SEV_ORDER[b]??9));
-  else if(GROUP_BY==='am') keys = Object.keys(groups).sort();
-  else keys = Object.keys(groups).sort((a,b)=> (TYPE_LABEL[a]||a).localeCompare(TYPE_LABEL[b]||b));
+  // Pagination
+  const totalPages = Math.ceil(rows.length / PER_PAGE);
+  const start = (PAGE-1) * PER_PAGE;
+  const pageRows = rows.slice(start, start + PER_PAGE);
 
-  view.innerHTML = keys.map(key=>{
-    const g = groups[key];
-    const sev = GROUP_BY==='severity' ? key : (g[0].severity||'P1');
-    const title = GROUP_BY==='severity' ? (key==='P0'?'P0 · Urgent':(key==='P1'?'P1 · Attention':key))
-      : (GROUP_BY==='am' ? key : (TYPE_LABEL[key]||key));
-    const body = g.map(r=>{
-      const n = isNew(r.detected_at);
-      const gadsLink = 'https://ads.google.com/aw/overview?ocid='+encodeURIComponent(r.customer_id);
-      return `<tr>
-        <td>${sevPill(r.severity)}</td>
-        <td><span class="tc">${TYPE_LABEL[r.alert_type]||r.alert_type}</span></td>
-        <td>
-          <div class="cn">${r.client_name || '('+r.customer_id+')'}${n?'<span class="badge-new">New</span>':''}</div>
-          <div class="sub">${r.account_manager}${r.tier?' · '+r.tier:''}${r.sub_mcc?' · '+r.sub_mcc:''}</div>
-          <div class="entity">${r.entity_name||''}</div>
-        </td>
-        <td>${avPill(r.av_status)}</td>
-        <td>
-          <div class="detail-text">${r.detail}</div>
-          <div class="meta">${sourceLabel(r.source)} · ${fmtDate(r.detected_at)} ${fmtTime(r.detected_at)}</div>
-        </td>
-        <td style="width:1px;white-space:nowrap;">
-          <div class="actions">
-            <a class="action-btn" href="${gadsLink}" target="_blank" rel="noopener">Open in Ads</a>
-          </div>
-        </td>
-      </tr>`;
-    }).join('');
-    return `<div class="panel ${sev.toLowerCase()}">
-      <div class="panel-h">${title}<span class="cnt">${g.length}</span></div>
-      <table>
-        <thead><tr><th>Sev</th><th>Type</th><th>Client</th><th>AV</th><th>Detail</th><th style="width:1px;">Actions</th></tr></thead>
-        <tbody>${body}</tbody>
-      </table>
-    </div>`;
+  // Group by severity for visual sections
+  const groups = {};
+  pageRows.forEach(r=>{ (groups[r.severity]=groups[r.severity]||[]).push(r); });
+  const sevKeys = Object.keys(groups).sort((a,b)=>(SEV_ORDER[a]??9)-(SEV_ORDER[b]??9));
+
+  const containerClass = VIEW_MODE==='grid' ? 'alert-grid' : 'alert-list';
+
+  document.getElementById('view').innerHTML = sevKeys.map(sev=>{
+    const cards = groups[sev].map(r=>renderCard(r)).join('');
+    return `<div class="sect-header">
+        <div class="dot ${sev.toLowerCase()}"></div>
+        <h2>${sev==='P0'?'P0 · Urgent':(sev==='P1'?'P1 · Attention':sev)}</h2>
+        <span class="count">${groups[sev].length}</span>
+      </div>
+      <div class="${containerClass}">${cards}</div>`;
   }).join('');
+
+  // Pagination controls
+  const pg = document.getElementById('pagination');
+  if(totalPages > 1){
+    pg.style.display = 'flex';
+    pg.innerHTML = `
+      <button ${PAGE<=1?'disabled':''} onclick="PAGE--;render();">&#9664; Prev</button>
+      <span class="page-info">Page ${PAGE} of ${totalPages}</span>
+      <button ${PAGE>=totalPages?'disabled':''} onclick="PAGE++;render();">Next &#9654;</button>`;
+  } else {
+    pg.style.display = 'none';
+  }
 }
 
 loadData();
