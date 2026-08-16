@@ -339,9 +339,9 @@ function pillClass(s){ return s==='ok'?'p-ok':s==='warn'?'p-warn':s==='warn-mod'
 function chipCls(s){ return s==='ok'?'c-ok':s==='warn'?'c-warn':s==='warn-mod'?'c-warn-mod':s==='dang'?'c-dang':s==='dang-mod'?'c-dang-mod':s==='nobudget'?'c-nobudget':'c-idle'; }
 
 function monthPacing(client,m,channel){
-  let c=0,a=0;
-  for(const r of rowsFor(client)) if(r.month===m && (!channel || channel==='all' || r.channel===channel)){ c+=r.committed; a+=r.actual; }
-  return { committed:c, actual:a, variance:a-c, pct:c?a/c:0 };
+  let c=0,a=0,am=0;
+  for(const r of rowsFor(client)) if(r.month===m && (!channel || channel==='all' || r.channel===channel)){ c+=r.committed; a+=r.actual; if(r.committed>0) am+=r.actual; }
+  return { committed:c, actual:a, actualManaged:am, variance:a-c, pct:c?a/c:0 };
 }
 function channelRows(client,m){
   const map={};
@@ -380,8 +380,8 @@ function accountStatus(client){
   const isCur=(ASOF===DIMS.current_month);
   const cu=isCur?catchupForMonth(client,ASOF):0;
   const target=m.committed+cu;                         /* the real number we pace against */
-  const pace=paceRatioOf(target, m.actual, ASOF);
-  const status=statusOf(pace, target, m.actual);
+  const pace=paceRatioOf(target, m.actualManaged, ASOF);  /* Issue: client-paid channels (committed=0, e.g. LSA) must not inflate the account verdict — judge status on managed spend only */
+  const status=statusOf(pace, target, m.actualManaged);
   return { target, status, paceRatio:pace, committed:m.committed, actual:m.actual, catchup:cu };
 }
 function dailyRec(committed, spentMtd, catchup){
