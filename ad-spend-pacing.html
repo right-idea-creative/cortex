@@ -76,6 +76,8 @@ tbody tr:last-child td { border-bottom:none; }
 .c-warn-mod { background:#fff7df; color:#7f6000; border-color:#ffe08a; }   /* moderate underspending — light amber */
 .c-warn     { background:#fce8b2; color:#8a5a00; border-color:#f5d488; }   /* underspending — stronger amber/orange */
 .c-idle     { background:#fafbfc; color:#d3d6da; border-color:#eef0f2; }   /* no activity — grey */
+.p-nobudget { background:#e8eaed; color:#3c4043; }   /* spend, no budget — neutral grey (client-paid, not overspend) */
+.c-nobudget { background:#f1f3f4; color:#5f6368; border-color:#dadce0; }   /* spend, no budget — neutral grey */
 
 .back { font-size:13px; color:#1565c0; cursor:pointer; display:inline-block; margin-bottom:10px; font-weight:600; }
 .detail-head { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
@@ -315,7 +317,7 @@ function sourceLabelFor(client){ return isODC(client)?'ODC':'Non-ODC'; }
 
 function statusOf(paceRatio, committed, actual){
   if(committed<=0 && actual<=0) return 'idle';
-  if(committed<=0 && actual>0) return 'dang';
+  if(committed<=0 && actual>0) return 'nobudget';  /* spend but no committed budget — client-paid channel (e.g. LSA), not our overspend */
   if(actual<=0) return 'idle';                 /* committed but nothing spent yet (e.g. future month) */
   if(paceRatio>=MOD_HIGH+0.01) return 'dang';      /* >=1.10 overspending */
   if(paceRatio>OK_HIGH) return 'dang-mod';         /* 1.05-1.09 moderate overspending */
@@ -332,9 +334,9 @@ function paceRatioOf(committed, actual, month){
   const frac = DIMS.days_in_month>0 ? DIMS.days_elapsed/DIMS.days_in_month : 1;
   return frac>0 ? actual/(committed*frac) : 0;
 }
-function statusLabel(s){ return s==='ok'?'On track':s==='warn'?'Underspending':s==='warn-mod'?'Moderate Underspending':s==='dang'?'Overspending':s==='dang-mod'?'Moderate Overspending':'No activity'; }
-function pillClass(s){ return s==='ok'?'p-ok':s==='warn'?'p-warn':s==='warn-mod'?'p-warn-mod':s==='dang-mod'?'p-dang-mod':'p-dang'; }
-function chipCls(s){ return s==='ok'?'c-ok':s==='warn'?'c-warn':s==='warn-mod'?'c-warn-mod':s==='dang'?'c-dang':s==='dang-mod'?'c-dang-mod':'c-idle'; }
+function statusLabel(s){ return s==='ok'?'On track':s==='warn'?'Underspending':s==='warn-mod'?'Moderate Underspending':s==='dang'?'Overspending':s==='nobudget'?'No budget':s==='dang-mod'?'Moderate Overspending':'No activity'; }
+function pillClass(s){ return s==='ok'?'p-ok':s==='warn'?'p-warn':s==='warn-mod'?'p-warn-mod':s==='dang-mod'?'p-dang-mod':s==='nobudget'?'p-nobudget':'p-dang'; }
+function chipCls(s){ return s==='ok'?'c-ok':s==='warn'?'c-warn':s==='warn-mod'?'c-warn-mod':s==='dang'?'c-dang':s==='dang-mod'?'c-dang-mod':s==='nobudget'?'c-nobudget':'c-idle'; }
 
 function monthPacing(client,m,channel){
   let c=0,a=0;
@@ -526,7 +528,7 @@ function renderOverview(){
   h+='<div class="legend"><span class="chip c-ok">On track</span>'
     +'<span class="chip c-dang-mod">Moderate Overspending</span><span class="chip c-warn-mod">Moderate Underspending</span>'
     +'<span class="chip c-warn">Underspending</span>'
-    +'<span class="chip c-dang">Overspending / spend w/ no budget</span><span class="chip c-idle">No budget &amp; no spend</span></div>';
+    +'<span class="chip c-dang">Overspending</span><span class="chip c-nobudget">Spend, no budget</span><span class="chip c-idle">No budget &amp; no spend</span></div>';
   h+='<p class="note">Channel chips are colored by each channel\u2019s own pacing (diagnostic \u2014 not alerts); the Status column is the account verdict, measured against the correction-adjusted target. '
     +'Rec. $/day is catch-up aware (uses month-to-date spend, days remaining including today, and the year correction).</p>';
 
