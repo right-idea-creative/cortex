@@ -356,8 +356,11 @@ function channelRows(client,m){
   });
 }
 function yearPacing(client,asof){
+  const start = CLIENT_START[client] || 1;
+  const skip = new Set(CLIENT_PAID_EXCEPTIONS.filter(e=>e.client===client).map(e=>e.channel));
   let full=0,cytd=0,sytd=0;
   for(const r of rowsFor(client)){
+    if(skip.has(r.channel) || r.month < start) continue;  // client-paid or pre-management: not in year-context
     full+=r.committed;
     if(r.month<=asof){ cytd+=r.committed; sytd+=r.actual; }
   }
@@ -382,6 +385,9 @@ const CLIENT_PAID_EXCEPTIONS = [
   { client: 'ODC Norfolk, VA', channel: 'lsa' },   // confirmed client-paid (Martin, ticket 2026-08)
   // SW Florida / lsa: pending Martin confirmation before adding
 ];
+const CLIENT_START = {
+  'ODC Norfolk, VA': 5,   // managed since May 2026 -- pre-May spend is not ours (confirmed w/ Nate)
+};
 function actualForStatus(client, m){
   const skip = new Set(CLIENT_PAID_EXCEPTIONS.filter(e=>e.client===client).map(e=>e.channel));
   if(skip.size===0) return m.actual;
