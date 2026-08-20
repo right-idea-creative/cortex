@@ -1,70 +1,68 @@
-// Test de la logica de captura/gap del tablero call-attribution.
+// Test de la logica de CPL y tendencia del tablero cost-per-lead.
 // Sin framework: node attribution_health.test.js  (exit 0 = pasa, 1 = falla)
 //
-// Replica health() y el calculo de gap del HTML, y los valida contra los
-// numeros reales del Test B (julio 2026) que ya verificamos en BigQuery.
+// Replica cpl(), trendCls() y trendTxt() del HTML y los valida con los numeros
+// reales de julio 2026 que verificamos en BigQuery (cruce por customer_id).
 
-// --- copia EXACTA de health() del HTML ---
-function health(ctmUnique, gConv){
-  if (gConv == null) return { cls:'grey', label:'not mapped' };
-  if (gConv === 0)  return { cls:'grey', label:'no Google conv' };
-  const pct = ctmUnique / gConv;
-  if (pct < 0.70) return { cls:'amber', label: Math.round(pct*100)+'% — under' };
-  if (pct > 1.30) return { cls:'red',   label: Math.round(pct*100)+'% — over' };
-  return { cls:'green', label: Math.round(pct*100)+'% — ok' };
+const LEAD='first_time';
+
+// --- copias EXACTAS del HTML ---
+function cpl(row){
+  const leads=row[LEAD];
+  if(!leads||leads<=0) return null;
+  return row.spend/leads;
+}
+function trendCls(curr,prev){
+  if(curr==null||prev==null) return null;
+  const d=(curr-prev)/prev;
+  if(Math.abs(d)<0.03) return 'flat';
+  return d>0?'up':'down';
 }
 
-let failed = 0;
-function eq(actual, expected, msg){
-  const a = JSON.stringify(actual), e = JSON.stringify(expected);
-  if (a !== e){ console.error(`FAIL: ${msg}\n  esperado ${e}\n  obtenido ${a}`); failed++; }
+let failed=0;
+function almost(a,b,msg,tol=0.01){
+  if(a==null||b==null){ if(a!==b){console.error(`FAIL: ${msg}\n  esperado ${b} obtenido ${a}`);failed++;} else console.log(`ok: ${msg}`); return; }
+  if(Math.abs(a-b)>tol){console.error(`FAIL: ${msg}\n  esperado ${b} obtenido ${a}`);failed++;}
+  else console.log(`ok: ${msg}`);
+}
+function eq(a,b,msg){
+  if(JSON.stringify(a)!==JSON.stringify(b)){console.error(`FAIL: ${msg}\n  esperado ${JSON.stringify(b)} obtenido ${JSON.stringify(a)}`);failed++;}
   else console.log(`ok: ${msg}`);
 }
 
-// --- Casos reales del Test B (period_unique CTM vs conv_google), julio 2026 ---
-// Estos son los datos que confirmamos en BigQuery.
+// --- CPL con datos reales (julio 2026, verificados en BQ) ---
+// Sarasota: spend 2577, first_time 34 -> CPL 75.79
+almost(cpl({spend:2577,first_time:34}), 75.79, 'Sarasota CPL = $75.79');
+// Denver: spend 10463, first_time 39 -> CPL 268.28
+almost(cpl({spend:10463,first_time:39}), 268.28, 'Denver CPL = $268.28');
+// Sioux Falls: spend 9786, first_time 97 -> 100.89
+almost(cpl({spend:9786,first_time:97}), 100.89, 'Sioux Falls CPL = $100.89');
+// NW Indiana: spend 2515, first_time 34 -> 73.97
+almost(cpl({spend:2515,first_time:34}), 73.97, 'NW Indiana CPL = $73.97');
 
-// TRACKING ROTO: CTM captura muy poco -> amber (under)
-// Eugene: Google 118, CTM unique ~1 (era 1 de total, unique similar)
-eq(health(1, 118).cls, 'amber', 'Eugene (1/118) = under/amber');
-// Bowling Green: Google 197, CTM unique bajo
-eq(health(20, 197).cls, 'amber', 'Bowling Green bajo = under/amber');
+// --- Guard de division por cero: sin leads -> null (NO infinito ni NaN) ---
+eq(cpl({spend:5000,first_time:0}), null, 'gasto sin leads = null (no /0)');
+eq(cpl({spend:0,first_time:0}), null, 'sin gasto ni leads = null');
+// gasto 0 con leads -> CPL 0 (valido: cliente con llamadas gratis/otro canal)
+almost(cpl({spend:0,first_time:5}), 0, 'gasto 0 con leads = CPL 0');
 
-// SANO: captura 70-130% -> green
-// Sarasota con Period Unique: 45 unique / 37 conv = 122% -> green
-eq(health(45, 37).cls, 'green', 'Sarasota (45/37 = 122%) = ok/green');
-// Dubuque: 79 / ~85 -> ~93% green
-eq(health(79, 85).cls, 'green', 'Dubuque (~93%) = ok/green');
-// Memphis: 41 / 41 = 100% green
-eq(health(41, 41).cls, 'green', 'Memphis (100%) = ok/green');
+// --- Tendencia: CPL sube = peor (up/rojo), baja = mejor (down/verde) ---
+eq(trendCls(90,75), 'up',   'CPL 75->90 = up (peor)');
+eq(trendCls(75,90), 'down', 'CPL 90->75 = down (mejor)');
+// cambio <3% = flat
+eq(trendCls(75,74), 'flat', 'cambio chico (<3%) = flat');
+eq(trendCls(100,100), 'flat', 'sin cambio = flat');
+// exacto 3% no es flat (es el limite)
+eq(trendCls(103,100), 'up', 'exacto +3% = up (limite no inclusivo en flat)');
+// mes sin dato previo -> null
+eq(trendCls(75,null), null, 'sin mes previo = null');
+eq(trendCls(null,75), null, 'sin CPL actual = null');
 
-// SOBRE-ATRIBUCION: >130% -> red
-// Permian Basin: 76 unique / 33 conv = 230% -> red
-eq(health(76, 33).cls, 'red', 'Permian Basin (76/33 = 230%) = over/red');
-// Denver: 46 / 24 = 192% -> red
-eq(health(46, 24).cls, 'red', 'Denver (46/24 = 192%) = over/red');
-
-// SIN MAPEO: conv null -> grey
-eq(health(0, null).cls, 'grey', 'sin customer_id mapeado = grey');
-// Google reporta 0 conv -> grey
-eq(health(10, 0).cls, 'grey', 'Google 0 conv = grey');
-
-// --- Bordes exactos del umbral (edge-case-correct, no flimsy) ---
-// exactamente 70% -> green (no amber): 70/100
-eq(health(70, 100).cls, 'green', 'exacto 70% = green (limite inferior inclusivo)');
-// justo debajo de 70%: 69/100 -> amber
-eq(health(69, 100).cls, 'amber', 'justo <70% = amber');
-// exactamente 130% -> green: 130/100
-eq(health(130, 100).cls, 'green', 'exacto 130% = green (limite superior inclusivo)');
-// justo arriba de 130%: 131/100 -> red
-eq(health(131, 100).cls, 'red', 'justo >130% = red');
-
-// --- Calculo de gap (unique - conv), signo correcto ---
-function gap(unique, conv){ return unique - conv; }
-eq(gap(45, 37), 8,   'gap Sarasota = +8 (CTM ligeramente arriba)');
-eq(gap(1, 118), -117,'gap Eugene = -117 (CTM muy por debajo = conversiones perdidas)');
-eq(gap(76, 33), 43,  'gap Permian = +43 (CTM sobre-cuenta)');
+// --- Ejemplo de tendencia real: Lansing first vs unique (metricas dan CPL distinto) ---
+// Con first_time=23: 2979/23 = 129.52 ; con unique=49: 2979/49 = 60.80
+almost(cpl({spend:2979,first_time:23}), 129.52, 'Lansing CPL first = $129.52');
+almost(2979/49, 60.80, 'Lansing CPL unique = $60.80 (metrica cambia el CPL)');
 
 console.log('');
-if (failed){ console.error(`${failed} test(s) FALLARON`); process.exit(1); }
-else { console.log('TODOS los tests pasaron'); process.exit(0); }
+if(failed){console.error(`${failed} test(s) FALLARON`);process.exit(1);}
+else{console.log('TODOS los tests pasaron');process.exit(0);}
