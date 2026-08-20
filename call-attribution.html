@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Call Attribution — CORTEX OS</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f0f2f5; color: #1a1a2e; font-size: 14px; line-height: 1.5; }
+
+.utc-banner { background: #eef4ff; border-bottom: 1px solid #cdd7f5; padding: 7px 32px; font-size: 12px; color: #234; }
+
+#error-state { display: none; margin: 40px auto; max-width: 520px; background: #fff; border: 1px solid #ffcdd2; border-radius: 10px; padding: 28px 32px; text-align: center; }
+#error-state h2 { color: #c62828; margin-bottom: 10px; font-size: 16px; }
+#error-state code { display: block; background: #f5f5f5; border-radius: 6px; padding: 10px 14px; font-size: 13px; margin: 14px 0; text-align: left; color: #333; white-space: pre-wrap; }
+#error-state button { margin-top: 10px; padding: 8px 16px; border: 1px solid #1565c0; background: #1565c0; color: #fff; border-radius: 6px; cursor: pointer; }
+
+#loading-state { text-align: center; padding: 80px 32px; color: #757575; font-size: 15px; }
+.spinner { width: 36px; height: 36px; border: 3px solid #e0e0e0; border-top-color: #1565c0; border-radius: 50%; animation: spin .8s linear infinite; margin: 0 auto 16px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+#filter-bar { display: none; background: #fff; border-bottom: 1px solid #e4e6ea; padding: 12px 32px; align-items: center; gap: 20px; flex-wrap: wrap; }
+#filter-bar label { font-size: 12px; font-weight: 600; color: #616161; text-transform: uppercase; letter-spacing: .4px; }
+select, .month-input { border: 1px solid #d0d3d8; border-radius: 6px; padding: 6px 10px; font-size: 13px; color: #1a1a2e; background: #fff; cursor: pointer; }
+select#client-filter { min-width: 240px; padding-right: 28px; appearance: none; background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%23666' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E") no-repeat right 10px center; }
+.tabs { display: flex; gap: 4px; }
+.tabs button { border: 1px solid #d0d3d8; border-radius: 6px; background: #fff; padding: 6px 16px; font-size: 13px; font-weight: 500; color: #424242; cursor: pointer; transition: .15s; }
+.tabs button.active { background: #1565c0; border-color: #1565c0; color: #fff; }
+.tabs button:hover:not(.active) { background: #f5f7fa; }
+.data-as-of { margin-left: auto; font-size: 12px; color: #9e9e9e; }
+
+#dashboard { display: none; padding: 24px 32px; }
+.view { display: none; }
+.view.active { display: block; }
+
+/* Cards */
+.cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 20px; }
+@media (max-width: 900px) { .cards { grid-template-columns: repeat(2, 1fr); } }
+.card { background: #fff; border-radius: 10px; padding: 18px 20px 16px; box-shadow: 0 1px 4px rgba(0,0,0,.07); }
+.card .c-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .6px; color: #9e9e9e; margin-bottom: 8px; }
+.card .c-value { font-size: 30px; font-weight: 700; color: #0d1b2a; line-height: 1.1; }
+.card .c-sub { font-size: 12px; color: #9e9e9e; margin-top: 4px; }
+.card.accent-blue .c-value { color: #1565c0; }
+.card.accent-green .c-value { color: #2e7d32; }
+.card.accent-amber .c-value { color: #ef6c00; }
+
+/* Tables */
+.tbl-card { background: #fff; border-radius: 10px; padding: 20px 22px; box-shadow: 0 1px 4px rgba(0,0,0,.07); margin-bottom: 16px; }
+.tbl-card h3 { font-size: 14px; font-weight: 600; color: #263238; margin-bottom: 4px; }
+.tbl-card .note { font-size: 11px; color: #9e9e9e; margin-bottom: 14px; }
+.data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.data-table thead th { background: #f8f9fb; padding: 9px 12px; text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .4px; color: #757575; border-bottom: 2px solid #e8eaed; }
+.data-table thead th.num { text-align: right; }
+.data-table tbody td { padding: 8px 12px; border-bottom: 1px solid #f0f2f5; color: #424242; }
+.data-table tbody td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.data-table tbody tr:hover td { background: #f8f9fb; }
+.data-table .total-row td { font-weight: 700; background: #f0f4ff; border-top: 2px solid #d0daf5; }
+.data-table tr.gads-row td { background: #eef4ff; font-weight: 600; }
+.data-table tr.gads-row:hover td { background: #e3edff; }
+.no-data { color: #bdbdbd; font-style: italic; padding: 20px 0; text-align: center; }
+
+/* Health pill */
+.pill { display: inline-block; padding: 2px 9px; border-radius: 11px; font-size: 11px; font-weight: 600; }
+.pill.green { background: #e6f4ea; color: #1e7e34; }
+.pill.amber { background: #fff3e0; color: #e65100; }
+.pill.red   { background: #fdecea; color: #c62828; }
+.pill.grey  { background: #eceff1; color: #607d8b; }
+
+.chan-label { display: inline-flex; align-items: center; gap: 7px; }
+.dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+</style>
+</head>
+<body>
+
+<div class="utc-banner">
+  Attribution based on CTM session data (gclid / Call Asset / source / UTM). <strong>google_paid</strong> = paid ads only (GBP and organic shown separately). Google Ads conversion gap compares against Google Ads <strong>PHONE_CALL_LEAD</strong> conversions for the selected month.
+</div>
+
+<div id="loading-state"><div class="spinner"></div>Loading attribution data…</div>
+
+<div id="error-state">
+  <h2>Couldn't load attribution data</h2>
+  <code id="error-detail"></code>
+  <button onclick="location.reload()">Retry</button>
+</div>
+
+<div id="filter-bar">
+  <div class="tabs">
+    <button data-view="client" class="active">By client</button>
+    <button data-view="all">All clients (gap)</button>
+  </div>
+  <label for="client-filter" id="client-lbl">Client</label>
+  <select id="client-filter"></select>
+  <label for="month-filter">Month</label>
+  <input type="month" id="month-filter" class="month-input">
+  <span class="data-as-of" id="data-as-of"></span>
+</div>
+
+<div id="dashboard">
+
+  <!-- VIEW: BY CLIENT -->
+  <div class="view active" id="view-client">
+    <div class="cards">
+      <div class="card accent-blue"><div class="c-label">Google Ads calls (CTM)</div><div class="c-value" id="k-gpaid">—</div><div class="c-sub">Total · google_paid</div></div>
+      <div class="card"><div class="c-label">Google Ads unique</div><div class="c-value" id="k-gpaid-u">—</div><div class="c-sub">Period Unique callers</div></div>
+      <div class="card accent-green"><div class="c-label">Google Ads conversions</div><div class="c-value" id="k-gconv">—</div><div class="c-sub">reported by Google Ads</div></div>
+      <div class="card accent-amber"><div class="c-label">Capture rate</div><div class="c-value" id="k-capture">—</div><div class="c-sub" id="k-capture-sub">CTM unique ÷ Google conv</div></div>
+    </div>
+
+    <div class="tbl-card">
+      <h3>Calls by channel</h3>
+      <div class="note">Total = all calls · Period Unique = distinct callers. Google Ads row also compared to Google Ads reported conversions for the month.</div>
+      <table class="data-table" id="chan-table">
+        <thead><tr>
+          <th>Channel</th>
+          <th class="num">Total</th>
+          <th class="num">Period Unique</th>
+          <th class="num">Google conv.</th>
+          <th class="num">Gap</th>
+          <th>Tracking health</th>
+        </tr></thead>
+        <tbody id="chan-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- VIEW: ALL CLIENTS -->
+  <div class="view" id="view-all">
+    <div class="cards">
+      <div class="card accent-green"><div class="c-label">Google conv. (total)</div><div class="c-value" id="a-gconv">—</div><div class="c-sub">all clients, this month</div></div>
+      <div class="card accent-blue"><div class="c-label">CTM google_paid unique</div><div class="c-value" id="a-ctm">—</div><div class="c-sub">Period Unique</div></div>
+      <div class="card accent-amber"><div class="c-label">Clients w/ tracking gap</div><div class="c-value" id="a-gaps">—</div><div class="c-sub">capture &lt; 70%</div></div>
+      <div class="card"><div class="c-label">Unmapped Google accts</div><div class="c-value" id="a-unmapped">—</div><div class="c-sub">customer_id not in mapping</div></div>
+    </div>
+
+    <div class="tbl-card">
+      <h3>Google Ads capture by client</h3>
+      <div class="note">CTM google_paid (Period Unique) vs Google Ads PHONE_CALL_LEAD conversions. Green 70–130% healthy · Amber &lt;70% likely tracking loss · Red &gt;130% likely over-attribution · Grey = not mapped.</div>
+      <table class="data-table" id="all-table">
+        <thead><tr>
+          <th>Client</th>
+          <th class="num">Google conv.</th>
+          <th class="num">CTM total</th>
+          <th class="num">CTM unique</th>
+          <th class="num">Capture</th>
+          <th>Health</th>
+        </tr></thead>
+        <tbody id="all-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const API = '/api/call-attribution';
+
+// Colores/orden de canales (superset del atributo channel de la vista)
+const CHAN_META = {
+  google_paid:    { label: 'Google Ads (paid)', color: '#4285F4' },
+  gbp:            { label: 'Google Business Profile', color: '#34A853' },
+  google_organic: { label: 'Google Organic', color: '#93c47d' },
+  bing_paid:      { label: 'Bing Ads', color: '#00897B' },
+  bing_organic:   { label: 'Bing Organic', color: '#4db6ac' },
+  meta_paid:      { label: 'Meta', color: '#1877F2' },
+  nextdoor_paid:  { label: 'Nextdoor', color: '#00B246' },
+  referral:       { label: 'Referral', color: '#8e63ce' },
+  direct:         { label: 'Direct', color: '#78909c' },
+  offline:        { label: 'Offline', color: '#a1887f' },
+  unknown:        { label: 'Unknown', color: '#bdbdbd' },
+};
+const CHAN_ORDER = ['google_paid','gbp','google_organic','bing_paid','bing_organic','meta_paid','nextdoor_paid','referral','direct','offline','unknown'];
+
+let DATA = null, activeClient = 'all', activeView = 'client';
+
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function fmt(n){return Number(n).toLocaleString();}
+function st(id,t){const e=document.getElementById(id);if(e)e.textContent=t;}
+
+// Semaforo de captura. Devuelve {cls,label} o null si no aplica (sin conv Google)
+function health(ctmUnique, gConv){
+  if (gConv == null) return { cls:'grey', label:'not mapped' };
+  if (gConv === 0)  return { cls:'grey', label:'no Google conv' };
+  const pct = ctmUnique / gConv;
+  if (pct < 0.70) return { cls:'amber', label: Math.round(pct*100)+'% — under' };
+  if (pct > 1.30) return { cls:'red',   label: Math.round(pct*100)+'% — over' };
+  return { cls:'green', label: Math.round(pct*100)+'% — ok' };
+}
+
+// customer_id -> conv_google (Google Ads) para el mes cargado
+function gconvByCustomer(){
+  const m = {};
+  for (const r of (DATA.gads_conversions||[])) m[r.customer_id] = r.conv_google;
+  return m;
+}
+
+async function load(month){
+  document.getElementById('loading-state').style.display='block';
+  document.getElementById('dashboard').style.display='none';
+  document.getElementById('filter-bar').style.display='none';
+  document.getElementById('error-state').style.display='none';
+  try{
+    const res = await fetch(API + (month ? ('?month='+month) : ''), {cache:'no-store'});
+    const d = await res.json();
+    if (!res.ok || d.error) throw new Error(d.error || ('HTTP '+res.status));
+    if (!Array.isArray(d.by_channel)) throw new Error('Unexpected data shape');
+    DATA = d;
+  }catch(e){
+    document.getElementById('loading-state').style.display='none';
+    document.getElementById('error-detail').textContent = String(e.message || e);
+    document.getElementById('error-state').style.display='block';
+    return;
+  }
+  document.getElementById('loading-state').style.display='none';
+
+  // poblar selector de cliente (preserva seleccion si sigue existiendo)
+  const sel = document.getElementById('client-filter');
+  const prev = activeClient;
+  sel.innerHTML = DATA.clients.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  activeClient = DATA.clients.includes(prev) ? prev : (DATA.clients[0]||'');
+  sel.value = activeClient;
+
+  // set month input al mes servido
+  const mi = document.getElementById('month-filter');
+  if (!mi.value) mi.value = DATA.month;
+
+  st('data-as-of', `Data as of ${DATA.generated_at} · month ${DATA.month}`);
+  document.getElementById('filter-bar').style.display='flex';
+  document.getElementById('dashboard').style.display='block';
+  render();
+}
+
+function render(){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.getElementById('view-'+activeView).classList.add('active');
+  // el selector de cliente solo aplica a la vista "by client"
+  const isClient = activeView === 'client';
+  document.getElementById('client-filter').style.display = isClient ? '' : 'none';
+  document.getElementById('client-lbl').style.display = isClient ? '' : 'none';
+  if (isClient) renderClient(); else renderAll();
+}
+
+function renderClient(){
+  const rows = (DATA.by_channel||[]).filter(r=>r.client_name===activeClient);
+  const gconv = gconvByCustomer();
+  // customer_id del cliente (cualquier fila lo trae)
+  const cid = rows.length ? rows[0].customer_id : null;
+  const clientConv = (cid != null && gconv[cid] != null) ? gconv[cid] : null;
+
+  // map channel -> {total, period_unique}
+  const byChan = {};
+  for (const r of rows) byChan[r.channel] = { total: r.total, unique: r.period_unique };
+
+  const gp = byChan.google_paid || { total:0, unique:0 };
+  st('k-gpaid', fmt(gp.total));
+  st('k-gpaid-u', fmt(gp.unique));
+  st('k-gconv', clientConv==null ? '—' : fmt(clientConv));
+  const h = health(gp.unique, clientConv);
+  st('k-capture', clientConv==null ? '—' : (Math.round(gp.unique/clientConv*100)+'%'));
+  st('k-capture-sub', clientConv==null ? 'no Google Ads mapping' : 'CTM unique ÷ Google conv');
+
+  const tbody = document.getElementById('chan-tbody');
+  const present = CHAN_ORDER.filter(c=>byChan[c]);
+  if (!present.length){ tbody.innerHTML='<tr><td colspan="6" class="no-data">No calls for this client in this month.</td></tr>'; return; }
+
+  let tTotal=0, tUnique=0;
+  const html = present.map(c=>{
+    const meta = CHAN_META[c] || { label:c, color:'#ccc' };
+    const d = byChan[c]; tTotal+=d.total; tUnique+=d.unique;
+    const isG = c==='google_paid';
+    // gap y health solo para google_paid
+    let convCell='—', gapCell='—', healthCell='—';
+    if (isG){
+      if (clientConv==null){ convCell='<span class="pill grey">not mapped</span>'; }
+      else {
+        convCell = fmt(clientConv);
+        const gap = d.unique - clientConv;
+        gapCell = (gap>=0?'+':'') + fmt(gap);
+        const hh = health(d.unique, clientConv);
+        healthCell = `<span class="pill ${hh.cls}">${hh.label}</span>`;
+      }
+    }
+    return `<tr class="${isG?'gads-row':''}">
+      <td><span class="chan-label"><span class="dot" style="background:${meta.color}"></span>${esc(meta.label)}</span></td>
+      <td class="num">${fmt(d.total)}</td>
+      <td class="num">${fmt(d.unique)}</td>
+      <td class="num">${convCell}</td>
+      <td class="num">${gapCell}</td>
+      <td>${healthCell}</td>
+    </tr>`;
+  }).join('');
+  tbody.innerHTML = html +
+    `<tr class="total-row"><td>Total (all channels)</td><td class="num">${fmt(tTotal)}</td><td class="num">${fmt(tUnique)}</td><td class="num">—</td><td class="num">—</td><td></td></tr>`;
+}
+
+function renderAll(){
+  const gconv = gconvByCustomer();
+  // agrupar CTM google_paid por cliente
+  const perClient = {};
+  for (const r of (DATA.by_channel||[])){
+    if (r.channel !== 'google_paid') continue;
+    perClient[r.client_name] = { total:r.total, unique:r.period_unique, cid:r.customer_id };
+  }
+  // universo de clientes: los que tienen google_paid en CTM
+  const names = Object.keys(perClient);
+
+  // detectar customer_ids de Google Ads que NO estan en ningun cliente (sin mapeo)
+  const mappedCids = new Set(Object.values(perClient).map(v=>v.cid).filter(Boolean));
+  const unmappedRows = (DATA.gads_conversions||[]).filter(g=>!mappedCids.has(g.customer_id) && g.conv_google>0);
+
+  // filas: cliente + captura
+  const rows = names.map(name=>{
+    const d = perClient[name];
+    const conv = (d.cid!=null && gconv[d.cid]!=null) ? gconv[d.cid] : null;
+    return { name, total:d.total, unique:d.unique, conv };
+  });
+  // ordenar: primero los con peor captura (menor pct), nulls al final
+  rows.sort((a,b)=>{
+    const pa = a.conv? a.unique/a.conv : Infinity;
+    const pb = b.conv? b.unique/b.conv : Infinity;
+    return pa - pb;
+  });
+
+  // cards resumen
+  let totConv=0, totUnique=0, gaps=0;
+  for (const r of rows){ if(r.conv){totConv+=r.conv; if(r.unique/r.conv<0.70) gaps++;} totUnique+=r.unique; }
+  let unmappedConv=0; for(const u of unmappedRows) unmappedConv+=u.conv_google;
+  st('a-gconv', fmt(totConv));
+  st('a-ctm', fmt(totUnique));
+  st('a-gaps', fmt(gaps));
+  st('a-unmapped', unmappedRows.length ? `${unmappedRows.length}` : '0');
+
+  const tbody = document.getElementById('all-tbody');
+  const body = rows.map(r=>{
+    const hh = health(r.unique, r.conv);
+    const cap = r.conv==null ? '—' : Math.round(r.unique/r.conv*100)+'%';
+    return `<tr>
+      <td>${esc(r.name)}</td>
+      <td class="num">${r.conv==null?'—':fmt(r.conv)}</td>
+      <td class="num">${fmt(r.total)}</td>
+      <td class="num">${fmt(r.unique)}</td>
+      <td class="num">${cap}</td>
+      <td><span class="pill ${hh.cls}">${hh.label}</span></td>
+    </tr>`;
+  }).join('');
+
+  // fila(s) de cuentas sin mapear (Google reporta conv, no hay cliente)
+  const unmapped = unmappedRows
+    .sort((a,b)=>b.conv_google-a.conv_google)
+    .map(u=>`<tr>
+      <td><span class="pill grey">unmapped</span> customer_id ${esc(u.customer_id)}</td>
+      <td class="num">${fmt(u.conv_google)}</td>
+      <td class="num">—</td><td class="num">—</td><td class="num">—</td>
+      <td><span class="pill grey">not in mapping</span></td>
+    </tr>`).join('');
+
+  tbody.innerHTML = (body || '') + (unmapped || '') ||
+    '<tr><td colspan="6" class="no-data">No data for this month.</td></tr>';
+}
+
+// eventos
+document.getElementById('client-filter').addEventListener('change', e=>{ activeClient=e.target.value; render(); });
+document.querySelectorAll('.tabs button').forEach(b=>b.addEventListener('click', ()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); activeView=b.dataset.view; render();
+}));
+document.getElementById('month-filter').addEventListener('change', e=>{ load(e.target.value); });
+
+load();  // sin month -> el endpoint usa mes anterior completo
+</script>
+<script src="/cortex-shell.js" defer></script>
+</body>
+</html>
